@@ -14,7 +14,11 @@ import type {Word} from "../src/types";
 import {ERRO_VISIVEL_MS, UM_QUADRO_MS, compararComAudio, estatisticas, piores} from "./comparacao";
 import type {Estatisticas, Ponto} from "./comparacao";
 import {encaixarNoAudio} from "../src/encaixe";
+import {diferencas, textoComTempos} from "./casar";
 import type {VozDoAudio} from "../src/types";
+
+// Pausa curta do meio da frase: de 60 a 150 ms.
+const PAUSA_CURTA_MS = [60, 150] as const;
 import {analisarMotor, compararTrocas, sincroniaPadraoMs} from "./motor";
 import type {TrocaDoBloco} from "./motor";
 import {montarPagina} from "./pagina";
@@ -81,6 +85,16 @@ const groq = async (video: string, base: string): Promise<Transcricao | undefine
   return {nome: "Groq (whisper-large-v3)", arquivo, palavras: words};
 };
 
+// WhisperX no Replicate (alinhamento forçado), gerado por medicao/whisperx.ts.
+const whisperx = (base: string): Transcricao | undefined => {
+  const arquivo = path.join(SAIDA, `${base}.whisperx.json`);
+  if (!existsSync(arquivo)) {
+    console.log("Sem a transcrição do WhisperX: rode npx tsx medicao/whisperx.ts para incluí-la.");
+    return undefined;
+  }
+  return {nome: "WhisperX (Replicate)", arquivo, palavras: lerPalavras(arquivo).words};
+};
+
 const ms = (v: number) => `${Math.round(v)} ms`;
 const s = (v: number) => `${(v / 1000).toFixed(2)} s`;
 
@@ -118,7 +132,14 @@ const principal = async () => {
   const {fps, durationInFrames} = await getVideoMetadata(video);
   console.log(`Vídeo: ${video} (${fps} fps, ${durationInFrames} quadros)`);
 
-  const transcricoes = [await whisperLocal(video, base), await groq(video, base)].filter((t): t is Transcricao => Boolean(t));
+  const transcricoes = [await whisperLocal(video, base), await groq(video, base), whisperx(base)].filter((t): t is Transcricao => Boolean(t));
+  // Texto da Groq com os tempos do WhisperX, casando palavra a palavra.
+  const doGroq = transcricoes.find((t) => t.nome.startsWith("Groq"));
+  const doWhisperx = transcricoes.find((t) => t.nome.startsWith("WhisperX"));
+  const hibrido = doGroq && doWhisperx ? textoComTempos(doGroq.palavras, doWhisperx.palavras) : undefined;
+  if (hibrido && doGroq) {
+    transcricoes.push({nome: "Groq + tempos do WhisperX", arquivo: doGroq.arquivo, palavras: hibrido.words});
+  }
 
   console.log("Analisando o áudio...");
   const audio = await extrairAudio(video);
@@ -128,6 +149,30 @@ const principal = async () => {
   console.log(
     `  ${voz.trechos.length} trechos de voz · ${voz.comecos.length} começos depois de silêncio de ${VOZ_CONFIG.silencioMinimoMs} ms+ · ${voz.fins.length} fins antes de silêncio · piso ${voz.pisoDb.toFixed(1)} dB, pico ${voz.picoDb.toFixed(1)} dB`,
   );
+
+  // Pausas curtas (60 a 150 ms) no meio da frase: começos e fins de voz em volta
+  // delas, achados com o silêncio mínimo de 60 ms.
+  const vozCurta = detectarVoz(energia, PAUSA_CURTA_MS[0]);
+  const pausaAntes = (i: number) => (i === 0 ? Infinity : vozCurta.trechos[i].inicioMs - vozCurta.trechos[i - 1].fimMs);
+  const curta = (pausa: number) => pausa >= PAUSA_CURTA_MS[0] && pausa < PAUSA_CURTA_MS[1];
+  const comecosCurtos = vozCurta.trechos.filter((_, i) => curta(pausaAntes(i))).map((t) => t.inicioMs);
+  const finsCurtos = vozCurta.trechos.filter((_, i) => i < vozCurta.trechos.length - 1 && curta(pausaAntes(i + 1))).map((t) => t.fimMs);
+  console.log(`  Pausas curtas (${PAUSA_CURTA_MS[0]} a ${PAUSA_CURTA_MS[1]} ms): ${comecosCurtos.length} começos e ${finsCurtos.length} fins de voz em volta delas`);
+  const tabela: {nome: string; encaixe: boolean; linhas: Record<string, Estatisticas>}[] = [];
+  const medirTudo = (nome: string, encaixe: boolean, palavras: Word[]) => {
+    const longos = compararComAudio(palavras, voz.comecos, voz.fins);
+    const curtos = compararComAudio(palavras, comecosCurtos, finsCurtos);
+    tabela.push({
+      nome,
+      encaixe,
+      linhas: {
+        "começos (silêncio 150+)": estatisticas(longos.filter((p) => p.tipo === "início")),
+        "fins (silêncio 150+)": estatisticas(longos.filter((p) => p.tipo === "fim")),
+        "começos (pausa curta)": estatisticas(curtos.filter((p) => p.tipo === "início")),
+        "fins (pausa curta)": estatisticas(curtos.filter((p) => p.tipo === "fim")),
+      },
+    });
+  };
 
   const naPagina: TranscricaoNaPagina[] = [];
   const resumo: Record<string, unknown> = {};
@@ -148,6 +193,9 @@ const principal = async () => {
     // que interessa é quantos pontos encaixaram e o erro dos que ficaram de fora.
     const encaixe = encaixarNoAudio(t.palavras, vozDoAudio);
     const pontosDepois = compararComAudio(encaixe.palavras, voz.comecos, voz.fins);
+    naPagina.push({nome: `${t.nome} + encaixe`, palavras: encaixe.palavras, pontos: pontosDepois, estatisticas: estatisticas(pontosDepois), piores: piores(pontosDepois, 15)});
+    medirTudo(t.nome, false, t.palavras);
+    medirTudo(t.nome, true, encaixe.palavras);
     const depois = {
       total: estatisticas(pontosDepois),
       início: estatisticas(pontosDepois.filter((p) => p.tipo === "início")),
@@ -163,6 +211,41 @@ const principal = async () => {
       console.log(`    sobrou: ${p.palavra.padEnd(16)} ${p.tipo.padEnd(6)} erro ${p.erroMs > 0 ? "+" : ""}${Math.round(p.erroMs)} ms`);
     }
     resumo[t.nome] = {arquivo: path.relative(RAIZ, t.arquivo), total: est, ...porTipo, piores: ruins, comEncaixe: {...depois, inicios: encaixe.inicios, fins: encaixe.fins, trechosDuvidosos: encaixe.trechosDuvidosos}};
+  }
+
+  // Tabela: cada transcrição sem e com o encaixe, nos quatro tipos de ponto.
+  console.log("\n=== Comparação (erro médio · acima de 1 quadro / pontos) ===");
+  const colunas = Object.keys(tabela[0]?.linhas ?? {});
+  console.log(`  ${"".padEnd(36)}${colunas.map((c) => c.padEnd(26)).join("")}`);
+  for (const linha of tabela) {
+    const celulas = colunas.map((c) => {
+      const e = linha.linhas[c];
+      return `${ms(e.erroMedioMs).padStart(6)} · ${e.acimaDeUmQuadro}/${e.pontos}`.padEnd(26);
+    });
+    console.log(`  ${`${linha.nome}${linha.encaixe ? " + encaixe" : ""}`.padEnd(36)}${celulas.join("")}`);
+  }
+
+  // Texto: Groq × WhisperX, e o texto da Groq com os tempos do WhisperX.
+  let comparacaoDeTexto: unknown;
+  if (doGroq && doWhisperx && hibrido) {
+    const {casadas, diferencas: lista} = diferencas(doGroq.palavras, doWhisperx.palavras);
+    const contar = (texto: string) => (texto ? texto.split(" ").length : 0);
+    const soNaGroq = lista.reduce((soma, d) => soma + contar(d.a), 0);
+    const soNoWhisperx = lista.reduce((soma, d) => soma + contar(d.b), 0);
+    console.log(`\n=== Texto: Groq (${doGroq.palavras.length} palavras) × WhisperX (${doWhisperx.palavras.length}) ===`);
+    console.log(
+      `  ${casadas} palavras iguais (sem acento, pontuação nem maiúsculas) · ${lista.length} trechos diferentes: ${soNaGroq} palavras só na Groq, ${soNoWhisperx} só no WhisperX`,
+    );
+    for (const d of lista) {
+      console.log(`    ${s(d.aMs)}  Groq "${d.a || "—"}"  ×  WhisperX "${d.b || "—"}"`);
+    }
+    console.log(
+      `  Texto da Groq com os tempos do WhisperX: ${doGroq.palavras.length - hibrido.naoCasadas.length} palavras com o tempo do WhisperX, ${hibrido.naoCasadas.length} sem par (tempo repartido entre as vizinhas casadas):`,
+    );
+    for (const n of hibrido.naoCasadas) {
+      console.log(`    "${n.text}": Groq ${s(n.antesMs)} → ${s(n.depoisMs)} (${n.depoisMs - n.antesMs > 0 ? "+" : ""}${n.depoisMs - n.antesMs} ms)`);
+    }
+    comparacaoDeTexto = {casadas, diferencas: lista, naoCasadas: hibrido.naoCasadas};
   }
 
   console.log("\n=== O motor (mesmas palavras do Whisper local, agrupadas como numa transcrição nova) ===");
@@ -252,7 +335,7 @@ const principal = async () => {
   const arquivoPagina = path.join(SAIDA, `${base}.sincronia.html`);
   const arquivoJson = path.join(SAIDA, `${base}.sincronia.json`);
   writeFileSync(arquivoPagina, pagina);
-  writeFileSync(arquivoJson, JSON.stringify({video: path.basename(video), fps, voz: {...voz, trechos: voz.trechos.length}, transcricoes: resumo, motor, motorPreciso, trocas: trocasPorPacote}, null, 2));
+  writeFileSync(arquivoJson, JSON.stringify({video: path.basename(video), fps, voz: {...voz, trechos: voz.trechos.length}, transcricoes: resumo, tabela, comparacaoDeTexto, motor, motorPreciso, trocas: trocasPorPacote}, null, 2));
   console.log(`\nPágina de conferência: ${arquivoPagina}`);
   console.log(`Números: ${arquivoJson}`);
 };

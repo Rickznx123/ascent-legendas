@@ -77,7 +77,9 @@ export type Voz = {
   picoDb: number;
 };
 
-export const detectarVoz = (energia: number[]): Voz => {
+// silencioMinimoMs: o padrão é o da Sincronia precisa; a medição usa um menor para
+// achar as pausas curtas do meio da frase.
+export const detectarVoz = (energia: number[], silencioMinimoMs = VOZ_CONFIG.silencioMinimoMs): Voz => {
   const piso = percentil(energia, 10);
   const pico = percentil(energia, 98);
   const alto = piso + VOZ_CONFIG.limiarAlto * (pico - piso);
@@ -104,7 +106,7 @@ export const detectarVoz = (energia: number[]): Voz => {
   }
 
   // Junta trechos separados por menos que o silêncio mínimo; descarta os curtos.
-  const silencioJanelas = VOZ_CONFIG.silencioMinimoMs / JANELA_MS;
+  const silencioJanelas = silencioMinimoMs / JANELA_MS;
   const juntos: {de: number; ate: number}[] = [];
   for (const trecho of brutos) {
     const ultimo = juntos[juntos.length - 1];
@@ -122,10 +124,10 @@ export const detectarVoz = (energia: number[]): Voz => {
   // antes dele) e fim antes de silêncio (o último só se houver silêncio depois).
   const duracaoMs = energia.length * JANELA_MS;
   const comecos = trechos
-    .filter((t, i) => (i === 0 ? t.inicioMs : t.inicioMs - trechos[i - 1].fimMs) >= VOZ_CONFIG.silencioMinimoMs)
+    .filter((t, i) => (i === 0 ? t.inicioMs : t.inicioMs - trechos[i - 1].fimMs) >= silencioMinimoMs)
     .map((t) => t.inicioMs);
   const fins = trechos
-    .filter((t, i) => (i === trechos.length - 1 ? duracaoMs - t.fimMs : trechos[i + 1].inicioMs - t.fimMs) >= VOZ_CONFIG.silencioMinimoMs)
+    .filter((t, i) => (i === trechos.length - 1 ? duracaoMs - t.fimMs : trechos[i + 1].inicioMs - t.fimMs) >= silencioMinimoMs)
     .map((t) => t.fimMs);
 
   return {trechos, comecos, fins, limiarAltoDb: alto, limiarBaixoDb: baixo, pisoDb: piso, picoDb: pico};
