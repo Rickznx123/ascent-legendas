@@ -1,0 +1,22 @@
+PROVA DO AJUSTE DE POSIÇÃO DA LEGENDA — 03/10/2026
+
+A) Chrome COM JANELA, no app real (npm run app, porta 5174), lendo o transcricao.json real
+   Passos: bloco selecionado, Mover legenda ligado, elementFromPoint sobre a legenda = DIV.arrasto-area
+   antes de arrastar:  geral=ausente (padrão 50% × 68%)
+   depois de arrastar: geral=50% × 56.9%   (eventos: pointerdown/pointermove/pointerup na arrasto-area, sem erros)
+   Obs.: o usuário mexia na mesma janela ao mesmo tempo; o valor final misturou os dois movimentos.
+
+B) Sequência completa (arrastar + controles deslizantes), Brave com as extensões do usuário, cópia do projeto
+21:07:15  0. inicio                          geral=50% × 57.9%      bloco10=ausente
+21:07:27  1. antes de arrastar a geral       geral=50% × 57.9%      bloco10=ausente
+21:07:30  1. depois de arrastar a geral      geral=50% × 38.8%      bloco10=ausente
+21:07:49  2. antes de arrastar o bloco 10    geral=50% × 38.8%      bloco10=ausente
+21:07:52  2. depois de arrastar o bloco 10   geral=50% × 38.8%      bloco10=50% × 66.9%
+21:08:25  3a. antes do deslizante Vertical   geral=50% × 38.8%      bloco10=50% × 66.9%
+21:08:27  3a. depois do deslizante Vertical  geral=50% × 80.7%      bloco10=50% × 66.9%
+21:08:39  3b. depois do Horizontal (teclado) geral=29.9% × 80.7%    bloco10=50% × 66.9%
+21:08:40  3c. depois de Centralizar          geral=50% × 80.7%      bloco10=50% × 66.9%
+21:08:51  4a. antes do deslizante do bloco   geral=50% × 80.7%      bloco10=50% × 66.9%
+21:09:03  4a. depois do deslizante do bloco  geral=50% × 80.7%      bloco10=50% × 23.9%
+21:09:05  4b. depois de Usar posição geral   geral=50% × 80.7%      bloco10=ausente
+21:09:16  5. Vertical no maximo (margem 92%) geral=50% × 92%        bloco10=ausente

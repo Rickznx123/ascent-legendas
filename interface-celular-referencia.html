@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interface de celular, referência</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* ---- CORES DA MARCA: as mesmas variáveis da interface de computador ---- */
+  --acento:#7c5cff;
+  --acento-texto:#ffffff;
+  --fundo:#0e0e11;
+  --painel:#16161b;
+  --painel-2:#1e1e25;
+  --linha:#2a2a33;
+  --texto:#ececf1;
+  --suave:#8d8d9a;
+  --aviso:#f5b83d;
+  --perigo:#ff5a52;
+  --acento-fraco:color-mix(in srgb,var(--acento) 18%,transparent);
+  --ui:'Inter Tight',Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#08080a;color:var(--texto);font:500 13px/1.35 var(--ui);padding:28px 16px 60px}
+header.topo{max-width:1500px;margin:0 auto 24px;display:flex;flex-wrap:wrap;gap:16px;align-items:end;justify-content:space-between}
+header.topo h1{font:800 26px/1 var(--ui);letter-spacing:-.03em;margin:0 0 8px}
+header.topo p{margin:0;color:var(--suave);font-size:14px;max-width:62ch;line-height:1.5}
+.testar{display:flex;gap:12px;align-items:center;color:var(--suave);font-size:12px;border:1px solid var(--linha);border-radius:10px;padding:8px 12px}
+.testar input{width:28px;height:24px;padding:0;border:0;background:none}
+main{max-width:1500px;margin:0 auto;display:flex;flex-wrap:wrap;gap:28px 22px;justify-content:center}
+figure{margin:0;width:320px}
+figcaption{padding:12px 4px 0}
+figcaption b{display:block;font-weight:700;font-size:15px;margin-bottom:5px}
+figcaption span{display:block;color:var(--suave);font-size:13px;line-height:1.5}
+
+/* ---------- moldura do telefone ---------- */
+.fone{width:320px;height:680px;border-radius:34px;border:6px solid #23232b;background:var(--fundo);overflow:hidden;display:flex;flex-direction:column;position:relative}
+button{font:inherit;color:inherit;background:none;border:0;padding:0}
+
+/* ---------- peças comuns ---------- */
+.barra{height:50px;flex:none;display:flex;align-items:center;gap:10px;padding:0 12px;background:var(--painel);border-bottom:1px solid var(--linha)}
+.barra .nome{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ic{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;color:var(--suave);font-size:16px;flex:none}
+.pill{height:34px;padding:0 16px;border-radius:99px;background:var(--acento);color:var(--acento-texto);font-weight:700;display:inline-flex;align-items:center}
+.bt{min-height:44px;padding:0 14px;border-radius:10px;background:var(--painel-2);border:1px solid var(--linha);font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.bt.cheio{width:100%}
+.bt.primario{background:var(--acento);border-color:var(--acento);color:var(--acento-texto);font-weight:700}
+.bt.perigo{color:var(--perigo)}
+.titulo{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--suave);margin:14px 0 8px}
+.rolagem{flex:1;min-height:0;overflow:hidden;padding:12px}
+
+/* palco do vídeo */
+.palco{flex:none;height:292px;background:#000;display:grid;place-items:center;position:relative}
+.video{height:100%;aspect-ratio:9/16;position:relative;overflow:hidden;container-type:inline-size;
+  background:linear-gradient(180deg,#d8cdbf 0%,#cbbba8 30%,#6a4a35 44%,#553a29 66%,#e6e2dc 76%,#d9d4cc 100%)}
+.legenda{position:absolute;left:50%;top:68%;transform:translate(-50%,-50%);white-space:nowrap;text-align:right;color:#fff;text-transform:lowercase;text-shadow:0 .4cqw 2.4cqw rgba(0,0,0,.6)}
+.legenda div{font-weight:300;font-size:8cqw;letter-spacing:-.05em;line-height:1}
+.legenda strong{display:block;font-weight:800;font-size:19cqw;letter-spacing:-.065em;line-height:.9}
+.legenda.sel{outline:1px dashed var(--acento);outline-offset:4px}
+.transporte{height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;background:var(--painel);border-bottom:1px solid var(--linha)}
+.relogio{font-variant-numeric:tabular-nums;color:var(--suave);font-size:12px}
+.relogio b{color:var(--texto)}
+.faixa{flex:1;height:22px;position:relative;border-radius:5px;overflow:hidden;background:var(--painel-2)}
+.faixa i{position:absolute;top:3px;bottom:3px;border-radius:3px;background:#3a3a46}
+.faixa i.d{background:var(--acento)}
+.faixa::after{content:"";position:absolute;top:0;bottom:0;left:34%;width:2px;background:#fff}
+
+/* abas de baixo */
+.abas{height:58px;flex:none;display:flex;background:var(--painel);border-top:1px solid var(--linha)}
+.aba{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--suave);font-size:10.5px;font-weight:600}
+.aba i{font-style:normal;font-size:16px;line-height:1}
+.aba.on{color:var(--texto)}
+.aba.on i{color:var(--acento)}
+
+/* lista de legendas */
+.bloco{border:1px solid var(--linha);border-radius:10px;background:var(--painel-2);padding:8px 10px;margin-bottom:6px}
+.bloco.on{border-color:var(--acento);background:var(--acento-fraco)}
+.bloco.revisar{border-left:3px solid var(--aviso)}
+.cab{display:flex;align-items:center;gap:8px;color:var(--suave);font-size:11px;margin-bottom:6px;font-variant-numeric:tabular-nums}
+.cab b{color:var(--texto)}
+.selo{margin-left:auto;padding:2px 8px;border-radius:99px;background:var(--painel);border:1px solid var(--linha);font-weight:600}
+.selo.d{border-color:var(--acento);color:var(--texto)}
+.palavras{display:flex;flex-wrap:wrap;gap:5px}
+.p{padding:6px 10px;border-radius:7px;background:var(--painel);font-size:13px}
+.p.chave{background:var(--acento);color:var(--acento-texto);font-weight:700}
+
+/* templates */
+.chips{display:flex;gap:6px;margin-bottom:10px;overflow:hidden}
+.chip{height:32px;padding:0 12px;border-radius:99px;background:var(--painel-2);border:1px solid var(--linha);font-weight:600;color:var(--suave);display:inline-flex;align-items:center;flex:none}
+.chip.on{background:var(--acento-fraco);border-color:var(--acento);color:var(--texto)}
+.grade{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.mini{aspect-ratio:1/1.05;border-radius:9px;background:#000;border:1px solid var(--linha);display:grid;place-items:center;position:relative}
+.mini.on{border-color:var(--acento);box-shadow:0 0 0 1px var(--acento)}
+.mini span{font-weight:800;letter-spacing:-.05em;font-size:15px;color:#fff;text-transform:lowercase}
+.mini small{position:absolute;left:6px;bottom:4px;font-size:10px;color:var(--suave);font-weight:600}
+.mini.s1 span{font-family:Georgia,serif;font-style:italic;font-weight:400;letter-spacing:-.02em}
+.mini.s2 span{font-family:Impact,'Arial Narrow',sans-serif;text-transform:uppercase;font-weight:400;letter-spacing:0}
+.mini.s3 span{font-weight:300}
+
+/* folha de ajustes do bloco */
+.folha{flex:1;min-height:0;background:var(--painel);border-top:1px solid var(--linha);border-radius:16px 16px 0 0;margin-top:-10px;position:relative;padding:8px 14px 12px;overflow:hidden}
+.pega{width:36px;height:4px;border-radius:2px;background:var(--linha);margin:0 auto 10px}
+.campo{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;border-bottom:1px solid var(--linha)}
+.campo label{color:var(--suave)}
+.valor{font-weight:600}
+.bolinhas{display:flex;gap:8px}
+.bolinhas i{width:24px;height:24px;border-radius:50%;display:block;border:1px solid rgba(255,255,255,.25)}
+.bolinhas i.on{box-shadow:0 0 0 2px var(--painel),0 0 0 4px var(--acento)}
+.seg{display:flex;border:1px solid var(--linha);border-radius:8px;overflow:hidden}
+.seg span{padding:7px 9px;color:var(--suave);font-weight:600;font-size:12px}
+.seg span.on{background:var(--acento-fraco);color:var(--texto)}
+.acoes{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px}
+
+/* início */
+.uso{border:1px solid var(--linha);border-radius:12px;background:var(--painel);padding:12px;margin-bottom:12px}
+.uso b{font-size:15px}
+.uso small{color:var(--suave);display:block;margin-top:2px}
+.medidor{height:6px;border-radius:3px;background:var(--linha);margin-top:10px;overflow:hidden}
+.medidor i{display:block;height:100%;width:27%;background:var(--acento);border-radius:3px}
+.videos{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cartao{border-radius:10px;overflow:hidden;background:var(--painel-2);border:1px solid var(--linha)}
+.cartao .capa{aspect-ratio:1/1.1;background:linear-gradient(180deg,#cbbba8,#553a29);position:relative}
+.cartao .capa.b{background:linear-gradient(180deg,#9fb4c4,#2d3d4d)}
+.cartao .capa em{position:absolute;right:6px;bottom:6px;font-style:normal;font-size:10.5px;font-weight:600;background:#000a;padding:2px 6px;border-radius:5px}
+.cartao div.t{padding:7px 8px}
+.cartao div.t b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cartao div.t small{color:var(--suave)}
+
+/* exportar */
+.centro{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;text-align:center}
+.pronto{width:120px;aspect-ratio:9/16;border-radius:10px;background:linear-gradient(180deg,#cbbba8,#553a29);border:1px solid var(--linha)}
+.centro h2{font:800 20px/1.1 var(--ui);letter-spacing:-.02em;margin:0}
+.centro p{margin:0;color:var(--suave);line-height:1.5}
+.progresso{width:100%;height:8px;border-radius:4px;background:var(--linha);overflow:hidden}
+.progresso i{display:block;height:100%;width:100%;background:var(--acento)}
+.pilha{display:grid;gap:8px;width:100%}
+</style>
+</head>
+<body>
+<header class="topo">
+  <div>
+    <h1>Interface de celular</h1>
+    <p>Cinco telas do app no celular. O vídeo fica sempre em cima, e o que hoje são os painéis laterais do computador vira abas embaixo. As cores usam as mesmas variáveis da interface de computador.</p>
+  </div>
+  <div class="testar">Testar cores:
+    <label>principal <input type="color" id="c-acento" value="#7c5cff"></label>
+    <label>fundo <input type="color" id="c-fundo" value="#0e0e11"></label>
+    <label>painel <input type="color" id="c-painel" value="#16161b"></label>
+  </div>
+</header>
+
+<main>
+  <!-- 1. INÍCIO -->
+  <figure>
+    <div class="fone">
+      <div class="barra"><span class="nome" style="font-weight:800;font-size:15px;letter-spacing:-.02em">Ascent Legendas</span><span class="ic">☰</span></div>
+      <div class="rolagem">
+        <div class="uso">
+          <b>8 de 30 min usados</b>
+          <small>Renova em 12 dias · Plano mensal</small>
+          <div class="medidor"><i></i></div>
+        </div>
+        <button class="bt primario cheio">＋ Importar vídeo</button>
+        <div class="titulo">Seus vídeos</div>
+        <div class="videos">
+          <div class="cartao"><div class="capa"><em>0:57</em></div><div class="t"><b>Harmonização íntima</b><small>Em edição</small></div></div>
+          <div class="cartao"><div class="capa b"><em>0:22</em></div><div class="t"><b>Depilação a laser</b><small>Exportado</small></div></div>
+          <div class="cartao"><div class="capa b"><em>1:14</em></div><div class="t"><b>Dicas de pele</b><small>Exportado</small></div></div>
+          <div class="cartao"><div class="capa"><em>0:41</em></div><div class="t"><b>Promoção de outubro</b><small>Transcrevendo…</small></div></div>
+        </div>
+      </div>
+    </div>
+    <figcaption><b>1. Início</b><span>Minutos usados do plano, botão de importar da galeria do celular e os vídeos já enviados. No teste grátis, o quadro de cima mostra "1 vídeo grátis com marca d'água" e um botão para assinar.</span></figcaption>
+  </figure>
+
+  <!-- 2. EDITOR: LEGENDAS -->
+  <figure>
+    <div class="fone">
+      <div class="barra"><span class="ic">‹</span><span class="nome">Harmonização íntima</span><span class="ic">↶</span><span class="pill">Exportar</span></div>
+      <div class="palco"><div class="video"><div class="legenda"><div>além do</div><strong>único</strong></div></div></div>
+      <div class="transporte"><span class="ic" style="color:var(--texto)">▶</span><span class="relogio"><b>0:19</b> / 0:57</span>
+        <div class="faixa"><i style="left:2%;width:9%"></i><i class="d" style="left:12%;width:8%"></i><i style="left:21%;width:10%"></i><i class="d" style="left:32%;width:7%"></i><i style="left:40%;width:11%"></i><i style="left:52%;width:9%"></i><i class="d" style="left:62%;width:8%"></i><i style="left:71%;width:12%"></i><i class="d" style="left:84%;width:9%"></i></div></div>
+      <div class="rolagem" style="padding:8px">
+        <div class="bloco"><div class="cab"><b>#13</b>0:13<span class="selo">linear</span></div><div class="palavras"><span class="p chave">ressecamento</span><span class="p">vaginal,</span></div></div>
+        <div class="bloco on"><div class="cab"><b>#14</b>0:14<span class="selo d">d1</span></div><div class="palavras"><span class="p">além</span><span class="p">do</span><span class="p chave">único</span></div></div>
+        <div class="bloco revisar"><div class="cab"><b>#15</b>0:15 · revisar<span class="selo">linear</span></div><div class="palavras"><span class="p">de</span><span class="p chave">repetição,</span></div></div>
+      </div>
+      <div class="abas"><span class="aba on"><i>≡</i>Legendas</span><span class="aba"><i>▦</i>Templates</span><span class="aba"><i>◐</i>Cores</span><span class="aba"><i>♪</i>Sons</span><span class="aba"><i>⚙</i>Ajustes</span></div>
+    </div>
+    <figcaption><b>2. Editor, aba Legendas</b><span>Vídeo em cima com a prévia ao vivo, faixa de tempo fina para navegar, e a lista de blocos embaixo. Tocar numa palavra faz dela a palavra-chave. Tocar no bloco leva o vídeo até ele e abre os ajustes (tela 4).</span></figcaption>
+  </figure>
+
+  <!-- 3. EDITOR: TEMPLATES -->
+  <figure>
+    <div class="fone">
+      <div class="barra"><span class="ic">‹</span><span class="nome">Harmonização íntima</span><span class="ic">↶</span><span class="pill">Exportar</span></div>
+      <div class="palco"><div class="video"><div class="legenda"><div>além do</div><strong>único</strong></div></div></div>
+      <div class="transporte"><span class="ic" style="color:var(--texto)">▶</span><span class="relogio"><b>0:19</b> / 0:57</span>
+        <div class="faixa"><i style="left:2%;width:9%"></i><i class="d" style="left:12%;width:8%"></i><i style="left:21%;width:10%"></i><i class="d" style="left:32%;width:7%"></i><i style="left:40%;width:11%"></i><i style="left:52%;width:9%"></i><i class="d" style="left:62%;width:8%"></i><i style="left:71%;width:12%"></i><i class="d" style="left:84%;width:9%"></i></div></div>
+      <div class="rolagem" style="padding:10px">
+        <div class="chips"><span class="chip on">Misto</span><span class="chip">A</span><span class="chip">B</span><span class="chip">C</span><span class="chip">D</span><span class="chip">E</span></div>
+        <div class="grade">
+          <div class="mini on"><span>único</span><small>d1</small></div>
+          <div class="mini s1"><span>único</span><small>b4</small></div>
+          <div class="mini s2"><span>único</span><small>c3</small></div>
+          <div class="mini s3"><span>único</span><small>d3</small></div>
+          <div class="mini"><span>único</span><small>e1</small></div>
+          <div class="mini s1"><span>único</span><small>b1</small></div>
+        </div>
+      </div>
+      <div class="abas"><span class="aba"><i>≡</i>Legendas</span><span class="aba on"><i>▦</i>Templates</span><span class="aba"><i>◐</i>Cores</span><span class="aba"><i>♪</i>Sons</span><span class="aba"><i>⚙</i>Ajustes</span></div>
+    </div>
+    <figcaption><b>3. Editor, aba Templates</b><span>Pacotes em chips que rolam para o lado e miniaturas em três colunas, com o texto do bloco selecionado. Tocar aplica ao bloco. Segurar o dedo num chip de pacote aplica o pacote ao vídeo inteiro. As abas Cores e Sons seguem o mesmo desenho.</span></figcaption>
+  </figure>
+
+  <!-- 4. EDITOR: AJUSTES DO BLOCO -->
+  <figure>
+    <div class="fone">
+      <div class="barra"><span class="ic">‹</span><span class="nome">Harmonização íntima</span><span class="ic">↶</span><span class="pill">Exportar</span></div>
+      <div class="palco"><div class="video"><div class="legenda sel"><div>além do</div><strong>único</strong></div></div></div>
+      <div class="folha">
+        <div class="pega"></div>
+        <div class="cab" style="margin-bottom:8px"><b>Bloco #14</b>0:14,7<span class="selo d">d1</span></div>
+        <div class="palavras" style="margin-bottom:6px"><span class="p">além</span><span class="p">do</span><span class="p chave">único</span></div>
+        <div class="campo"><label>Layout</label><span class="valor">d1 (destaque) ›</span></div>
+        <div class="campo"><label>Cor</label><span class="bolinhas"><i class="on" style="background:#cdb696"></i><i style="background:#fff"></i><i style="background:#e0261c"></i><i style="background:#d2a441"></i><i style="background:#3fb6ff"></i></span></div>
+        <div class="campo"><label>Som</label><span class="valor">Automático (shutter) ›</span></div>
+        <div class="campo"><label>Posição</label><span class="seg"><span>Cima</span><span>Meio</span><span class="on">Baixo</span></span></div>
+        <div class="acoes"><span class="bt">Dividir</span><span class="bt">Juntar</span><span class="bt perigo">Excluir</span></div>
+      </div>
+    </div>
+    <figcaption><b>4. Ajustes do bloco</b><span>Folha que sobe por cima das abas quando um bloco é tocado. Tocar duas vezes numa palavra abre o teclado para corrigir o texto. Com a folha aberta, arrastar a legenda no vídeo muda a posição só daquele bloco. Arrastar a folha para baixo fecha.</span></figcaption>
+  </figure>
+
+  <!-- 5. EXPORTAR -->
+  <figure>
+    <div class="fone">
+      <div class="barra"><span class="ic">‹</span><span class="nome">Exportar</span></div>
+      <div class="centro">
+        <div class="pronto"></div>
+        <h2>Vídeo pronto</h2>
+        <div class="progresso"><i></i></div>
+        <p>Este vídeo usou 1 min do seu plano.<br>Restam 21 min neste mês.</p>
+        <div class="pilha">
+          <span class="bt primario cheio">Salvar na galeria</span>
+          <span class="bt cheio">Compartilhar</span>
+          <span class="bt cheio">Voltar a editar</span>
+        </div>
+      </div>
+    </div>
+    <figcaption><b>5. Exportar</b><span>Enquanto renderiza na nuvem (cerca de 1 a 2 minutos), a mesma tela mostra a barra de progresso e avisa que dá para sair do app. Ao terminar, salvar na galeria ou compartilhar direto no Instagram, TikTok e WhatsApp. Antes de exportar, o app avisa quantos minutos o vídeo vai gastar.</span></figcaption>
+  </figure>
+</main>
+
+<script>
+[['c-acento','--acento'],['c-fundo','--fundo'],['c-painel','--painel']].forEach(function(p){
+  document.getElementById(p[0]).addEventListener('input',function(e){document.documentElement.style.setProperty(p[1],e.target.value);});
+});
+</script>
+</body>
+</html>

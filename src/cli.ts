@@ -1,0 +1,210 @@
+import {existsSync} from "node:fs";
+import path from "node:path";
+import {groupWords} from "./captions";
+import {assignForStyle, markShortBlocks, novaSemente, regroupAndPreserveManualFields} from "./motor/blocos";
+import {exportBlockFrames} from "./motor/conferencia";
+import {listarSons} from "./motor/pasta-sons";
+import {renderVideo} from "./motor/exportar";
+import {getVideoMetadata} from "./motor/ferramentas";
+import {loadStyle, outputPathFor, readProject, saveProject, transcriptionPath, WHISPER_MODEL} from "./motor/projeto";
+import type {Projeto} from "./motor/projeto";
+import {transcribeVideo} from "./motor/transcrever";
+import {configDosEfeitos, planejarEfeitos} from "./sons";
+import {cortesDosExcluidos, sincroniaDoProjeto} from "./entrada";
+import type {CaptionBlock, Word} from "./types";
+
+const projectRoot = process.cwd();
+
+type CommandOptions = {
+  inputPath: string;
+  // Sem caminho informado: saidas/<nome-do-video>-<pacote>-<paleta>.mp4
+  outputPath?: string;
+  templateChoice?: string;
+  packageChoice?: string;
+  paletteChoice?: string;
+  reuseTranscription: boolean;
+  regroup: boolean;
+  exportReviewFrames: boolean;
+};
+
+const parseCommandOptions = (argumentsList: string[]): CommandOptions => {
+  const positionalArguments: string[] = [];
+  let templateChoice: string | undefined;
+  let packageChoice: string | undefined;
+  let paletteChoice: string | undefined;
+  let reuseTranscription = false;
+  let regroup = false;
+  let exportReviewFrames = false;
+  const readValue = (index: number, option: string): string => {
+    const value = argumentsList[index + 1];
+    if (!value || value.startsWith("--")) {
+      throw new Error(`Informe um nome depois de ${option}.`);
+    }
+    return value;
+  };
+
+  for (let index = 0; index < argumentsList.length; index++) {
+    const argument = argumentsList[index];
+    if (argument === "--template") {
+      templateChoice = readValue(index, argument);
+      index++;
+    } else if (argument === "--pacote") {
+      packageChoice = readValue(index, argument);
+      index++;
+    } else if (argument === "--paleta") {
+      paletteChoice = readValue(index, argument);
+      index++;
+    } else if (argument === "--usar-transcricao") {
+      reuseTranscription = true;
+    } else if (argument === "--reagrupar") {
+      regroup = true;
+    } else if (argument === "--conferir") {
+      exportReviewFrames = true;
+    } else if (argument.startsWith("--")) {
+      throw new Error(`Opção desconhecida: ${argument}`);
+    } else {
+      positionalArguments.push(argument);
+    }
+  }
+
+  const [inputArgument, outputArgument] = positionalArguments;
+  if (!inputArgument) {
+    throw new Error(
+      "Uso: npm run gerar -- <video-entrada.mp4> [arquivo-de-saida.mp4] [--pacote nome] [--paleta nome] [--template nome|alternar] [--usar-transcricao] [--reagrupar] [--conferir]",
+    );
+  }
+
+  return {
+    inputPath: path.resolve(inputArgument),
+    outputPath: outputArgument ? path.resolve(outputArgument) : undefined,
+    templateChoice,
+    packageChoice,
+    paletteChoice,
+    reuseTranscription,
+    regroup,
+    exportReviewFrames,
+  };
+};
+
+const main = async () => {
+  const options = parseCommandOptions(process.argv.slice(2));
+  const {inputPath} = options;
+  if (!existsSync(inputPath)) {
+    throw new Error(`O vídeo de entrada não existe: ${inputPath}`);
+  }
+
+  const video = await getVideoMetadata(inputPath);
+  let saved: Projeto | undefined;
+  if (options.reuseTranscription) {
+    saved = readProject(projectRoot);
+    if (!saved) {
+      throw new Error("transcricao.json não existe para reutilizar.");
+    }
+    if (saved.source !== path.basename(inputPath)) {
+      throw new Error(
+        `transcricao.json pertence a '${saved.source}', não a '${path.basename(inputPath)}'.`,
+      );
+    }
+  }
+
+  const style = await loadStyle(
+    projectRoot,
+    {pacote: options.packageChoice, paleta: options.paletteChoice},
+    saved,
+  );
+  console.log(`Pacote: ${style.pacote} · Paleta: ${style.paleta}`);
+  const outputPath =
+    options.outputPath ?? outputPathFor(projectRoot, path.basename(inputPath), style.pacote, style.paleta);
+  if (inputPath.toLowerCase() === outputPath.toLowerCase()) {
+    throw new Error("O arquivo de saída precisa ter um nome diferente do original.");
+  }
+
+  let words: Word[];
+  let blocks: CaptionBlock[];
+  if (saved) {
+    words = saved.words;
+    // Os blocos salvos são usados como estão (inclusive junções e divisões feitas
+    // à mão). Com --reagrupar, a divisão é refeita a partir das palavras.
+    const savedBlocks = saved.blocks ?? [];
+    blocks =
+      options.regroup || savedBlocks.length === 0
+        ? regroupAndPreserveManualFields(words, savedBlocks)
+        : savedBlocks;
+    console.log(
+      options.regroup
+        ? "Reutilizando transcricao.json e refazendo a divisão..."
+        : "Reutilizando transcricao.json editado...",
+    );
+  } else {
+    words = await transcribeVideo(projectRoot, inputPath, (etapa) => console.log(etapa));
+    blocks = groupWords(words);
+  }
+
+  // No modo misto, a semente salva repete o mesmo sorteio da interface.
+  const semente = saved?.semente ?? novaSemente();
+  const chosenBlocks = assignForStyle(blocks, style, {
+    semente,
+    // Ao trocar de pacote, os templates salvos são de outro pacote: escolhe de novo.
+    preserveAssignments: options.reuseTranscription && saved?.pacote === style.pacote,
+    templateChoice: options.templateChoice,
+  });
+  // Com os blocos salvos, a divisão não muda: blocos curtos demais só ficam marcados.
+  const assignedBlocks = saved && !options.regroup ? markShortBlocks(chosenBlocks) : chosenBlocks;
+
+  saveProject(projectRoot, {
+    source: path.basename(inputPath),
+    language: "pt",
+    model: WHISPER_MODEL,
+    pacote: style.pacote,
+    paleta: style.paleta,
+    semente,
+    efeitos: saved?.efeitos,
+    sincroniaMs: saved?.sincroniaMs,
+    posicao: saved?.posicao,
+    excluidos: saved?.excluidos,
+    words,
+    blocks: assignedBlocks,
+  });
+  console.log(`Transcrição salva em ${transcriptionPath(projectRoot)}`);
+
+  const efeitos = configDosEfeitos(saved?.efeitos);
+  const sincroniaMs = sincroniaDoProjeto(saved?.sincroniaMs);
+  const cortesMs = cortesDosExcluidos(saved?.excluidos, style.templates, sincroniaMs);
+  let lastStage = "";
+  await renderVideo(
+    {
+      root: projectRoot,
+      inputPath,
+      outputPath,
+      blocks: assignedBlocks,
+      templates: style.templates,
+      palette: style.palette,
+      palettes: style.paletas,
+      video,
+      efeitos: planejarEfeitos(assignedBlocks, style.templates, await listarSons(projectRoot), efeitos, semente, sincroniaMs, cortesMs),
+      volumeEfeitos: efeitos.volume,
+      sincroniaMs,
+      posicao: saved?.posicao,
+      cortesMs,
+    },
+    (etapa) => {
+      if (etapa !== lastStage) {
+        console.log(etapa);
+        lastStage = etapa;
+      }
+    },
+  );
+  console.log(`Vídeo criado em ${outputPath}`);
+
+  if (options.exportReviewFrames) {
+    const reviewDirectory = path.join(projectRoot, "conferencia");
+    await exportBlockFrames(assignedBlocks, style.templates, outputPath, reviewDirectory, video.fps, sincroniaMs, cortesMs);
+    console.log(`Conferência exportada em ${reviewDirectory}`);
+  }
+};
+
+main().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`Erro: ${message}`);
+  process.exitCode = 1;
+});

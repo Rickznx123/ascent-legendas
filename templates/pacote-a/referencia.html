@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Layouts de legenda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@1&family=Inter+Tight:wght@500;600;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --pagina:#16161a; --texto:#f2f0ec; --suave:#9a968f; --linha:#2c2c33;
+  --sans:'Inter Tight',Helvetica,Arial,sans-serif;
+  --serifa:'Instrument Serif',Georgia,serif;
+  /* Medidas em cqw = % da largura do vídeo. 1cqw em 1080px = 10,8px */
+  --sombra:0 .5cqw 3cqw rgba(0,0,0,.55);
+  --brilho:0 0 1.2cqw rgba(255,255,255,.55),0 0 5cqw rgba(255,255,255,.28),0 .5cqw 3cqw rgba(0,0,0,.45);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--pagina);color:var(--texto);font-family:var(--sans);padding:32px 20px 56px}
+header{max-width:1100px;margin:0 auto 28px;display:flex;flex-wrap:wrap;gap:16px;align-items:end;justify-content:space-between}
+h1{font:800 28px/1 var(--sans);letter-spacing:-.03em;margin:0 0 8px}
+header p{margin:0;color:var(--suave);font-size:15px;max-width:56ch;line-height:1.5}
+.botoes{display:flex;gap:8px}
+button{font:600 14px var(--sans);color:var(--texto);background:transparent;border:1px solid #4a4a54;border-radius:8px;padding:10px 14px;cursor:pointer}
+button:hover{background:#24242b}
+button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+main{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:28px 20px}
+figure{margin:0}
+.q{position:relative;aspect-ratio:9/16;container-type:inline-size;overflow:hidden;border-radius:10px;
+  background:linear-gradient(180deg,#d8cdbf 0%,#cbbba8 30%,#6a4a35 44%,#553a29 66%,#e6e2dc 76%,#d9d4cc 100%)}
+body.claro .q{background:#efece6}
+body.escuro .q{background:#1b1a19}
+.b{position:absolute;left:50%;top:68%;transform:translate(-50%,-50%);width:max-content;max-width:86cqw;
+  color:#fff;text-align:center;text-shadow:var(--sombra);white-space:nowrap}
+.ap{font:500 5.4cqw/1 var(--sans);letter-spacing:-.01em}
+.pesada{font-family:var(--sans);font-weight:800;letter-spacing:-.045em;line-height:.9}
+.italica{font-family:var(--serifa);font-style:italic;font-weight:400;letter-spacing:-.02em;line-height:.9}
+[data-w]{display:inline-block}
+.w{display:inline-block;animation:sobe .45s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--d,0s)}
+.w.foco{animation-name:foco;animation-duration:.55s}
+@keyframes sobe{from{opacity:0;transform:translateY(.35em)}to{opacity:1;transform:none}}
+@keyframes foco{from{opacity:0;filter:blur(.12em);transform:scale(.94)}to{opacity:1;filter:none;transform:none}}
+@media (prefers-reduced-motion:reduce){.w{animation:none}}
+
+/* 1 — apoio em cima, palavra-chave serifada itálica com brilho */
+.l1 .ap{margin-bottom:-.35em;position:relative;z-index:1}
+.l1 .italica{text-shadow:var(--brilho)}
+/* 2 — sans pesada no centro, complemento itálico encaixado embaixo à direita */
+.l2{text-align:left}
+.l2 .ap{margin:0 0 .12em .1em}
+.l2 .fim{display:block;text-align:right;font-size:10cqw;margin-top:-.3em}
+/* 3 — escada alinhada à esquerda, três tamanhos */
+.l3{text-align:left}
+.l3 .meio{display:block;font-size:13cqw;margin:-.05em 0 -.22em .3em}
+/* 4 — bloco: duas linhas pesadas com a mesma largura */
+.l4 .linha2{display:block;margin-top:-.02em}
+/* 5 — uma palavra só, serifada, brilho forte */
+.l5 .italica{text-shadow:var(--brilho)}
+/* 6 — linear: respiro entre os destaques */
+.l6{font:600 7.2cqw/1.1 var(--sans);letter-spacing:-.02em}
+
+figcaption{padding:12px 2px 0}
+figcaption b{display:block;font:800 16px/1.2 var(--sans);letter-spacing:-.02em;margin-bottom:6px}
+figcaption span{display:block;color:var(--suave);font-size:13.5px;line-height:1.5}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Layouts de legenda</h1>
+    <p>Seis composições com as falas do seu vídeo de teste. Cinco de destaque e uma linear. Tamanhos em porcentagem da largura do vídeo.</p>
+  </div>
+  <div class="botoes">
+    <button id="repetir">Repetir animação</button>
+    <button id="fundo">Trocar fundo</button>
+  </div>
+</header>
+
+<main>
+  <figure>
+    <div class="q"><div class="b l1">
+      <div class="ap"><span class="w">lidar</span> <span class="w" style="--d:.12s">com</span></div>
+      <div><span class="italica w foco" data-w="74" data-max="24" style="--d:.28s">irritações</span></div>
+    </div></div>
+    <figcaption><b>1. Apoio + serifa</b><span>Apoio sans 500, 5,4% da largura, encostando no topo da palavra-chave. Palavra-chave serifada itálica com 74% da largura e brilho branco.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b l2">
+      <div class="ap"><span class="w">Tem</span></div>
+      <span class="pesada w foco" data-w="80" data-max="19" style="--d:.14s">novidade</span>
+      <span class="italica fim"><span class="w" style="--d:.42s">chegando</span></span>
+    </div></div>
+    <figcaption><b>2. Pesada + itálica</b><span>Palavra-chave sans 800 com 80% da largura. Complemento serifado itálico de 10%, alinhado à direita e subindo 30% sobre a linha de cima.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b l3">
+      <div class="ap"><span class="w">Não</span> <span class="w" style="--d:.1s">perca</span></div>
+      <span class="italica meio"><span class="w" style="--d:.24s">essa</span></span>
+      <span class="pesada w foco" data-w="80" data-max="19" style="--d:.38s">oportunidade</span>
+    </div></div>
+    <figcaption><b>3. Escada</b><span>Três tamanhos alinhados à esquerda: apoio 5,4%, itálica 13% recuada, palavra-chave pesada com 80% da largura.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b l4">
+      <span class="pesada w foco" data-w="64" data-max="30">depilação</span>
+      <span class="linha2"><span class="pesada w foco" data-w="64" data-max="30" style="--d:.2s">a laser</span></span>
+    </div></div>
+    <figcaption><b>4. Bloco</b><span>Duas linhas sans 800 ajustadas para a mesma largura (64%), entrelinha 0,9. Para expressões que não podem ser separadas.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b l5">
+      <span class="italica w foco" data-w="78" data-max="26">praticidade</span>
+    </div></div>
+    <figcaption><b>5. Uma palavra</b><span>Só a palavra-chave, serifada itálica, 78% da largura, brilho branco. Entrada com desfoque e leve aumento.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b l6">
+      <span class="w">na</span> <span class="w" style="--d:.14s">Saúde</span> <span class="w" style="--d:.28s">Livre</span>
+    </div></div>
+    <figcaption><b>6. Linear</b><span>Uma linha, sans 600, 7,2% da largura, palavras juntas e centralizadas. É o respiro entre dois destaques.</span></figcaption>
+  </figure>
+</main>
+
+<script>
+function ajustar(){
+  document.querySelectorAll('[data-w]').forEach(function(el){
+    var W=el.closest('.q').clientWidth;
+    el.style.fontSize='100px';
+    var larg=el.offsetWidth||1;
+    var alvo=100*(parseFloat(el.dataset.w)/100*W)/larg;
+    var teto=parseFloat(el.dataset.max)/100*W;
+    el.style.fontSize=Math.min(alvo,teto).toFixed(1)+'px';
+  });
+}
+function repetir(){
+  document.querySelectorAll('.w').forEach(function(el){
+    el.style.animation='none';void el.offsetWidth;el.style.animation='';
+  });
+}
+var fundos=['','claro','escuro'],atual=0;
+document.getElementById('repetir').addEventListener('click',repetir);
+document.getElementById('fundo').addEventListener('click',function(){
+  atual=(atual+1)%fundos.length;document.body.className=fundos[atual];
+});
+ajustar();
+if(document.fonts&&document.fonts.ready){document.fonts.ready.then(ajustar);}
+window.addEventListener('resize',ajustar);
+</script>
+</body>
+</html>

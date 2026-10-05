@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Layouts de legenda, pacote D (versão 4)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --pagina:#16161a; --texto:#f2f0ec; --suave:#9a968f;
+  --sans:'Hanken Grotesk','Helvetica Neue',Helvetica,Arial,sans-serif;
+  --ui:Helvetica,Arial,sans-serif;
+  --sombra:0 .4cqw 2.4cqw rgba(0,0,0,.6);
+  /* paleta areia: dois tons na horizontal, como no print de referência */
+  --chave:linear-gradient(90deg,#cdb696 0%,#d6c2a4 46%,#ffffff 62%,#ffffff 100%);
+  --g1:rgba(255,236,205,.4); --g2:rgba(255,225,180,.2);
+}
+body.branco{--chave:linear-gradient(180deg,#ffffff,#ffffff);--g1:rgba(255,255,255,.5);--g2:rgba(255,255,255,.25)}
+body.vermelho{--chave:linear-gradient(180deg,#ff3b2f 0%,#c40d0d 100%);--g1:rgba(255,40,30,.75);--g2:rgba(255,0,0,.45)}
+body.dourado{--chave:linear-gradient(180deg,#fff3c4 0%,#e9c46a 30%,#b8862b 58%,#f1d27a 78%,#8a5a12 100%);--g1:rgba(233,190,90,.55);--g2:rgba(200,150,40,.3)}
+body.prata{--chave:linear-gradient(180deg,#ffffff 0%,#d9dde3 35%,#8f97a3 60%,#e8ebef 80%,#a9b0bb 100%);--g1:rgba(220,230,245,.45);--g2:rgba(200,215,235,.2)}
+body.rose{--chave:linear-gradient(180deg,#ffe3ea 0%,#ff8fb1 55%,#e0457b 100%);--g1:rgba(255,110,160,.6);--g2:rgba(255,70,130,.35)}
+body.azul{--chave:linear-gradient(180deg,#c9f1ff 0%,#3fb6ff 50%,#1166e8 100%);--g1:rgba(60,160,255,.65);--g2:rgba(20,110,255,.4)}
+body.verde{--chave:linear-gradient(180deg,#eaffb0 0%,#9dff3a 50%,#37c400 100%);--g1:rgba(140,255,60,.55);--g2:rgba(70,220,0,.3)}
+body.roxo{--chave:linear-gradient(180deg,#e9d5ff 0%,#a855f7 55%,#6d28d9 100%);--g1:rgba(168,85,247,.65);--g2:rgba(124,58,237,.4)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--pagina);color:var(--texto);font-family:var(--ui);padding:32px 20px 56px}
+header{max-width:1100px;margin:0 auto 28px;display:flex;flex-wrap:wrap;gap:16px;align-items:end;justify-content:space-between}
+h1{font:800 34px/1 var(--sans);letter-spacing:-.06em;text-transform:lowercase;margin:0 0 8px}
+header p{margin:0;color:var(--suave);font-size:15px;max-width:58ch;line-height:1.5}
+.botoes{display:flex;flex-wrap:wrap;gap:8px}
+button{font:600 14px var(--ui);color:var(--texto);background:transparent;border:1px solid #4a4a54;border-radius:8px;padding:10px 14px;cursor:pointer}
+button:hover{background:#24242b}
+button[aria-pressed="true"]{background:#f2f0ec;color:#16161a;border-color:#f2f0ec}
+button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+main{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:28px 20px}
+figure{margin:0}
+.q{position:relative;aspect-ratio:9/16;container-type:inline-size;overflow:hidden;border-radius:10px;background:#101216}
+body.cena .q{background:linear-gradient(180deg,#d8cdbf 0%,#cbbba8 30%,#6a4a35 44%,#553a29 66%,#e6e2dc 76%,#d9d4cc 100%)}
+body.claro .q{background:#efece6}
+
+/* ---------- peças comuns do pacote D: uma sans só, minúsculas, bem apertada ---------- */
+.b{position:absolute;left:50%;top:68%;transform:translate(-50%,-50%);width:max-content;max-width:90cqw;
+  color:#fff;text-align:center;text-shadow:var(--sombra);white-space:nowrap;
+  font-family:var(--sans);text-transform:lowercase}
+.esq{text-align:left}
+.dir{text-align:right}
+/* apoio: leve */
+.leve{font-weight:300;letter-spacing:-.05em;line-height:1}
+/* palavra-chave: pesada */
+.forte{font-weight:800;letter-spacing:-.065em;line-height:.9}
+.dois{display:flex;justify-content:space-between;padding:0 .15em}
+
+/* palavra-chave: preenchimento da paleta + brilho no elemento de fora */
+.kw{display:block;filter:drop-shadow(0 0 1.4cqw var(--g1)) drop-shadow(0 0 5cqw var(--g2)) drop-shadow(0 .5cqw 2cqw rgba(0,0,0,.4))}
+.tx{display:inline-block;padding:.08em .1em;margin:-.08em -.1em;text-shadow:none;
+  background:var(--chave);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+
+/* animações */
+.w{display:inline-block;animation:sobe .45s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--d,0s)}
+.w.foco{animation-name:foco;animation-duration:.55s}
+/* PISCADA: a palavra-chave acende, apaga e acende de novo */
+.w.pisca{animation-name:pisca;animation-duration:.7s;animation-timing-function:linear}
+@keyframes sobe{from{opacity:0;transform:translateY(.35em)}to{opacity:1;transform:none}}
+@keyframes foco{from{opacity:0;filter:blur(.12em);transform:scale(.94)}to{opacity:1;filter:none;transform:none}}
+@keyframes pisca{
+  0%{opacity:0}
+  10%{opacity:1;filter:brightness(1.6)}
+  20%{opacity:.1;filter:none}
+  32%{opacity:1;filter:brightness(1.4)}
+  44%{opacity:.35;filter:none}
+  56%{opacity:1}
+  100%{opacity:1}
+}
+@media (prefers-reduced-motion:reduce){.w{animation:none}}
+
+/* ---------- D1: apoio, chave, apoio (à direita) ---------- */
+.d1 .a{font-size:8cqw;margin-bottom:-.12em;position:relative;z-index:1}
+.d1 .c{font-size:5.4cqw;margin-top:-.12em;position:relative}
+/* ---------- D2: dois rótulos, chave, apoio embaixo ---------- */
+.d2 .dois{font-size:5cqw;letter-spacing:-.03em;margin-bottom:-.05em}
+.d2 .baixo{font-size:11cqw;margin-top:-.14em;text-align:right;position:relative}
+/* ---------- D3: pilha crescente à esquerda ---------- */
+.d3 .l1{font-size:6cqw}
+.d3 .l2{font-size:11cqw;margin-top:-.06em}
+.d3 .kw{margin-top:-.06em}
+/* ---------- D4: chave gigante com piscada ---------- */
+.d4 .a{font-size:6cqw;text-align:left;margin:0 0 -.1em .1em;position:relative;z-index:1}
+/* ---------- D5: pilha decrescente à direita ---------- */
+.d5 .l1{font-size:8cqw}
+.d5 .l2{font-size:5.4cqw;margin-top:-.08em}
+.d5 .kw{margin-top:-.04em}
+/* ---------- D6: DUPLA — dois blocos na tela ao mesmo tempo ---------- */
+.d6{width:86cqw}
+.d6 .grp{width:max-content}
+.d6 .g1{margin-left:auto}                 /* primeiro bloco: em cima, à direita */
+.d6 .g2{margin-top:3cqw;margin-right:auto} /* segundo bloco: embaixo, à esquerda */
+.d6 .g1 .a{font-size:7cqw;margin-bottom:-.12em;position:relative;z-index:1}
+.d6 .g1 .c{font-size:5cqw;margin-top:-.12em}
+.d6 .g2 .l1{font-size:7cqw}
+.d6 .g2 .l2{font-size:5cqw;margin-top:-.08em}
+.d6 .g2 .kw{margin-top:-.04em}
+/* ---------- linear: 2 a 3 palavras, uma linha ---------- */
+.lin{font-weight:400;font-size:8.4cqw;line-height:1;letter-spacing:-.05em}
+
+figcaption{padding:12px 2px 0}
+figcaption b{display:block;font:700 16px/1.2 var(--ui);margin-bottom:6px}
+figcaption span{display:block;color:var(--suave);font-size:13.5px;line-height:1.5}
+</style>
+</head>
+<body class="areia">
+<header>
+  <div>
+    <h1>pacote d</h1>
+    <p>Uma sans só (Hanken Grotesk), em minúsculas e bem apertada: apoio leve, palavra-chave pesada. Paleta nova "areia", com dois tons na horizontal. O D4 tem a piscada na palavra-chave e o D6 mostra dois blocos na tela ao mesmo tempo.</p>
+  </div>
+  <div class="botoes">
+    <button data-paleta="areia" aria-pressed="true">Areia</button>
+    <button data-paleta="branco" aria-pressed="false">Branco</button>
+    <button data-paleta="vermelho" aria-pressed="false">Vermelho</button>
+    <button data-paleta="dourado" aria-pressed="false">Dourado</button>
+    <button data-paleta="prata" aria-pressed="false">Prata</button>
+    <button data-paleta="rose" aria-pressed="false">Rosé</button>
+    <button data-paleta="azul" aria-pressed="false">Azul</button>
+    <button data-paleta="verde" aria-pressed="false">Verde</button>
+    <button data-paleta="roxo" aria-pressed="false">Roxo</button>
+    <button id="fundo">Trocar fundo</button>
+    <button id="repetir">Repetir animação</button>
+  </div>
+</header>
+
+<main>
+  <figure>
+    <div class="q"><div class="b dir d1">
+      <div class="leve a"><span class="w">além</span> <span class="w" style="--d:.1s">do</span></div>
+      <span class="kw"><span class="tx forte w foco" data-w="64" data-max="30" style="--d:.24s">único</span></span>
+      <div class="leve c"><span class="w" style="--d:.44s">considera</span></div>
+    </div></div>
+    <figcaption><b>D1. Apoio, chave, apoio</b><span>Alinhado à direita. Apoio leve de 8% em cima, palavra-chave pesada com 64% da largura (teto 30%) e apoio leve de 5,4% embaixo.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b d2">
+      <div class="leve dois"><span class="w">estaremos</span><span class="w" style="--d:.1s">com</span></div>
+      <span class="kw"><span class="tx forte w foco" data-w="78" data-max="30" style="--d:.22s">preços</span></span>
+      <div class="leve baixo"><span class="w" style="--d:.44s">imperdíveis</span></div>
+    </div></div>
+    <figcaption><b>D2. Dois rótulos e apoio embaixo</b><span>Dois rótulos leves de 5% nas pontas de cima. Palavra-chave pesada com 78% da largura (teto 30%). Apoio leve de 11% embaixo, à direita.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b esq d3">
+      <div class="leve l1"><span class="w">clique</span></div>
+      <div class="leve l2"><span class="w" style="--d:.12s">no link</span></div>
+      <span class="kw"><span class="tx forte w foco" data-w="70" data-max="30" style="--d:.28s">da bio</span></span>
+    </div></div>
+    <figcaption><b>D3. Pilha crescente</b><span>Alinhado à esquerda: leve de 6%, leve de 11% (a última palavra antes da chave) e a palavra-chave pesada com 70% da largura (teto 30%).</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b d4">
+      <div class="leve a"><span class="w">lidar</span> <span class="w" style="--d:.1s">com</span></div>
+      <span class="kw"><span class="tx forte w pisca" data-w="84" data-max="32" style="--d:.24s">irritações</span></span>
+    </div></div>
+    <figcaption><b>D4. Chave gigante com piscada</b><span>Apoio leve de 6% em cima à esquerda. Palavra-chave pesada com 84% da largura (teto 32%), entrando com a piscada: acende, apaga e acende de novo em 0,7 s.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b dir d5">
+      <div class="leve l1"><span class="w">que</span> <span class="w" style="--d:.08s">é</span> <span class="w" style="--d:.16s">a</span></div>
+      <div class="leve l2"><span class="w" style="--d:.26s">sua</span></div>
+      <span class="kw"><span class="tx forte w foco" data-w="72" data-max="28" style="--d:.38s">vontade,</span></span>
+    </div></div>
+    <figcaption><b>D5. Pilha decrescente</b><span>Alinhado à direita: leve de 8%, leve de 5,4% (a última palavra antes da chave) e a palavra-chave pesada com 72% da largura (teto 28%).</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b d6">
+      <div class="grp g1 dir">
+        <div class="leve a"><span class="w">além</span> <span class="w" style="--d:.1s">do</span></div>
+        <span class="kw"><span class="tx forte w foco" data-w="50" data-max="26" style="--d:.24s">único</span></span>
+        <div class="leve c"><span class="w" style="--d:.44s">considera</span></div>
+      </div>
+      <div class="grp g2 dir">
+        <div class="leve l1"><span class="w" style="--d:1.1s">que</span> <span class="w" style="--d:1.18s">é</span> <span class="w" style="--d:1.26s">a</span></div>
+        <div class="leve l2"><span class="w" style="--d:1.36s">sua</span></div>
+        <span class="kw"><span class="tx forte w foco" data-w="58" data-max="24" style="--d:1.48s">vontade,</span></span>
+      </div>
+    </div></div>
+    <figcaption><b>D6. Dupla (dois blocos juntos)</b><span>O primeiro bloco entra em cima, à direita (chave com 50% da largura). Ele continua na tela enquanto o bloco seguinte entra embaixo, à esquerda (chave com 58%). Os dois saem juntos.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b lin">
+      <span class="w">agora</span> <span class="w" style="--d:.08s">você</span> <span class="w" style="--d:.16s">pode</span>
+    </div></div>
+    <figcaption><b>Linear, 3 palavras</b><span>Respiro entre os destaques: sans 400 de 8,4%, uma linha só, sem palavra-chave pintada.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b lin">
+      <span class="w">toda</span> <span class="w" style="--d:.08s">hora</span>
+    </div></div>
+    <figcaption><b>Linear, 2 palavras</b><span>O mesmo linear com duas palavras. Nunca passa de 3 palavras nem quebra linha.</span></figcaption>
+  </figure>
+</main>
+
+<script>
+function ajustar(){
+  document.querySelectorAll('[data-w]').forEach(function(el){
+    var W=el.closest('.q').clientWidth;
+    el.style.fontSize='100px';
+    var larg=el.offsetWidth||1;
+    var alvo=100*(parseFloat(el.dataset.w)/100*W)/larg;
+    var teto=parseFloat(el.dataset.max)/100*W;
+    el.style.fontSize=Math.min(alvo,teto).toFixed(1)+'px';
+  });
+}
+function repetir(){
+  document.querySelectorAll('.w').forEach(function(el){
+    el.style.animation='none';void el.offsetWidth;el.style.animation='';
+  });
+}
+var paleta='areia',fundos=['','cena','claro'],fundo=0;
+function aplicar(){document.body.className=(paleta+' '+fundos[fundo]).trim();}
+document.querySelectorAll('[data-paleta]').forEach(function(bt){
+  bt.addEventListener('click',function(){
+    paleta=bt.dataset.paleta;aplicar();
+    document.querySelectorAll('[data-paleta]').forEach(function(o){o.setAttribute('aria-pressed',o===bt?'true':'false');});
+  });
+});
+document.getElementById('fundo').addEventListener('click',function(){fundo=(fundo+1)%fundos.length;aplicar();});
+document.getElementById('repetir').addEventListener('click',repetir);
+ajustar();
+if(document.fonts&&document.fonts.ready){document.fonts.ready.then(ajustar);}
+window.addEventListener('resize',ajustar);
+</script>
+</body>
+</html>

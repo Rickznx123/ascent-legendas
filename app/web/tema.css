@@ -1,0 +1,59 @@
+/* Tema da interface: todas as cores, a fonte, os raios e os espaçamentos.
+   Para trocar pelas cores da marca, mexa só aqui. */
+:root {
+  /* ---- cores da marca (os nomes e valores vêm da interface-referencia.html) ---- */
+  --acento: #7c5cff; /* cor principal (provisória) */
+  --acento-texto: #ffffff; /* texto sobre a cor principal */
+  --fundo: #0e0e11; /* fundo da janela */
+  --painel: #16161b; /* painéis */
+  --painel-2: #1e1e25; /* cartões, campos */
+  --linha: #2a2a33; /* bordas */
+  --texto: #ececf1;
+  --suave: #8d8d9a;
+  --aviso: #f5b83d;
+  --perigo: #ff5a52;
+  --acento-fraco: color-mix(in srgb, var(--acento) 18%, transparent);
+
+  /* ---- cores derivadas e de apoio ---- */
+  --aviso-texto: #1a1400; /* texto sobre a cor de aviso */
+  --aviso-fraco: color-mix(in srgb, var(--aviso) 14%, transparent);
+  --perigo-fraco: color-mix(in srgb, var(--perigo) 16%, var(--painel));
+  --sucesso: #47a58c;
+  --sucesso-fraco: #2f6f5f;
+  --dupla: #4fb3a9;
+  --tela: #000000; /* fundo da prévia e das miniaturas */
+  --agulha: #ffffff;
+  --clipe: #34343f;
+  --clipe-borda: #44444f;
+  --fita: #3a2c22;
+  --fita-2: #4a382b;
+  --guia: rgba(255, 255, 255, 0.3);
+  --guia-forte: rgba(255, 255, 255, 0.45);
+  --veu: rgba(0, 0, 0, 0.6);
+  --veu-leve: rgba(0, 0, 0, 0.35);
+  --sombra: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --borda-bolinha: rgba(255, 255, 255, 0.25);
+
+  /* ---- tipografia, raios e espaçamentos ---- */
+  --ui: "Inter Tight", Helvetica, Arial, sans-serif;
+  --fonte-base: 13px;
+  --fonte-pequena: 11px;
+  --fonte-mini: 10px;
+  --raio: 8px;
+  --raio-p: 6px;
+  --raio-pilula: 99px;
+  --esp-1: 4px;
+  --esp-2: 6px;
+  --esp-3: 8px;
+  --esp-4: 12px;
+  --esp-5: 14px;
+
+  /* ---- medidas da grade ---- */
+  --altura-barra: 48px;
+  --largura-esq: 330px;
+  --largura-dir: 360px;
+  --altura-tempo: 190px;
+  --largura-nomes: 86px;
+
+  color-scheme: dark;
+}

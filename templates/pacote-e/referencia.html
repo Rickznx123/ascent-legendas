@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Layouts de legenda, pacote E</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@1,700&family=Hanken+Grotesk:wght@800&family=Urbanist:ital,wght@1,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --pagina:#16161a; --texto:#f2f0ec; --suave:#9a968f;
+  --cima:'Creato Display','Urbanist','Century Gothic',sans-serif;
+  --meio:'Hanken Grotesk','Helvetica Neue',Helvetica,Arial,sans-serif;
+  --baixo:'Apple Garamond','EB Garamond',Garamond,Georgia,serif;
+  --ui:Helvetica,Arial,sans-serif;
+  --sombra:0 .4cqw 2.4cqw rgba(0,0,0,.6);
+  /* paleta areia */
+  --chave:linear-gradient(90deg,#cdb696 0%,#d6c2a4 46%,#ffffff 62%,#ffffff 100%);
+  --g1:rgba(255,236,205,.4); --g2:rgba(255,225,180,.2);
+}
+body.branco{--chave:linear-gradient(180deg,#ffffff,#ffffff);--g1:rgba(255,255,255,.5);--g2:rgba(255,255,255,.25)}
+body.vermelho{--chave:linear-gradient(180deg,#ff3b2f 0%,#c40d0d 100%);--g1:rgba(255,40,30,.75);--g2:rgba(255,0,0,.45)}
+body.dourado{--chave:linear-gradient(180deg,#fff3c4 0%,#e9c46a 30%,#b8862b 58%,#f1d27a 78%,#8a5a12 100%);--g1:rgba(233,190,90,.55);--g2:rgba(200,150,40,.3)}
+body.prata{--chave:linear-gradient(180deg,#ffffff 0%,#d9dde3 35%,#8f97a3 60%,#e8ebef 80%,#a9b0bb 100%);--g1:rgba(220,230,245,.45);--g2:rgba(200,215,235,.2)}
+body.rose{--chave:linear-gradient(180deg,#ffe3ea 0%,#ff8fb1 55%,#e0457b 100%);--g1:rgba(255,110,160,.6);--g2:rgba(255,70,130,.35)}
+body.azul{--chave:linear-gradient(180deg,#c9f1ff 0%,#3fb6ff 50%,#1166e8 100%);--g1:rgba(60,160,255,.65);--g2:rgba(20,110,255,.4)}
+body.verde{--chave:linear-gradient(180deg,#eaffb0 0%,#9dff3a 50%,#37c400 100%);--g1:rgba(140,255,60,.55);--g2:rgba(70,220,0,.3)}
+body.roxo{--chave:linear-gradient(180deg,#e9d5ff 0%,#a855f7 55%,#6d28d9 100%);--g1:rgba(168,85,247,.65);--g2:rgba(124,58,237,.4)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--pagina);color:var(--texto);font-family:var(--ui);padding:32px 20px 56px}
+header{max-width:1100px;margin:0 auto 28px;display:flex;flex-wrap:wrap;gap:16px;align-items:end;justify-content:space-between}
+h1{font:800 34px/1 var(--meio);letter-spacing:-.06em;text-transform:lowercase;margin:0 0 8px}
+header p{margin:0;color:var(--suave);font-size:15px;max-width:58ch;line-height:1.5}
+.botoes{display:flex;flex-wrap:wrap;gap:8px}
+button{font:600 14px var(--ui);color:var(--texto);background:transparent;border:1px solid #4a4a54;border-radius:8px;padding:10px 14px;cursor:pointer}
+button:hover{background:#24242b}
+button[aria-pressed="true"]{background:#f2f0ec;color:#16161a;border-color:#f2f0ec}
+button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+main{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:28px 20px}
+figure{margin:0}
+.q{position:relative;aspect-ratio:9/16;container-type:inline-size;overflow:hidden;border-radius:10px;background:#101216}
+body.cena .q{background:linear-gradient(180deg,#d8cdbf 0%,#cbbba8 30%,#6a4a35 44%,#553a29 66%,#e6e2dc 76%,#d9d4cc 100%)}
+body.claro .q{background:#efece6}
+
+/* ---------- peças comuns do pacote E: três fontes, uma por posição ---------- */
+.b{position:absolute;left:50%;top:68%;transform:translate(-50%,-50%);width:max-content;max-width:90cqw;
+  color:#fff;text-align:center;text-shadow:var(--sombra);white-space:nowrap;text-transform:lowercase}
+.esq{text-align:left}
+/* EM CIMA: sans geométrica itálica (Creato Display Italic; Urbanist Italic como equivalente) */
+.cima{font-family:var(--cima);font-style:italic;font-weight:500;letter-spacing:-.02em;line-height:1}
+/* NO MEIO: sans pesada, a mesma do pacote D */
+.forte{font-family:var(--meio);font-weight:800;letter-spacing:-.065em;line-height:.9}
+/* EMBAIXO: Garamond bold itálica */
+.gara{font-family:var(--baixo);font-style:italic;font-weight:700;letter-spacing:-.02em;line-height:.95}
+.dois{display:flex;justify-content:space-between;padding:0 .15em}
+
+/* palavra-chave: preenchimento da paleta + brilho no elemento de fora */
+.kw{display:block;filter:drop-shadow(0 0 1.4cqw var(--g1)) drop-shadow(0 0 5cqw var(--g2)) drop-shadow(0 .5cqw 2cqw rgba(0,0,0,.4))}
+.tx{display:inline-block;padding:.08em .1em;margin:-.08em -.1em;text-shadow:none;
+  background:var(--chave);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+
+/* ---------- animações: deslizar de uma das quatro direções ---------- */
+.w{display:inline-block;animation:desliza .5s cubic-bezier(.16,1,.3,1) both;animation-delay:var(--d,0s)}
+@keyframes desliza{from{opacity:0;transform:translate(var(--x,0),var(--y,0))}to{opacity:1;transform:none}}
+/* palavras de apoio: percurso de 1em na horizontal, 0,8em na vertical */
+.de-esq{--x:-1em}
+.de-dir{--x:1em}
+.de-cima{--y:-.8em}
+.de-baixo{--y:.8em}
+/* palavra-chave: percurso menor, porque a letra é muito maior */
+.tx.de-esq{--x:-.4em}
+.tx.de-dir{--x:.4em}
+.tx.de-cima{--y:-.35em}
+.tx.de-baixo{--y:.35em}
+@media (prefers-reduced-motion:reduce){.w{animation:none}}
+
+/* ---------- E1: cima, chave, Garamond embaixo ---------- */
+.e1 .cima{font-size:6.4cqw;margin:0 0 -.08em .1em;position:relative;z-index:1}
+.e1 .rod{text-align:right;font-size:10cqw;margin-top:-.24em;position:relative}
+/* ---------- E2: dois rótulos, chave, Garamond embaixo ---------- */
+.e2 .dois{font-size:5cqw;margin-bottom:-.02em}
+.e2 .baixo{font-size:13cqw;margin-top:-.3em;position:relative}
+/* ---------- E3: pilha crescente ---------- */
+.e3 .l1{font-size:6cqw}
+.e3 .l2{font-size:12cqw;margin-top:-.02em}
+.e3 .kw{margin-top:-.08em}
+/* ---------- E4: chave gigante ---------- */
+.e4 .dois{font-size:5cqw;margin-bottom:-.08em;position:relative;z-index:1}
+/* ---------- E5: esquerda mista ---------- */
+.e5 .l1{font-size:7cqw}
+.e5 .l2{font-size:12cqw;margin-top:-.04em}
+.e5 .kw{margin-top:-.08em}
+/* ---------- E6: chave com selo ---------- */
+.e6 .topo{font-size:5.6cqw;margin-bottom:-.1em;position:relative;z-index:1}
+.e6 .topo .gara{font-size:9cqw}
+.e6 .selo{text-align:right;font-size:7.4cqw;margin-top:-.16em;padding-right:.15em;position:relative}
+/* ---------- linear: 2 a 3 palavras, uma linha ---------- */
+.lin{font-size:8.4cqw}
+
+figcaption{padding:12px 2px 0}
+figcaption b{display:block;font:700 16px/1.2 var(--ui);margin-bottom:6px}
+figcaption span{display:block;color:var(--suave);font-size:13.5px;line-height:1.5}
+</style>
+</head>
+<body class="areia">
+<header>
+  <div>
+    <h1>pacote e</h1>
+    <p>Três fontes, uma por posição: sans geométrica itálica em cima, sans pesada no meio (a do pacote D) e Garamond bold itálica embaixo. As palavras entram deslizando de cima, de baixo, da esquerda ou da direita, e cada layout usa uma combinação diferente.</p>
+  </div>
+  <div class="botoes">
+    <button data-paleta="areia" aria-pressed="true">Areia</button>
+    <button data-paleta="branco" aria-pressed="false">Branco</button>
+    <button data-paleta="vermelho" aria-pressed="false">Vermelho</button>
+    <button data-paleta="dourado" aria-pressed="false">Dourado</button>
+    <button data-paleta="prata" aria-pressed="false">Prata</button>
+    <button data-paleta="rose" aria-pressed="false">Rosé</button>
+    <button data-paleta="azul" aria-pressed="false">Azul</button>
+    <button data-paleta="verde" aria-pressed="false">Verde</button>
+    <button data-paleta="roxo" aria-pressed="false">Roxo</button>
+    <button id="fundo">Trocar fundo</button>
+    <button id="repetir">Repetir animação</button>
+  </div>
+</header>
+
+<main>
+  <figure>
+    <div class="q"><div class="b esq e1">
+      <div class="cima"><span class="w de-esq">contar</span> <span class="w de-esq" style="--d:.1s">com</span></div>
+      <span class="kw"><span class="tx forte w de-baixo" data-w="80" data-max="28" style="--d:.22s">depilação</span></span>
+      <div class="gara rod"><span class="w de-dir" style="--d:.42s">a</span> <span class="w de-dir" style="--d:.5s">laser</span></div>
+    </div></div>
+    <figcaption><b>E1. Cima, chave e Garamond embaixo</b><span>Sans itálica de 6,4% em cima à esquerda, vindo da esquerda. Palavra-chave pesada com 80% da largura (teto 28%), subindo. Garamond bold itálica de 10% embaixo à direita, vindo da direita.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b e2">
+      <div class="cima dois"><span class="w de-esq">estaremos</span><span class="w de-dir" style="--d:.1s">com</span></div>
+      <span class="kw"><span class="tx forte w de-cima" data-w="78" data-max="30" style="--d:.22s">preços</span></span>
+      <div class="gara baixo"><span class="w de-baixo" style="--d:.44s">imperdíveis</span></div>
+    </div></div>
+    <figcaption><b>E2. Dois rótulos e Garamond embaixo</b><span>Dois rótulos em sans itálica de 5% nas pontas, um vindo de cada lado. Palavra-chave pesada com 78% da largura (teto 30%), descendo. Garamond bold itálica de 13% embaixo, subindo 30% sobre a palavra-chave.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b e3">
+      <div class="cima l1"><span class="w de-cima">clique</span></div>
+      <div class="gara l2"><span class="w de-esq" style="--d:.12s">no link</span></div>
+      <span class="kw"><span class="tx forte w de-baixo" data-w="68" data-max="30" style="--d:.28s">da bio</span></span>
+    </div></div>
+    <figcaption><b>E3. Pilha crescente</b><span>Centralizado: sans itálica de 6% descendo, Garamond bold itálica de 12% vindo da esquerda (a última palavra antes da chave) e a palavra-chave pesada com 68% da largura (teto 30%), subindo.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b e4">
+      <div class="cima dois"><span class="w de-cima">lidar</span><span class="w de-cima" style="--d:.1s">com</span></div>
+      <span class="kw"><span class="tx forte w de-esq" data-w="86" data-max="32" style="--d:.22s">irritações</span></span>
+    </div></div>
+    <figcaption><b>E4. Chave gigante</b><span>Dois rótulos em sans itálica de 5% nas pontas de cima, descendo. Palavra-chave pesada com 86% da largura (teto 32%), vindo da esquerda.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b esq e5">
+      <div class="cima l1"><span class="w de-esq">faz a</span></div>
+      <div class="gara l2"><span class="w de-esq" style="--d:.12s">diminuição</span></div>
+      <span class="kw"><span class="tx forte w de-dir" data-w="72" data-max="28" style="--d:.3s">gradual</span></span>
+    </div></div>
+    <figcaption><b>E5. Esquerda mista</b><span>Alinhado à esquerda: sans itálica de 7% e Garamond bold itálica de 12%, as duas vindo da esquerda, e a palavra-chave pesada com 72% da largura (teto 28%), vindo da direita.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b e6">
+      <div class="cima topo"><span class="w de-cima">assim</span> <span class="w gara de-cima" style="--d:.1s">uma</span></div>
+      <span class="kw"><span class="tx forte w de-dir" data-w="82" data-max="28" style="--d:.24s">praticidade</span></span>
+      <div class="gara selo"><span class="w de-baixo" style="--d:.46s">e conforto</span></div>
+    </div></div>
+    <figcaption><b>E6. Chave com selo</b><span>Topo em sans itálica de 5,6%, com a última palavra em Garamond de 9%, descendo. Palavra-chave pesada com 82% da largura (teto 28%), vindo da direita. Selo em Garamond bold itálica de 7,4% embaixo à direita, subindo.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b cima lin">
+      <span class="w de-baixo">agora</span> <span class="w de-baixo" style="--d:.08s">você</span> <span class="w de-baixo" style="--d:.16s">pode</span>
+    </div></div>
+    <figcaption><b>Linear, 3 palavras</b><span>Respiro entre os destaques: sans itálica de 8,4%, uma linha só, sem palavra-chave pintada. As palavras sobem uma a uma.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b cima lin">
+      <span class="w de-esq">toda</span> <span class="w de-dir" style="--d:.08s">hora</span>
+    </div></div>
+    <figcaption><b>Linear, 2 palavras</b><span>Com duas palavras, uma vem de cada lado. Nunca passa de 3 palavras nem quebra linha.</span></figcaption>
+  </figure>
+</main>
+
+<script>
+function ajustar(){
+  document.querySelectorAll('[data-w]').forEach(function(el){
+    var W=el.closest('.q').clientWidth;
+    el.style.fontSize='100px';
+    var larg=el.offsetWidth||1;
+    var alvo=100*(parseFloat(el.dataset.w)/100*W)/larg;
+    var teto=parseFloat(el.dataset.max)/100*W;
+    el.style.fontSize=Math.min(alvo,teto).toFixed(1)+'px';
+  });
+}
+function repetir(){
+  document.querySelectorAll('.w').forEach(function(el){
+    el.style.animation='none';void el.offsetWidth;el.style.animation='';
+  });
+}
+var paleta='areia',fundos=['','cena','claro'],fundo=0;
+function aplicar(){document.body.className=(paleta+' '+fundos[fundo]).trim();}
+document.querySelectorAll('[data-paleta]').forEach(function(bt){
+  bt.addEventListener('click',function(){
+    paleta=bt.dataset.paleta;aplicar();
+    document.querySelectorAll('[data-paleta]').forEach(function(o){o.setAttribute('aria-pressed',o===bt?'true':'false');});
+  });
+});
+document.getElementById('fundo').addEventListener('click',function(){fundo=(fundo+1)%fundos.length;aplicar();});
+document.getElementById('repetir').addEventListener('click',repetir);
+ajustar();
+if(document.fonts&&document.fonts.ready){document.fonts.ready.then(ajustar);}
+window.addEventListener('resize',ajustar);
+</script>
+</body>
+</html>

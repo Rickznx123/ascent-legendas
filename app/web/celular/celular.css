@@ -1,0 +1,641 @@
+/* Layout de celular (abaixo de 820 px). Tudo aqui fica dentro de .cel, então o
+   layout de computador não muda. Cores e medidas vêm de tema.css. Todo alvo de
+   toque tem pelo menos 44 px. */
+
+.cel {
+  position: fixed;
+  inset: 0;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--fundo);
+  font-size: 14px;
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Campos com 16 px: o iPhone não aumenta a tela ao focar. */
+.cel input,
+.cel select {
+  font-size: 16px;
+}
+
+.cel-tela {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* ---------- peças comuns ---------- */
+.cel-barra {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: calc(52px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) 10px 0 4px;
+  background: var(--painel);
+  border-bottom: 1px solid var(--linha);
+}
+
+.cel-nome {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 4px;
+}
+
+.cel-nome small {
+  color: var(--suave);
+  font-weight: 500;
+}
+
+.cel-marca {
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+  padding-left: 10px;
+}
+
+.cel-ic {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--suave);
+  font-size: 18px;
+}
+
+.cel-ic-forte {
+  color: var(--texto);
+}
+
+.cel-pilula {
+  min-height: 44px;
+  padding: 0 16px;
+  margin-left: 4px;
+  border-radius: var(--raio-pilula);
+  background: var(--acento);
+  color: var(--acento-texto);
+  font-weight: 700;
+}
+
+.cel-andamento {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 12px;
+  background: var(--painel);
+  border-bottom: 1px solid var(--linha);
+  font-size: 12px;
+  color: var(--suave);
+}
+
+.cel-andamento progress {
+  width: 100%;
+  height: 4px;
+}
+
+.cel-rolagem {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+}
+
+.cel-cheio {
+  width: 100%;
+  min-height: 48px;
+}
+
+.cel-pilha {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.cel-vazio {
+  display: grid;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+/* Peças do computador usadas no celular, com alvos de toque maiores. */
+.cel .bt {
+  min-height: 44px;
+  height: auto;
+  border-radius: 10px;
+  white-space: normal;
+}
+
+.cel .bt-p {
+  min-height: 44px;
+  font-size: 13px;
+}
+
+.cel .sel,
+.cel .campo-numero {
+  min-height: 44px;
+  height: auto;
+  border-radius: 10px;
+}
+
+.cel input[type="range"] {
+  min-height: 44px;
+}
+
+.cel input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+}
+
+.cel .ic {
+  width: 44px;
+  height: 44px;
+  font-size: 16px;
+}
+
+.cel .titulo {
+  margin: 18px 0 8px;
+}
+
+.cel .acoes .bt {
+  flex: 1 1 auto;
+}
+
+.cel .campo {
+  min-height: 52px;
+}
+
+.cel .campo-deslizante > label {
+  width: 84px;
+}
+
+.cel .faixa-volume {
+  width: 50%;
+}
+
+.cel .seg button {
+  min-height: 44px;
+  flex: 1;
+}
+
+.cel-seg {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.cel .mensagens {
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  width: calc(100vw - 24px);
+}
+
+/* ---------- editor: prévia e faixa de tempo ---------- */
+.cel-palco {
+  flex: none;
+  height: clamp(180px, 40dvh, 440px);
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  padding: 6px;
+  background: var(--tela);
+  container-type: size;
+}
+
+.cel .previa {
+  border-radius: 6px;
+}
+
+.cel-transporte {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 52px;
+  padding: 0 12px 0 4px;
+  background: var(--painel);
+  border-bottom: 1px solid var(--linha);
+}
+
+.cel-transporte .relogio {
+  font-size: 12px;
+}
+
+.cel-faixa {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  position: relative;
+  touch-action: none;
+  user-select: none;
+  cursor: pointer;
+}
+
+/* O trilho fino (22 px) no meio da área de toque (44 px). */
+.cel-faixa::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 11px;
+  bottom: 11px;
+  border-radius: 5px;
+  background: var(--painel-2);
+}
+
+.cel-faixa i {
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  border-radius: 3px;
+  background: var(--clipe-borda);
+}
+
+.cel-faixa i.cel-faixa-destaque {
+  background: var(--acento);
+}
+
+.cel-faixa i.cel-faixa-selecionado {
+  box-shadow: 0 0 0 2px var(--texto);
+}
+
+.cel-agulha {
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--agulha);
+  border-radius: 1px;
+}
+
+/* ---------- editor: conteúdo das abas e abas de baixo ---------- */
+.cel-corpo {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.cel-conteudo {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px 12px 16px;
+}
+
+.cel-abas {
+  flex: none;
+  display: flex;
+  background: var(--painel);
+  border-top: 1px solid var(--linha);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.cel-aba {
+  flex: 1;
+  min-height: 58px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--suave);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.cel-aba i {
+  font-style: normal;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.cel-aba[aria-selected="true"] {
+  color: var(--texto);
+}
+
+.cel-aba[aria-selected="true"] i {
+  color: var(--acento);
+}
+
+/* Legendas: no celular, a ajuda é a de toque (abaixo); a do computador some. */
+.cel .lista > .ajuda,
+.cel-folha-conteudo > .ajuda {
+  display: none;
+}
+
+.cel-ajuda {
+  margin: 0 0 8px;
+  color: var(--suave);
+  font-size: 12px;
+}
+
+.cel .bloco {
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.cel .palavras {
+  gap: 6px;
+}
+
+.cel .palavra {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 15px;
+}
+
+.cel .palavra-editando {
+  font-size: 16px;
+}
+
+.cel .dividir {
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 16px;
+}
+
+.cel .bolinhas {
+  gap: 8px;
+}
+
+.cel .bolinha {
+  width: 44px;
+  height: 44px;
+}
+
+.cel .bolinha-padrao {
+  width: auto;
+  height: 44px;
+  font-size: 12px;
+}
+
+.cel .controle-som .sel {
+  max-width: 52vw;
+}
+
+/* Templates: chips que rolam para o lado e miniaturas em três colunas. */
+.cel .chips {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 -12px 10px;
+  padding: 2px 12px;
+}
+
+.cel .chips::-webkit-scrollbar {
+  display: none;
+}
+
+.cel .chip {
+  flex: none;
+  min-height: 44px;
+  padding: 0 16px;
+}
+
+.cel .galeria-contexto {
+  flex-wrap: wrap;
+}
+
+.cel .grade {
+  gap: 7px;
+}
+
+/* Cores e sons */
+.cel .cores {
+  gap: 10px;
+}
+
+.cel .linha-som {
+  min-height: 48px;
+}
+
+/* ---------- folha do bloco ---------- */
+.cel-folha {
+  position: absolute;
+  inset: -10px 0 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  background: var(--painel);
+  border-top: 1px solid var(--linha);
+  border-radius: 16px 16px 0 0;
+  box-shadow: var(--sombra);
+  padding-bottom: env(safe-area-inset-bottom);
+  transition: transform 0.18s ease-out;
+  animation: cel-subir 0.18s ease-out;
+}
+
+.cel-folha-arrastando {
+  transition: none;
+}
+
+@keyframes cel-subir {
+  from {
+    transform: translateY(40px);
+    opacity: 0.6;
+  }
+}
+
+.cel-folha-alca {
+  flex: none;
+  padding: 8px 8px 2px 14px;
+  touch-action: none;
+}
+
+.cel-pega {
+  display: block;
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--linha);
+  margin: 0 auto 6px;
+}
+
+.cel-folha-titulo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cel-folha-titulo .cab {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  flex-wrap: wrap;
+}
+
+.cel-folha-conteudo {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 14px 16px;
+}
+
+/* O título do bloco já está na alça da folha. */
+.cel-folha-conteudo > .titulo-linha {
+  display: none;
+}
+
+/* ---------- início ---------- */
+.cel-uso {
+  border: 1px solid var(--linha);
+  border-radius: 12px;
+  background: var(--painel);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.cel-uso b {
+  font-size: 15px;
+}
+
+.cel-uso small {
+  display: block;
+  margin-top: 2px;
+  color: var(--suave);
+}
+
+.cel-medidor {
+  height: 6px;
+  margin-top: 10px;
+  border-radius: 3px;
+  background: var(--linha);
+  overflow: hidden;
+}
+
+.cel-medidor i {
+  display: block;
+  height: 100%;
+  background: var(--acento);
+  border-radius: 3px;
+}
+
+.cel-videos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cel-cartao {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--painel-2);
+  border: 1px solid var(--linha);
+}
+
+.cel-cartao[aria-current="true"] {
+  border-color: var(--acento);
+}
+
+.cel-capa {
+  position: relative;
+  display: block;
+  aspect-ratio: 1 / 1.1;
+  background: linear-gradient(180deg, var(--clipe-borda), var(--painel));
+  overflow: hidden;
+}
+
+.cel-capa video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.cel-capa em {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--veu);
+}
+
+.cel-cartao-texto {
+  display: block;
+  padding: 8px;
+  min-width: 0;
+}
+
+.cel-cartao-texto b {
+  display: block;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cel-cartao-texto small {
+  color: var(--suave);
+}
+
+/* ---------- exportar ---------- */
+.cel-centro {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+  text-align: center;
+}
+
+.cel-centro h2 {
+  margin: 0;
+  font: 800 20px / 1.1 var(--ui);
+  letter-spacing: -0.02em;
+}
+
+.cel-centro p {
+  margin: 0;
+  color: var(--suave);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.cel-pronto {
+  width: min(46vw, 200px);
+  aspect-ratio: 9 / 16;
+  border-radius: 10px;
+  background: var(--tela);
+  border: 1px solid var(--linha);
+  object-fit: contain;
+}
+
+.cel-pronto-vazio {
+  background: linear-gradient(180deg, var(--clipe-borda), var(--painel));
+}
+
+.cel-progresso {
+  width: 100%;
+  height: 8px;
+}

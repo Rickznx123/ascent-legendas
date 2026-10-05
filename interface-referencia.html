@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interface do app de legendas, referência</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* ---- CORES DA MARCA: troque aqui (ou pelos seletores no rodapé da prancha) ---- */
+  --acento:#7c5cff;        /* cor principal da Ascent Studio */
+  --acento-texto:#ffffff;  /* texto sobre a cor principal */
+  --fundo:#0e0e11;         /* fundo da janela */
+  --painel:#16161b;        /* painéis */
+  --painel-2:#1e1e25;      /* cartões, campos */
+  --linha:#2a2a33;         /* bordas */
+  --texto:#ececf1;
+  --suave:#8d8d9a;
+  --aviso:#f5b83d;
+  --perigo:#ff5a52;
+  --acento-fraco:color-mix(in srgb,var(--acento) 18%,transparent);
+  --raio:8px;
+  --ui:'Inter Tight',Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--fundo);color:var(--texto);font:500 13px/1.35 var(--ui);overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--acento);outline-offset:1px}
+
+/* ---------- estrutura geral: barra, três colunas, linha do tempo ---------- */
+.app{height:100vh;display:grid;grid-template-rows:48px minmax(0,1fr) 190px;grid-template-columns:330px minmax(0,1fr) 360px;gap:1px;background:var(--linha)}
+.barra{grid-column:1/-1;background:var(--painel);display:flex;align-items:center;gap:14px;padding:0 14px}
+.esq,.centro,.dir{background:var(--painel);min-height:0;display:flex;flex-direction:column}
+.centro{background:var(--fundo)}
+.tempo{grid-column:1/-1;background:var(--painel);display:flex;flex-direction:column;min-height:0}
+
+/* ---------- barra de cima ---------- */
+.marca{display:flex;align-items:center;gap:8px;font-weight:800;letter-spacing:-.02em;font-size:15px}
+.marca i{width:22px;height:22px;border-radius:6px;background:var(--acento);display:block}
+.projeto{color:var(--suave);padding-left:14px;border-left:1px solid var(--linha);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.projeto b{color:var(--texto);font-weight:600}
+.cresce{flex:1}
+.ic{width:30px;height:30px;border-radius:6px;display:grid;place-items:center;color:var(--suave)}
+.ic:hover{background:var(--painel-2);color:var(--texto)}
+.bt{height:30px;padding:0 12px;border-radius:6px;background:var(--painel-2);border:1px solid var(--linha);font-weight:600}
+.bt:hover{border-color:var(--suave)}
+.bt.primario{background:var(--acento);border-color:var(--acento);color:var(--acento-texto);padding:0 18px}
+.bt.primario:hover{filter:brightness(1.1)}
+
+/* ---------- abas ---------- */
+.abas{display:flex;gap:2px;padding:6px 8px 0;border-bottom:1px solid var(--linha)}
+.aba{padding:8px 10px;color:var(--suave);font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px}
+.aba:hover{color:var(--texto)}
+.aba[aria-selected="true"]{color:var(--texto);border-bottom-color:var(--acento)}
+.conteudo{flex:1;min-height:0;overflow:auto;padding:12px}
+.conteudo[hidden]{display:none}
+.titulo{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--suave);margin:14px 0 8px}
+.titulo:first-child{margin-top:0}
+
+/* ---------- painel esquerdo ---------- */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip{padding:5px 10px;border-radius:99px;background:var(--painel-2);border:1px solid var(--linha);font-weight:600;color:var(--suave)}
+.chip[aria-pressed="true"]{background:var(--acento-fraco);border-color:var(--acento);color:var(--texto)}
+.grade{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.mini{aspect-ratio:9/13;border-radius:var(--raio);background:#000;border:1px solid var(--linha);position:relative;display:grid;place-items:center;overflow:hidden;padding:0}
+.mini:hover{border-color:var(--suave)}
+.mini[aria-pressed="true"]{border-color:var(--acento);box-shadow:0 0 0 1px var(--acento)}
+.mini span{font-weight:800;letter-spacing:-.05em;font-size:15px;color:#fff;text-transform:lowercase}
+.mini small{position:absolute;left:6px;bottom:5px;font-size:10px;color:var(--suave);font-weight:600}
+.mini.s1 span{font-family:Georgia,serif;font-style:italic;font-weight:400;letter-spacing:-.02em}
+.mini.s2 span{font-family:Impact,'Arial Narrow',sans-serif;text-transform:uppercase;font-weight:400;letter-spacing:0}
+.mini.s3 span{font-weight:300}
+.cores{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.cor{aspect-ratio:1;border-radius:var(--raio);border:1px solid var(--linha);padding:0}
+.cor[aria-pressed="true"]{box-shadow:0 0 0 2px var(--painel),0 0 0 4px var(--acento)}
+.solta{border:1px dashed var(--linha);border-radius:var(--raio);padding:22px 12px;text-align:center;color:var(--suave)}
+.solta b{display:block;color:var(--texto);margin-bottom:4px}
+.arq{display:flex;align-items:center;gap:10px;padding:8px;border-radius:var(--raio);background:var(--painel-2);margin-top:8px}
+.arq i{width:34px;height:48px;border-radius:4px;background:linear-gradient(180deg,#cbbba8,#553a29);display:block;flex:none}
+.arq div{min-width:0}
+.arq b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.arq small{color:var(--suave)}
+.linha-som{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px}
+.linha-som:hover{background:var(--painel-2)}
+.linha-som span{flex:1}
+.linha-som small{color:var(--suave)}
+
+/* ---------- centro: player ---------- */
+.palco{flex:1;min-height:0;display:grid;place-items:center;padding:14px}
+.video{height:100%;aspect-ratio:9/16;border-radius:10px;position:relative;overflow:hidden;container-type:inline-size;
+  background:linear-gradient(180deg,#d8cdbf 0%,#cbbba8 30%,#6a4a35 44%,#553a29 66%,#e6e2dc 76%,#d9d4cc 100%)}
+.legenda{position:absolute;left:50%;top:68%;transform:translate(-50%,-50%);white-space:nowrap;text-align:right;color:#fff;
+  text-transform:lowercase;text-shadow:0 .4cqw 2.4cqw rgba(0,0,0,.6);outline:1px dashed color-mix(in srgb,var(--acento) 70%,transparent);outline-offset:6px}
+.legenda div{font-weight:300;font-size:8cqw;letter-spacing:-.05em;line-height:1}
+.legenda strong{display:block;font-weight:800;font-size:19cqw;letter-spacing:-.065em;line-height:.9}
+.controles{height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 14px;border-top:1px solid var(--linha);background:var(--painel)}
+.relogio{font-variant-numeric:tabular-nums;color:var(--suave)}
+.relogio b{color:var(--texto);font-weight:600}
+.seg{display:flex;border:1px solid var(--linha);border-radius:6px;overflow:hidden}
+.seg button{padding:5px 9px;color:var(--suave);font-weight:600}
+.seg button[aria-pressed="true"]{background:var(--acento-fraco);color:var(--texto)}
+
+/* ---------- painel direito: lista de legendas ---------- */
+.bloco{border:1px solid var(--linha);border-radius:var(--raio);background:var(--painel-2);padding:8px 10px;margin-bottom:6px;cursor:pointer}
+.bloco:hover{border-color:var(--suave)}
+.bloco[aria-selected="true"]{border-color:var(--acento);background:var(--acento-fraco)}
+.bloco.revisar{border-left:3px solid var(--aviso)}
+.cab{display:flex;align-items:center;gap:8px;color:var(--suave);font-size:11px;margin-bottom:6px;font-variant-numeric:tabular-nums}
+.cab b{color:var(--texto)}
+.selo{margin-left:auto;padding:2px 7px;border-radius:99px;background:var(--painel);border:1px solid var(--linha);font-weight:600}
+.selo.d{color:var(--texto);border-color:var(--acento)}
+.palavras{display:flex;flex-wrap:wrap;gap:4px}
+.p{padding:3px 8px;border-radius:5px;background:var(--painel);border:1px solid transparent}
+.p.chave{background:var(--acento);color:var(--acento-texto);font-weight:700}
+.campo{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--linha)}
+.campo label{color:var(--suave)}
+.sel{height:28px;padding:0 9px;border-radius:6px;background:var(--painel-2);border:1px solid var(--linha);display:flex;align-items:center;gap:6px;font-weight:600}
+.bolinhas{display:flex;gap:5px}
+.bolinhas i{width:16px;height:16px;border-radius:50%;display:block;border:1px solid rgba(255,255,255,.25)}
+.barra-fina{width:120px;height:4px;border-radius:2px;background:var(--linha);position:relative}
+.barra-fina::after{content:"";position:absolute;left:0;top:0;bottom:0;width:35%;border-radius:2px;background:var(--acento)}
+.acoes{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.bt.perigo{color:var(--perigo)}
+
+/* ---------- linha do tempo ---------- */
+.ferramentas{height:36px;flex:none;display:flex;align-items:center;gap:4px;padding:0 10px;border-bottom:1px solid var(--linha)}
+.trilhas{flex:1;min-height:0;position:relative;overflow:hidden;padding:0 0 0 86px}
+.regua{height:22px;border-bottom:1px solid var(--linha);position:relative;color:var(--suave);font-size:10px;font-variant-numeric:tabular-nums}
+.regua span{position:absolute;top:5px;transform:translateX(-50%)}
+.trilha{height:38px;border-bottom:1px solid var(--linha);position:relative}
+.trilha.fina{height:26px}
+.nome{position:absolute;left:-86px;top:0;bottom:0;width:86px;display:flex;align-items:center;padding-left:12px;color:var(--suave);font-size:11px;font-weight:600;border-right:1px solid var(--linha);background:var(--painel)}
+.fita{position:absolute;left:0;right:0;top:5px;bottom:5px;border-radius:5px;background:repeating-linear-gradient(90deg,#3a2c22 0 36px,#4a382b 36px 72px);opacity:.85}
+.clipe{position:absolute;top:5px;bottom:5px;border-radius:5px;background:#34343f;border:1px solid #44444f;font-size:10px;padding:0 5px;display:flex;align-items:center;white-space:nowrap;overflow:hidden;color:var(--suave)}
+.clipe.d{background:var(--acento-fraco);border-color:var(--acento);color:var(--texto);font-weight:700}
+.clipe.sel-c{box-shadow:0 0 0 1px #fff}
+.som{position:absolute;top:6px;bottom:6px;border-radius:4px;background:#2f6f5f;border:1px solid #47a58c}
+.agulha{position:absolute;top:0;bottom:0;width:1px;background:#fff;left:calc(86px + 33.5%);pointer-events:none}
+.agulha::before{content:"";position:absolute;top:0;left:-5px;border:5px solid transparent;border-top:7px solid #fff}
+
+/* ---------- seletor de cores da prancha (não faz parte do app) ---------- */
+.prancha{position:fixed;right:372px;bottom:200px;background:#000c;backdrop-filter:blur(6px);border:1px solid var(--linha);border-radius:10px;padding:8px 10px;display:flex;gap:10px;align-items:center;font-size:11px;color:var(--suave)}
+.prancha input{width:26px;height:22px;padding:0;border:0;background:none}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- BARRA DE CIMA -->
+  <header class="barra">
+    <div class="marca"><i></i>Ascent Legendas</div>
+    <div class="projeto"><b>Maiara - Harmonização íntima.mp4</b> · salvo agora</div>
+    <div class="cresce"></div>
+    <button class="ic" title="Desfazer (Ctrl+Z)" aria-label="Desfazer">↶</button>
+    <button class="ic" title="Refazer (Ctrl+Y)" aria-label="Refazer">↷</button>
+    <button class="bt">Transcrever</button>
+    <button class="bt primario">Exportar</button>
+  </header>
+
+  <!-- PAINEL ESQUERDO: biblioteca -->
+  <aside class="esq">
+    <div class="abas" role="tablist" data-grupo="esq">
+      <button class="aba" role="tab" aria-selected="false" data-aba="midia">Mídia</button>
+      <button class="aba" role="tab" aria-selected="true" data-aba="templates">Templates</button>
+      <button class="aba" role="tab" aria-selected="false" data-aba="paletas">Cores</button>
+      <button class="aba" role="tab" aria-selected="false" data-aba="sons">Sons</button>
+    </div>
+
+    <div class="conteudo" data-painel="midia" hidden>
+      <div class="solta"><b>Importar vídeo</b>Arraste o arquivo para cá ou clique para escolher</div>
+      <div class="titulo">Vídeos</div>
+      <div class="arq"><i></i><div><b>Maiara - Harmonização íntima.mp4</b><small>0:57 · 59 blocos</small></div></div>
+      <div class="arq"><i></i><div><b>teste.mp4</b><small>0:22 · 17 blocos</small></div></div>
+      <div class="acoes"><button class="bt">Recomeçar do zero</button><button class="bt perigo">Remover vídeo</button></div>
+    </div>
+
+    <div class="conteudo" data-painel="templates">
+      <div class="chips" id="pacotes">
+        <button class="chip" aria-pressed="true">Misto</button>
+        <button class="chip" aria-pressed="false">A</button>
+        <button class="chip" aria-pressed="false">B</button>
+        <button class="chip" aria-pressed="false">C</button>
+        <button class="chip" aria-pressed="false">D</button>
+        <button class="chip" aria-pressed="false">E</button>
+      </div>
+      <div class="grade" id="grade">
+        <button class="mini" aria-pressed="true"><span>único</span><small>d1</small></button>
+        <button class="mini s1" aria-pressed="false"><span>único</span><small>b4</small></button>
+        <button class="mini s2" aria-pressed="false"><span>único</span><small>c3</small></button>
+        <button class="mini s3" aria-pressed="false"><span>único</span><small>d3</small></button>
+        <button class="mini" aria-pressed="false"><span>único</span><small>e1</small></button>
+        <button class="mini s1" aria-pressed="false"><span>único</span><small>b1</small></button>
+        <button class="mini s2" aria-pressed="false"><span>único</span><small>c1</small></button>
+        <button class="mini" aria-pressed="false"><span>único</span><small>d4</small></button>
+        <button class="mini s3" aria-pressed="false"><span>único</span><small>e4</small></button>
+        <button class="mini s1" aria-pressed="false"><span>único</span><small>a2</small></button>
+        <button class="mini" aria-pressed="false"><span>único</span><small>d6</small></button>
+        <button class="mini s2" aria-pressed="false"><span>único</span><small>c6</small></button>
+      </div>
+      <div class="acoes"><button class="bt">Aplicar pacote ao vídeo inteiro</button><button class="bt">Sortear de novo</button></div>
+    </div>
+
+    <div class="conteudo" data-painel="paletas" hidden>
+      <div class="titulo">Cor do vídeo</div>
+      <div class="cores" id="cores">
+        <button class="cor" aria-pressed="true" title="Areia" style="background:linear-gradient(90deg,#cdb696,#fff)"></button>
+        <button class="cor" aria-pressed="false" title="Branco" style="background:#fff"></button>
+        <button class="cor" aria-pressed="false" title="Vermelho" style="background:linear-gradient(#ff3b2f,#c40d0d)"></button>
+        <button class="cor" aria-pressed="false" title="Dourado" style="background:linear-gradient(#fff3c4,#b8862b,#f1d27a)"></button>
+        <button class="cor" aria-pressed="false" title="Prata" style="background:linear-gradient(#fff,#8f97a3,#e8ebef)"></button>
+        <button class="cor" aria-pressed="false" title="Rosé" style="background:linear-gradient(#ffe3ea,#e0457b)"></button>
+        <button class="cor" aria-pressed="false" title="Azul" style="background:linear-gradient(#c9f1ff,#1166e8)"></button>
+        <button class="cor" aria-pressed="false" title="Verde" style="background:linear-gradient(#eaffb0,#37c400)"></button>
+        <button class="cor" aria-pressed="false" title="Roxo" style="background:linear-gradient(#e9d5ff,#6d28d9)"></button>
+        <button class="cor" aria-pressed="false" title="Amarelo" style="background:linear-gradient(#fff2a8,#ff9d00)"></button>
+      </div>
+      <div class="acoes"><button class="bt">Limpar cores dos blocos</button></div>
+    </div>
+
+    <div class="conteudo" data-painel="sons" hidden>
+      <div class="campo"><label>Som no destaque</label><span class="sel">Metade ▾</span></div>
+      <div class="campo"><label>Som no linear</label><span class="sel">Poucos ▾</span></div>
+      <div class="campo"><label>Volume dos efeitos</label><span class="barra-fina"></span></div>
+      <div class="titulo">Destaque</div>
+      <div class="linha-som"><button class="ic" aria-label="Ouvir">▶</button><span>camera-flash</span><small>0,94 s</small></div>
+      <div class="linha-som"><button class="ic" aria-label="Ouvir">▶</button><span>whoosh</span><small>0,82 s</small></div>
+      <div class="linha-som"><button class="ic" aria-label="Ouvir">▶</button><span>shutter</span><small>0,32 s</small></div>
+      <div class="titulo">Linear</div>
+      <div class="linha-som"><button class="ic" aria-label="Ouvir">▶</button><span>typing-1</span><small>0,43 s</small></div>
+      <div class="linha-som"><button class="ic" aria-label="Ouvir">▶</button><span>typing-2</span><small>0,61 s</small></div>
+    </div>
+  </aside>
+
+  <!-- CENTRO: player -->
+  <section class="centro">
+    <div class="palco">
+      <div class="video">
+        <div class="legenda"><div>além do</div><strong>único</strong></div>
+      </div>
+    </div>
+    <div class="controles">
+      <button class="ic" aria-label="Reproduzir" style="color:var(--texto)">▶</button>
+      <span class="relogio"><b>0:19</b> / 0:57</span>
+      <div class="cresce"></div>
+      <span style="color:var(--suave)">Posição</span>
+      <div class="seg" id="pos">
+        <button aria-pressed="false">Em cima</button><button aria-pressed="false">Meio</button><button aria-pressed="true">Embaixo</button>
+      </div>
+      <button class="bt">Mover legenda</button>
+      <button class="ic" aria-label="Tela cheia">⛶</button>
+    </div>
+  </section>
+
+  <!-- PAINEL DIREITO: legendas e ajustes -->
+  <aside class="dir">
+    <div class="abas" role="tablist" data-grupo="dir">
+      <button class="aba" role="tab" aria-selected="true" data-aba="legendas">Legendas</button>
+      <button class="aba" role="tab" aria-selected="false" data-aba="ajustes">Ajustes do bloco</button>
+      <button class="aba" role="tab" aria-selected="false" data-aba="geral">Geral</button>
+    </div>
+
+    <div class="conteudo" data-painel="legendas" id="lista"></div>
+
+    <div class="conteudo" data-painel="ajustes" hidden>
+      <div class="titulo">Bloco #14 · 0:14,7</div>
+      <div class="palavras" style="margin-bottom:10px"><span class="p">além</span><span class="p">do</span><span class="p chave">único</span></div>
+      <div style="color:var(--suave);font-size:11px;margin-bottom:8px">Clique para destacar · duplo clique para editar</div>
+      <div class="campo"><label>Layout</label><span class="sel">d1 (destaque) ▾</span></div>
+      <div class="campo"><label>Cor</label><span class="bolinhas"><i style="background:#cdb696"></i><i style="background:#fff"></i><i style="background:#e0261c"></i><i style="background:#d2a441"></i><i style="background:#3fb6ff"></i><i style="background:#a855f7"></i></span></div>
+      <div class="campo"><label>Som</label><span class="sel">Automático (shutter) ▾</span></div>
+      <div class="campo"><label>Posição</label><span class="sel">Geral (50% × 68%) ▾</span></div>
+      <div class="acoes">
+        <button class="bt">Dividir</button><button class="bt">Juntar com o seguinte</button>
+        <button class="bt">Marcar para revisar</button><button class="bt perigo">Excluir bloco</button>
+      </div>
+    </div>
+
+    <div class="conteudo" data-painel="geral" hidden>
+      <div class="campo"><label>Sincronia</label><span class="sel">−100 ms</span></div>
+      <div class="campo"><label>Posição geral</label><span class="sel">50% × 68%</span></div>
+      <div class="campo"><label>Blocos excluídos</label><span class="sel">Mostrar (0)</span></div>
+      <div class="acoes"><button class="bt">Restaurar posições</button><button class="bt">Refazer layouts</button><button class="bt">Recarregar templates</button></div>
+    </div>
+  </aside>
+
+  <!-- LINHA DO TEMPO -->
+  <footer class="tempo">
+    <div class="ferramentas">
+      <button class="ic" title="Dividir no cursor" aria-label="Dividir">✂</button>
+      <button class="ic" title="Excluir" aria-label="Excluir">🗑</button>
+      <div class="cresce"></div>
+      <span style="color:var(--suave);font-size:11px">59 blocos · 18 para revisar</span>
+      <button class="ic" aria-label="Diminuir zoom">−</button>
+      <button class="ic" aria-label="Aumentar zoom">+</button>
+    </div>
+    <div class="trilhas">
+      <div class="regua" id="regua"></div>
+      <div class="trilha"><div class="nome">Legendas</div><div id="clipes"></div></div>
+      <div class="trilha"><div class="nome">Vídeo</div><div class="fita"></div></div>
+      <div class="trilha fina"><div class="nome">Efeitos</div><div id="sons"></div></div>
+      <div class="agulha"></div>
+    </div>
+  </footer>
+</div>
+
+<!-- só da prancha: testar as cores da marca -->
+<div class="prancha">
+  Testar cores:
+  <label>principal <input type="color" id="c-acento" value="#7c5cff"></label>
+  <label>fundo <input type="color" id="c-fundo" value="#0e0e11"></label>
+  <label>painel <input type="color" id="c-painel" value="#16161b"></label>
+</div>
+
+<script>
+/* dados de exemplo */
+var blocos=[
+ {n:12,t:'0:12,0',p:['como','incontinência','urinária,'],k:2,l:'linear',d:false},
+ {n:13,t:'0:13,4',p:['ressecamento','vaginal,'],k:0,l:'linear',d:false},
+ {n:14,t:'0:14,7',p:['além','do','único'],k:2,l:'d1',d:true,sel:true},
+ {n:15,t:'0:15,4',p:['de','repetição,'],k:1,l:'linear',d:false},
+ {n:16,t:'0:16,5',p:['desconfortos','íntimos'],k:0,l:'c6',d:true},
+ {n:17,t:'0:17,8',p:['e','muitos'],k:1,l:'linear',d:false,rev:true},
+ {n:18,t:'0:18,3',p:['outros','sintomas.'],k:1,l:'linear',d:false},
+ {n:19,t:'0:19,6',p:['agora','você','pode'],k:0,l:'e4',d:true}
+];
+var lista=document.getElementById('lista');
+blocos.forEach(function(b){
+  var el=document.createElement('div');
+  el.className='bloco'+(b.rev?' revisar':'');el.tabIndex=0;el.setAttribute('aria-selected',b.sel?'true':'false');
+  el.innerHTML='<div class="cab"><b>#'+b.n+'</b>'+b.t+(b.rev?' · revisar':'')+'<span class="selo'+(b.d?' d':'')+'">'+b.l+'</span></div><div class="palavras">'+
+    b.p.map(function(w,i){return '<span class="p'+(i===b.k?' chave':'')+'">'+w+'</span>';}).join('')+'</div>';
+  el.addEventListener('click',function(e){
+    if(e.target.classList.contains('p')){el.querySelectorAll('.p').forEach(function(x){x.classList.remove('chave');});e.target.classList.add('chave');}
+    lista.querySelectorAll('.bloco').forEach(function(x){x.setAttribute('aria-selected','false');});el.setAttribute('aria-selected','true');
+  });
+  lista.appendChild(el);
+});
+/* linha do tempo */
+var regua=document.getElementById('regua');
+for(var s=0;s<=55;s+=5){var m=document.createElement('span');m.style.left=(s/57*100)+'%';m.textContent='0:'+('0'+s).slice(-2);regua.appendChild(m);}
+var clipes=document.getElementById('clipes'),sons=document.getElementById('sons'),x=0,i=0;
+var nomes=['tem novidade','chegando','na saúde','único','agora você','repetição','desconfortos','e muitos','outros sintomas','pode contar','laser','toda hora'];
+while(x<98){var w=1.6+((i*7)%5)*0.5,d=(i%3===2);var c=document.createElement('div');c.className='clipe'+(d?' d':'')+(i===20?' sel-c':'');
+  c.style.left=x+'%';c.style.width=w+'%';c.textContent=nomes[i%nomes.length];clipes.appendChild(c);
+  if(d&&i%2===0){var so=document.createElement('div');so.className='som';so.style.left=x+'%';so.style.width='1.2%';sons.appendChild(so);}
+  x+=w+0.25;i++;}
+/* abas */
+document.querySelectorAll('.abas').forEach(function(g){
+  g.addEventListener('click',function(e){var a=e.target.closest('.aba');if(!a)return;
+    g.querySelectorAll('.aba').forEach(function(o){o.setAttribute('aria-selected',o===a?'true':'false');});
+    g.parentElement.querySelectorAll('[data-painel]').forEach(function(p){p.hidden=p.dataset.painel!==a.dataset.aba;});});
+});
+/* grupos de escolha única */
+['pacotes','grade','cores','pos'].forEach(function(id){var g=document.getElementById(id);
+  g.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
+    g.querySelectorAll('button').forEach(function(o){o.setAttribute('aria-pressed',o===b?'true':'false');});});});
+/* teste de cores da marca */
+[['c-acento','--acento'],['c-fundo','--fundo'],['c-painel','--painel']].forEach(function(p){
+  document.getElementById(p[0]).addEventListener('input',function(e){document.documentElement.style.setProperty(p[1],e.target.value);});});
+</script>
+</body>
+</html>

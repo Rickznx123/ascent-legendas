@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Layouts de legenda, pacote C</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Kaushan+Script&display=swap" rel="stylesheet">
+<style>
+:root{
+  --pagina:#16161a; --texto:#f2f0ec; --suave:#9a968f;
+  --anton:'Anton','Arial Narrow',Impact,sans-serif;
+  --script:'Kaushan Script','Brush Script MT',cursive;
+  --ui:Helvetica,Arial,sans-serif;
+  --sombra:0 .5cqw 3cqw rgba(0,0,0,.55);
+  /* paleta branco */
+  --chave:linear-gradient(180deg,#ffffff,#ffffff);
+  --g1:rgba(255,255,255,.5); --g2:rgba(255,255,255,.25);
+}
+body.vermelho{--chave:linear-gradient(180deg,#ff3b2f 0%,#c40d0d 100%);--g1:rgba(255,40,30,.75);--g2:rgba(255,0,0,.45)}
+body.amarelo{--chave:linear-gradient(180deg,#fff2a8 0%,#ffc21a 55%,#ff9d00 100%);--g1:rgba(255,190,40,.6);--g2:rgba(255,150,0,.35)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--pagina);color:var(--texto);font-family:var(--ui);padding:32px 20px 56px}
+header{max-width:1100px;margin:0 auto 28px;display:flex;flex-wrap:wrap;gap:16px;align-items:end;justify-content:space-between}
+h1{font:400 34px/1 var(--anton);letter-spacing:.01em;text-transform:uppercase;margin:0 0 8px}
+header p{margin:0;color:var(--suave);font-size:15px;max-width:56ch;line-height:1.5}
+.botoes{display:flex;flex-wrap:wrap;gap:8px}
+button{font:600 14px var(--ui);color:var(--texto);background:transparent;border:1px solid #4a4a54;border-radius:8px;padding:10px 14px;cursor:pointer}
+button:hover{background:#24242b}
+button[aria-pressed="true"]{background:#f2f0ec;color:#16161a;border-color:#f2f0ec}
+button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+main{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:28px 20px}
+figure{margin:0}
+.q{position:relative;aspect-ratio:9/16;container-type:inline-size;overflow:hidden;border-radius:10px;background:#1b1a19}
+body.cena .q{background:linear-gradient(180deg,#d8cdbf 0%,#cbbba8 30%,#6a4a35 44%,#553a29 66%,#e6e2dc 76%,#d9d4cc 100%)}
+body.claro .q{background:#efece6}
+
+/* ---------- peças comuns do pacote C ---------- */
+.b{position:absolute;left:50%;top:68%;transform:translate(-50%,-50%);width:max-content;max-width:90cqw;
+  color:#fff;text-align:center;text-shadow:var(--sombra);white-space:nowrap}
+.esq{text-align:left}
+/* condensada em caixa-alta */
+.anton{font-family:var(--anton);font-weight:400;text-transform:uppercase;letter-spacing:.005em;line-height:1}
+/* manuscrita, sempre em minúsculas */
+.script{font-family:var(--script);font-weight:400;text-transform:lowercase;letter-spacing:0;line-height:1}
+/* rótulo pequeno: condensada espaçada */
+.rot{font:400 4.8cqw/1 var(--anton);text-transform:uppercase;letter-spacing:.08em;position:relative;z-index:1}
+.dois{display:flex;justify-content:space-between;padding:0 .3em}
+
+/* palavra-chave: preenchimento da paleta + brilho no elemento de fora */
+.kw{display:block;filter:drop-shadow(0 0 1.4cqw var(--g1)) drop-shadow(0 0 5cqw var(--g2)) drop-shadow(0 .5cqw 2cqw rgba(0,0,0,.4))}
+.tx{display:inline-block;padding:.1em .16em;margin:-.1em -.16em;text-shadow:none;
+  background:var(--chave);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+/* a manuscrita precisa de mais folga para o degradê não cortar as pontas */
+.tx.script{padding:.22em .28em;margin:-.22em -.28em}
+
+/* animações */
+.w{display:inline-block;animation:sobe .45s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--d,0s)}
+.w.bate{animation-name:bate;animation-duration:.38s;animation-timing-function:cubic-bezier(.2,.9,.25,1)}
+.w.foco{animation-name:foco;animation-duration:.55s}
+@keyframes sobe{from{opacity:0;transform:translateY(.35em)}to{opacity:1;transform:none}}
+@keyframes bate{from{opacity:0;filter:blur(.05em);transform:scale(1.22)}to{opacity:1;filter:none;transform:none}}
+@keyframes foco{from{opacity:0;filter:blur(.12em);transform:scale(.94)}to{opacity:1;filter:none;transform:none}}
+@media (prefers-reduced-motion:reduce){.w{animation:none}}
+
+/* ---------- C1: manuscrita em cima, condensada gigante, rodapé ---------- */
+.c1 .cima{font-size:10cqw;margin:0 0 -.42em .15em;transform:rotate(-5deg);transform-origin:left bottom;position:relative;z-index:1}
+.c1 .rod{text-align:right;font-size:8cqw;margin-top:-.04em;position:relative}
+.c1 .rod .anton{letter-spacing:.02em}
+/* ---------- C2: condensada com dois rótulos e manuscrita embaixo ---------- */
+.c2 .dois{margin-bottom:.12em}
+.c2 .baixo{font-size:15cqw;margin-top:-.46em;transform:rotate(-4deg);position:relative}
+/* ---------- C3: pilha crescente ---------- */
+.c3 .l1{font-size:7cqw}
+.c3 .l2{font-size:14cqw;margin-top:.02em}
+.c3 .kw{margin-top:.02em}
+/* ---------- C4: manuscrita gigante ---------- */
+.c4 .dois{margin-bottom:-.2em}
+.c4 .kw{transform:rotate(-3deg)}
+/* ---------- C5: esquerda mista ---------- */
+.c5 .l1{font-size:8cqw}
+.c5 .l2{font-size:13cqw;margin-top:.02em}
+.c5 .kw{margin-top:-.12em;transform:rotate(-3deg);transform-origin:left center}
+/* ---------- C6: condensada com selo ---------- */
+.c6 .topo{font:400 4.8cqw/1 var(--anton);text-transform:uppercase;letter-spacing:.08em;margin-bottom:-.15em;position:relative;z-index:1}
+.c6 .topo .script{font-size:9cqw;margin-left:.1em}
+.c6 .selo{text-align:right;font:400 5cqw/1 var(--anton);text-transform:uppercase;letter-spacing:.1em;margin-top:.14em;padding-right:.1em;position:relative}
+/* ---------- linear ---------- */
+.lin{font-size:8cqw;line-height:1.08;letter-spacing:.01em}
+
+figcaption{padding:12px 2px 0}
+figcaption b{display:block;font:700 16px/1.2 var(--ui);margin-bottom:6px}
+figcaption span{display:block;color:var(--suave);font-size:13.5px;line-height:1.5}
+</style>
+</head>
+<body class="vermelho">
+<header>
+  <div>
+    <h1>Pacote C</h1>
+    <p>Seis composições com condensada em caixa-alta (Anton) e manuscrita (Kaushan Script), mais o linear. A paleta pinta só a palavra-chave e o brilho. A palavra-chave condensada entra batendo; a manuscrita entra em foco.</p>
+  </div>
+  <div class="botoes">
+    <button data-paleta="branco" aria-pressed="false">Branco</button>
+    <button data-paleta="vermelho" aria-pressed="true">Vermelho</button>
+    <button data-paleta="amarelo" aria-pressed="false">Amarelo</button>
+    <button id="fundo">Trocar fundo</button>
+    <button id="repetir">Repetir animação</button>
+  </div>
+</header>
+
+<main>
+  <figure>
+    <div class="q"><div class="b esq c1">
+      <div class="script cima"><span class="w">contar</span> <span class="w" style="--d:.1s">com</span></div>
+      <span class="kw"><span class="tx anton w bate" data-w="86" data-max="34" style="--d:.24s">depilação</span></span>
+      <div class="rod"><span class="w script" style="--d:.42s">a</span> <span class="w anton" style="--d:.5s">laser</span></div>
+    </div></div>
+    <figcaption><b>C1. Manuscrita, condensada e rodapé</b><span>Manuscrita de 10% inclinada 5°, entrando no topo da palavra-chave. Palavra-chave condensada com 86% da largura (teto 34%). Rodapé à direita, 8%: palavras em manuscrita, a última em condensada.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b c2">
+      <div class="rot dois"><span class="w">estaremos</span><span class="w" style="--d:.1s">com</span></div>
+      <span class="kw"><span class="tx anton w bate" data-w="80" data-max="34" style="--d:.22s">preços</span></span>
+      <div class="script baixo"><span class="w" style="--d:.44s">imperdíveis</span></div>
+    </div></div>
+    <figcaption><b>C2. Condensada com dois rótulos</b><span>Dois rótulos de 4,8% nas pontas de cima. Palavra-chave condensada com 80% da largura (teto 34%). Manuscrita branca de 15% embaixo, inclinada 4° e subindo 46% sobre a palavra-chave.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b c3">
+      <div class="anton l1"><span class="w">clique</span></div>
+      <div class="anton l2"><span class="w" style="--d:.12s">no link</span></div>
+      <span class="kw"><span class="tx anton w bate" data-w="70" data-max="36" style="--d:.28s">da bio</span></span>
+    </div></div>
+    <figcaption><b>C3. Pilha crescente</b><span>Três linhas condensadas centralizadas, crescendo: 7%, 14% e a palavra-chave com 70% da largura (teto 36%). A linha de 14% é a última palavra antes da chave.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b c4">
+      <div class="rot dois"><span class="w">lidar</span><span class="w" style="--d:.1s">com</span></div>
+      <span class="kw"><span class="tx script w foco" data-w="84" data-max="30" style="--d:.22s">irritações</span></span>
+    </div></div>
+    <figcaption><b>C4. Manuscrita gigante</b><span>Palavra-chave em manuscrita com 84% da largura (teto 30%), inclinada 3°. Dois rótulos pequenos nas pontas de cima, sobrepostos ao topo dela.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b esq c5">
+      <div class="anton l1"><span class="w">faz a</span></div>
+      <div class="anton l2"><span class="w" style="--d:.12s">diminuição</span></div>
+      <span class="kw"><span class="tx script w foco" data-w="72" data-max="26" style="--d:.3s">gradual</span></span>
+    </div></div>
+    <figcaption><b>C5. Esquerda mista</b><span>Alinhado à esquerda: duas linhas condensadas (8% e 13%) e a palavra-chave em manuscrita com 72% da largura (teto 26%), inclinada 3° e subindo 12%.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b c6">
+      <div class="topo"><span class="w">assim</span> <span class="w script" style="--d:.1s">uma</span></div>
+      <span class="kw"><span class="tx anton w bate" data-w="84" data-max="34" style="--d:.24s">praticidade</span></span>
+      <div class="selo"><span class="w" style="--d:.46s">e conforto</span></div>
+    </div></div>
+    <figcaption><b>C6. Condensada com selo</b><span>Topo com rótulo de 4,8% e a última palavra em manuscrita de 9%. Palavra-chave condensada com 84% da largura (teto 34%). Selo condensado espaçado de 5% embaixo à direita.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b anton lin">
+      <span class="w">agora</span> <span class="w" style="--d:.08s">você</span><br><span class="w" style="--d:.16s">também</span> <span class="w" style="--d:.24s">pode</span>
+    </div></div>
+    <figcaption><b>Linear do pacote C</b><span>Respiro entre os destaques: condensada em caixa-alta de 8%, entrelinha 1,08, sem palavra-chave pintada. Acima de 22 caracteres, quebra em duas linhas.</span></figcaption>
+  </figure>
+</main>
+
+<script>
+function ajustar(){
+  document.querySelectorAll('[data-w]').forEach(function(el){
+    var W=el.closest('.q').clientWidth;
+    el.style.fontSize='100px';
+    var larg=el.offsetWidth||1;
+    var alvo=100*(parseFloat(el.dataset.w)/100*W)/larg;
+    var teto=parseFloat(el.dataset.max)/100*W;
+    el.style.fontSize=Math.min(alvo,teto).toFixed(1)+'px';
+  });
+}
+function repetir(){
+  document.querySelectorAll('.w').forEach(function(el){
+    el.style.animation='none';void el.offsetWidth;el.style.animation='';
+  });
+}
+var paleta='vermelho',fundos=['','cena','claro'],fundo=0;
+function aplicar(){document.body.className=(paleta+' '+fundos[fundo]).trim();}
+document.querySelectorAll('[data-paleta]').forEach(function(bt){
+  bt.addEventListener('click',function(){
+    paleta=bt.dataset.paleta;aplicar();
+    document.querySelectorAll('[data-paleta]').forEach(function(o){o.setAttribute('aria-pressed',o===bt?'true':'false');});
+  });
+});
+document.getElementById('fundo').addEventListener('click',function(){fundo=(fundo+1)%fundos.length;aplicar();});
+document.getElementById('repetir').addEventListener('click',repetir);
+ajustar();
+if(document.fonts&&document.fonts.ready){document.fonts.ready.then(ajustar);}
+window.addEventListener('resize',ajustar);
+</script>
+</body>
+</html>

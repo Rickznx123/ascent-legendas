@@ -1,0 +1,37 @@
+{
+  "name": "legendas-dinamicas",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "gerar": "tsx src/cli.ts",
+    "conferir": "tsx src/cli.ts --conferir",
+    "typecheck": "tsc --noEmit",
+    "app": "tsx app/servidor/index.ts",
+    "app:rede": "tsx app/servidor/index.ts --rede",
+    "app:montar": "vite build --config app/web/vite.config.ts",
+    "app:producao": "tsx app/servidor/index.ts --producao"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.532",
+    "@remotion/install-whisper-cpp": "4.0.532",
+    "@remotion/layout-utils": "4.0.532",
+    "@remotion/player": "^4.0.532",
+    "@remotion/renderer": "4.0.532",
+    "@vitejs/plugin-react": "^4.7.0",
+    "express": "^4.22.3",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "remotion": "4.0.532",
+    "vite": "^6.4.3"
+  },
+  "devDependencies": {
+    "@remotion/lambda": "4.0.532",
+    "@types/express": "^4.17.25",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
