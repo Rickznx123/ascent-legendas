@@ -356,7 +356,8 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
     const vite = await createServer({
       configFile: path.join(webRoot, "vite.config.ts"),
       // Na rede, sem recarregar sozinho: o canal do Vite só atende a própria máquina.
-      server: {middlewareMode: true, ...(rede ? {hmr: false} : {})},
+      // Aceita também túneis da Cloudflare (qualquer subdomínio de trycloudflare.com).
+      server: {middlewareMode: true, ...(rede ? {hmr: false, allowedHosts: [".trycloudflare.com"]} : {})},
       appType: "spa",
     });
     app.use(vite.middlewares);
