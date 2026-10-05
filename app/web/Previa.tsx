@@ -28,6 +28,9 @@ type Props = {
   sonsUrl: string;
   sincroniaMs: number;
   precisa?: SincroniaPrecisa;
+  // Marca d'água do plano grátis: só para mostrar o que vai sair (quem decide no
+  // vídeo exportado é o servidor).
+  marcaDagua?: boolean;
   // Posição geral e instantes dos blocos excluídos, como no render.
   posicao?: Posicao;
   cortesMs: number[];
@@ -110,7 +113,7 @@ const CamadaDeArrasto: React.FC<{mover: MoverLegenda}> = ({mover}) => {
 
 // Prévia ao vivo: o mesmo componente da renderização, dentro do Remotion Player.
 export const Previa = forwardRef<PlayerRef, Props>((props, ref) => {
-  const {videoUrl, video, blocos, estilo, efeitos, volumeEfeitos, sonsUrl, sincroniaMs, precisa, posicao, cortesMs, mover, onQuadro} =
+  const {videoUrl, video, blocos, estilo, efeitos, volumeEfeitos, sonsUrl, sincroniaMs, precisa, marcaDagua, posicao, cortesMs, mover, onQuadro} =
     props;
   const inputProps: KineticCaptionVideoProps = useMemo(
     () => ({
@@ -127,8 +130,9 @@ export const Previa = forwardRef<PlayerRef, Props>((props, ref) => {
       precisa,
       posicao,
       cortesMs,
+      marcaDagua,
     }),
-    [videoUrl, blocos, estilo, video, efeitos, volumeEfeitos, sonsUrl, sincroniaMs, precisa, posicao, cortesMs],
+    [videoUrl, blocos, estilo, video, efeitos, volumeEfeitos, sonsUrl, sincroniaMs, precisa, posicao, cortesMs, marcaDagua],
   );
 
   // Os controles ficam embaixo da prévia; em tela cheia, os do próprio Player.

@@ -144,6 +144,7 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
               sonsUrl={api.sonsUrl}
               sincroniaMs={e.sincroniaMs}
               precisa={e.precisa}
+              marcaDagua={e.marcaDagua}
               onQuadro={e.aoMudarQuadro}
               posicao={projetoDoVideo?.posicao}
               cortesMs={e.cortesMs}

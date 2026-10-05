@@ -1,7 +1,7 @@
 // Conta no topo do computador: e-mail, plano e Sair (o equivalente ao menu ☰ do
 // celular). Sem login (modo local), não aparece.
 import {useEffect, useRef, useState} from "react";
-import {nomeDoPlano} from "./celular/plano";
+import {nomeDoPlano, resumoDoUso} from "./celular/plano";
 import {useConta} from "./conta";
 
 export const MenuDaConta: React.FC<{ocupado: boolean}> = ({ocupado}) => {
@@ -48,6 +48,15 @@ export const MenuDaConta: React.FC<{ocupado: boolean}> = ({ocupado}) => {
               <b>{conta.email}</b>
             </div>
             <div className="suave">Plano {nomeDoPlano(conta)}</div>
+            {conta.uso ? (
+              <div className="conta-uso">
+                <div>{resumoDoUso(conta.uso).titulo}</div>
+                <div className="suave pequeno">{resumoDoUso(conta.uso).detalhe}</div>
+                <div className="cel-medidor">
+                  <i style={{width: `${Math.min(100, resumoDoUso(conta.uso).fracao * 100)}%`}} />
+                </div>
+              </div>
+            ) : null}
           </div>
           <button
             type="button"

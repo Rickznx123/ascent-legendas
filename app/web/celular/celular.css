@@ -1344,3 +1344,13 @@
   white-space: nowrap;
   max-width: 240px;
 }
+
+/* Plano antes de exportar (AvisoDoPlano) na tela Exportar. */
+.cel-centro .aviso-do-plano {
+  width: 100%;
+  max-width: 420px;
+}
+
+.cel-centro .aviso-do-plano-botoes {
+  flex-direction: column;
+}

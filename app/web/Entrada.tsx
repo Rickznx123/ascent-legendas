@@ -167,6 +167,18 @@ export const Entrada: React.FC = () => {
     void sair().finally(() => setEstado({tela: "login"}));
   }, []);
 
+  // O uso do plano muda depois de exportar: relê a conta no servidor.
+  const atualizarConta = useCallback(() => {
+    api
+      .conta()
+      .then((conta) => {
+        if (conta) {
+          setEstado((atual) => (atual.tela === "editor" ? {...atual, conta} : atual));
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
   switch (estado.tela) {
     case "carregando":
       return <main className="login" aria-busy="true" />;
@@ -207,7 +219,7 @@ export const Entrada: React.FC = () => {
     case "editor":
       // key: outra conta começa com o editor do zero.
       return (
-        <ContaContexto.Provider value={{conta: estado.conta, sair: sairDaConta}}>
+        <ContaContexto.Provider value={{conta: estado.conta, sair: sairDaConta, atualizarConta}}>
           <App key={estado.usuario} />
         </ContaContexto.Provider>
       );

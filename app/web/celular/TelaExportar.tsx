@@ -2,10 +2,11 @@
 // galeria (por enquanto, o download), Compartilhar (quando o navegador permite) e
 // Voltar a editar.
 import {useEffect, useRef, useState} from "react";
+import {AvisoDoPlano} from "../AvisoDoPlano";
+import {useConta} from "../conta";
 import {plataforma} from "../plataforma";
 import type {Editor} from "../useEditor";
-import {CONFIG_CELULAR} from "./plano";
-import type {UsoDoPlano} from "./plano";
+import {resumoDoUso} from "./plano";
 
 const urlDoExportado = (nome: string) => `/saidas/${encodeURIComponent(nome)}`;
 
@@ -18,39 +19,24 @@ const podeCompartilharVideo = (): boolean => {
   }
 };
 
-// Minutos que o vídeo gastou e o que sobra no mês (só com o plano ligado em
-// CONFIG_CELULAR, quando o login existir).
-const MinutosDoPlano: React.FC<{duracaoMs: number; uso?: UsoDoPlano}> = ({duracaoMs, uso}) => {
-  const minutos = Math.max(1, Math.ceil(duracaoMs / 60000));
-  return (
-    <p>
-      Este vídeo usou {minutos} min do seu plano.
-      {uso ? (
-        <>
-          <br />
-          Restam {Math.max(0, uso.minutosDoPlano - uso.minutosUsados)} min neste mês.
-        </>
-      ) : null}
-    </p>
-  );
-};
-
 export const TelaExportar: React.FC<{e: Editor; onVoltar: () => void}> = ({e, onVoltar}) => {
   const [compartilhando, setCompartilhando] = useState(false);
   const exportando = e.tarefa?.nome === "Exportar";
   const pronto = e.exportado;
 
-  // Ao abrir a tela, exporta de novo (as edições podem ter mudado desde a última
-  // vez). Só uma vez por abertura, mesmo com o efeito rodando duas vezes no modo
-  // de desenvolvimento.
+  const {conta} = useConta();
+  // Ao abrir a tela: sem login, exporta de novo (as edições podem ter mudado desde
+  // a última vez); com login, pede antes ao servidor o que vai descontar e mostra
+  // (AvisoDoPlano), e só exporta no toque. Só uma vez por abertura, mesmo com o
+  // efeito rodando duas vezes no modo de desenvolvimento.
   const comecou = useRef(false);
-  const {exportar, tarefa, podeExportar} = e;
+  const {exportar, tarefa, podeExportar, comPlano, prepararExportacao} = e;
   useEffect(() => {
     if (!comecou.current && !tarefa && podeExportar) {
       comecou.current = true;
-      void exportar();
+      void (comPlano ? prepararExportacao() : exportar());
     }
-  }, [exportar, tarefa, podeExportar]);
+  }, [exportar, tarefa, podeExportar, comPlano, prepararExportacao]);
 
   const compartilhar = async () => {
     if (!pronto) {
@@ -85,7 +71,7 @@ export const TelaExportar: React.FC<{e: Editor; onVoltar: () => void}> = ({e, on
             <video className="cel-pronto" src={urlDoExportado(pronto.nome)} controls playsInline preload="metadata" />
             <h2>Vídeo pronto</h2>
             <p>{pronto.nome}</p>
-            {CONFIG_CELULAR.mostrarPlano ? <MinutosDoPlano duracaoMs={(e.durationInFrames / e.fps) * 1000} /> : null}
+            {conta?.uso ? <p className="suave">Seu plano: {resumoDoUso(conta.uso).titulo}.</p> : null}
             <div className="cel-pilha">
               <button type="button" className="bt primario cel-cheio" onClick={() => plataforma.baixarExportado(pronto.nome)}>
                 Salvar na galeria
@@ -111,12 +97,41 @@ export const TelaExportar: React.FC<{e: Editor; onVoltar: () => void}> = ({e, on
             </p>
             <p className="suave">O vídeo é gerado no computador. Pode bloquear a tela, mas não feche esta página.</p>
           </>
+        ) : e.previaExportacao && !e.erro ? (
+          <>
+            <h2>Exportar</h2>
+            <AvisoDoPlano
+              decisao={e.previaExportacao}
+              ocupado={e.ocupado || !e.podeExportar}
+              onExportar={() => void e.exportar()}
+              onVoltar={onVoltar}
+              classeDoBotao="cel-cheio"
+            />
+          </>
+        ) : e.comPlano && !e.erro ? (
+          <>
+            <h2>Exportar</h2>
+            <p className="suave">Conferindo seu plano…</p>
+          </>
         ) : (
           <>
             <h2>{e.erro ? "Não deu para exportar" : "Exportar"}</h2>
             {e.erro ? <p>{e.erro}</p> : null}
             <div className="cel-pilha">
-              <button type="button" className="bt primario cel-cheio" disabled={!e.podeExportar || e.ocupado} onClick={() => void e.exportar()}>
+              <button
+                type="button"
+                className="bt primario cel-cheio"
+                disabled={!e.podeExportar || e.ocupado}
+                onClick={() => {
+                  // Com plano, consulta de novo antes de exportar.
+                  if (e.comPlano) {
+                    e.setErro(undefined);
+                    void e.prepararExportacao();
+                  } else {
+                    void e.exportar();
+                  }
+                }}
+              >
                 {e.erro ? "Tentar de novo" : "Exportar agora"}
               </button>
               <button type="button" className="bt cel-cheio" onClick={onVoltar}>

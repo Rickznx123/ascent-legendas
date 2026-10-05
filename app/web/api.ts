@@ -21,7 +21,21 @@ const pedir = async (url: string, init: RequestInit = {}): Promise<Response> => 
 export type Catalogo = {pacotes: string[]; paletas: string[]; videos: string[]; projetos?: {video: string; blocos: number}[]};
 
 export type Plano = "gratis" | "assinante";
-export type Conta = {email: string; nome: string | null; plano: Plano};
+// Uso do plano e decisão de exportar: os mesmos tipos do servidor (só tipos; quem
+// decide é o servidor, em app/servidor/cota.ts).
+import type {DecisaoDeExportacao, UsoDoPlano} from "../servidor/cota";
+export type {DecisaoDeExportacao, UsoDoPlano};
+export type Conta = {email: string; nome: string | null; plano: Plano; uso?: UsoDoPlano};
+
+// Erro de uma tarefa com um código do servidor (ex.: "assine", "sem-saldo").
+export class ErroDaTarefa extends Error {
+  constructor(
+    mensagem: string,
+    readonly codigo?: string,
+  ) {
+    super(mensagem);
+  }
+}
 
 export type Andamento = {etapa: string; fracao?: number};
 
@@ -50,6 +64,13 @@ export const api = {
     pedir("/api/conta")
       .then((r) => lerJson<{conta: Conta | null}>(r))
       .then((data) => data.conta),
+
+  // O que exportar este vídeo vai fazer (descontar, marca d'água) ou por que não
+  // pode. Sem login: semLimite.
+  previaExportacao: (video: string) =>
+    pedir(`/api/exportar/previa?video=${encodeURIComponent(video)}`).then((r) =>
+      lerJson<DecisaoDeExportacao | {semLimite: true}>(r),
+    ),
 
   // "Importar projetos deste computador": se está disponível para esta conta.
   importacaoLocal: () =>
@@ -123,13 +144,13 @@ export const executarTarefa = async <T>(
       const evento = JSON.parse(line) as
         | {tipo: "progresso"; etapa: string; fracao?: number}
         | {tipo: "fim"; resultado: T}
-        | {tipo: "erro"; mensagem: string};
+        | {tipo: "erro"; mensagem: string; codigo?: string};
       if (evento.tipo === "progresso") {
         onAndamento({etapa: evento.etapa, fracao: evento.fracao});
       } else if (evento.tipo === "fim") {
         return evento.resultado;
       } else {
-        throw new Error(evento.mensagem);
+        throw new ErroDaTarefa(evento.mensagem, evento.codigo);
       }
     }
     if (done) {

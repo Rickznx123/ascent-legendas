@@ -1,6 +1,7 @@
 // Layout de computador: barra, três colunas (biblioteca, prévia, legendas) e a
 // linha do tempo embaixo. O estado e as funções vêm de useEditor.
 import {useEffect, useState} from "react";
+import {AvisoDoPlano} from "./AvisoDoPlano";
 import {posicaoArrastada} from "../../src/posicao";
 import {Abas, PainelDaAba, abaGuardada, guardarAba} from "./Abas";
 import type {Aba} from "./Abas";
@@ -93,7 +94,8 @@ export const LayoutComputador: React.FC<{e: Editor}> = ({e}) => {
         onDesfazer={e.desfazer}
         onRefazer={e.refazer}
         onTranscrever={() => void e.transcrever()}
-        onExportar={e.exportar}
+        // Com plano: primeiro o aviso do que vai descontar (AvisoDoPlano, abaixo).
+        onExportar={e.comPlano ? () => void e.prepararExportacao() : e.exportar}
         exportado={e.exportado?.nome}
         onBaixar={() => e.exportado && plataforma.baixarExportado(e.exportado.nome)}
         onAbrirPasta={() => plataforma.abrirPastaDeSaidas().catch(e.mostrarErro)}
@@ -145,6 +147,7 @@ export const LayoutComputador: React.FC<{e: Editor}> = ({e}) => {
               sonsUrl={api.sonsUrl}
               sincroniaMs={e.sincroniaMs}
               precisa={e.precisa}
+              marcaDagua={e.marcaDagua}
               onQuadro={e.aoMudarQuadro}
               posicao={projetoDoVideo?.posicao}
               cortesMs={e.cortesMs}
@@ -267,6 +270,22 @@ export const LayoutComputador: React.FC<{e: Editor}> = ({e}) => {
       />
 
       <Avisos avisos={e.avisos} erro={e.erro} onFecharAviso={e.fecharAviso} onFecharErro={() => e.setErro(undefined)} />
+      {e.previaExportacao && !e.ocupado ? (
+        <div className="janela-fundo" role="dialog" aria-modal="true" aria-label="Exportar">
+          <div className="janela-plano">
+            <h2>Exportar</h2>
+            <AvisoDoPlano
+              decisao={e.previaExportacao}
+              ocupado={e.ocupado || !e.podeExportar}
+              onExportar={() => {
+                e.fecharPreviaExportacao();
+                void e.exportar();
+              }}
+              onVoltar={e.fecharPreviaExportacao}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

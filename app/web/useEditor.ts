@@ -31,8 +31,9 @@ import {POSICAO_PADRAO} from "../../src/posicao";
 import type {Posicao} from "../../src/posicao";
 import {computeTimeline, findActiveBlockIndex} from "../../src/tempos";
 import type {AssignedCaptionBlock, VideoMetadata} from "../../src/types";
-import {api, executarTarefa} from "./api";
-import type {Andamento, Catalogo} from "./api";
+import {ErroDaTarefa, api, executarTarefa} from "./api";
+import type {Andamento, Catalogo, DecisaoDeExportacao} from "./api";
+import {useConta} from "./conta";
 import type {Aviso} from "./Avisos";
 import type {Salvamento} from "./BarraTopo";
 import type {BlocoSelecionado} from "./Galeria";
@@ -564,6 +565,23 @@ export const useEditor = () => {
     return escolhido ? importarVideo(escolhido) : undefined;
   };
 
+  // Plano (com login): antes de exportar, o servidor diz quanto vai descontar e se
+  // sai com marca d'água, ou por que não pode. Sem login, sem prévia.
+  const {conta, atualizarConta} = useConta();
+  const [previaExportacao, setPreviaExportacao] = useState<DecisaoDeExportacao>();
+  const prepararExportacao = async (): Promise<void> => {
+    setPreviaExportacao(undefined);
+    if (!conta || !projetoDoVideo) {
+      return;
+    }
+    try {
+      const previa = await api.previaExportacao(projetoDoVideo.source);
+      setPreviaExportacao("semLimite" in previa ? undefined : previa);
+    } catch (error) {
+      mostrarErro(error);
+    }
+  };
+
   const exportar = async () => {
     if (!projetoDoVideo) {
       return;
@@ -581,8 +599,17 @@ export const useEditor = () => {
         (andamento) => setTarefa({nome: "Exportar", ...andamento}),
       );
       setExportado({nome: nomeDoArquivo(caminho), caminho});
+      setPreviaExportacao(undefined);
+      // O uso do plano mudou (quadro do Início, menu da conta).
+      atualizarConta();
     } catch (error) {
-      mostrarErro(error);
+      // O plano não deixou (o servidor recusou antes do render): mostra a decisão
+      // dele ("Assine para continuar" ou quanto falta) em vez de um erro comum.
+      if (error instanceof ErroDaTarefa && (error.codigo === "assine" || error.codigo === "sem-saldo")) {
+        await prepararExportacao();
+      } else {
+        mostrarErro(error);
+      }
     } finally {
       setTarefa(undefined);
     }
@@ -802,6 +829,12 @@ export const useEditor = () => {
     importarVideo,
     escolherEImportar,
     exportar,
+    // Com login: o plano antes de exportar (veja AvisoDoPlano).
+    comPlano: Boolean(conta),
+    marcaDagua: conta?.uso?.comMarca ?? false,
+    previaExportacao,
+    prepararExportacao,
+    fecharPreviaExportacao: () => setPreviaExportacao(undefined),
     mudarEfeitos,
     ouvirSom,
     aplicarLayoutDaGaleria,

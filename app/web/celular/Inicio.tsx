@@ -5,29 +5,22 @@ import {relogio} from "../quadro";
 import type {Editor} from "../useEditor";
 import {Andamento} from "./Andamento";
 import {useConta} from "../conta";
-import {CONFIG_CELULAR, nomeDoPlano} from "./plano";
-import type {UsoDoPlano} from "./plano";
+import type {UsoDoPlano} from "../api";
+import {CONFIG_CELULAR, nomeDoPlano, resumoDoUso} from "./plano";
 
-// Quadro de minutos do plano (desligado em CONFIG_CELULAR até existir o login).
-const QuadroDoPlano: React.FC<{uso?: UsoDoPlano}> = ({uso}) =>
-  uso ? (
+// Quadro do plano: usados e restantes (o servidor manda o uso; aqui só se mostra).
+const QuadroDoPlano: React.FC<{uso: UsoDoPlano}> = ({uso}) => {
+  const {titulo, detalhe, fracao} = resumoDoUso(uso);
+  return (
     <div className="cel-uso">
-      <b>
-        {uso.minutosUsados} de {uso.minutosDoPlano} min usados
-      </b>
-      <small>
-        Renova em {uso.renovaEmDias} dias · {uso.nomeDoPlano}
-      </small>
+      <b>{titulo}</b>
+      <small>{detalhe}</small>
       <div className="cel-medidor">
-        <i style={{width: `${Math.min(100, (uso.minutosUsados / Math.max(1, uso.minutosDoPlano)) * 100)}%`}} />
+        <i style={{width: `${Math.min(100, fracao * 100)}%`}} />
       </div>
     </div>
-  ) : (
-    <div className="cel-uso">
-      <b>Plano</b>
-      <small>Entre na sua conta para ver os minutos do plano.</small>
-    </div>
   );
+};
 
 // Um vídeo da lista: a capa e a duração só carregam quando o cartão aparece na tela.
 const Cartao: React.FC<{nome: string; situacao: string; atual: boolean; ocupado: boolean; onAbrir: () => void}> = ({
@@ -170,6 +163,7 @@ const Menu: React.FC<{ocupado: boolean; onImportar: () => void}> = ({ocupado, on
 };
 
 export const Inicio: React.FC<{e: Editor; onAbrir: (nome: string) => void}> = ({e, onAbrir}) => {
+  const {conta} = useConta();
   // O projeto aberto tem o número de blocos mais recente; os outros vêm da lista do
   // servidor (com login, os projetos da conta).
   const situacao = (nome: string) => {
@@ -190,7 +184,7 @@ export const Inicio: React.FC<{e: Editor; onAbrir: (nome: string) => void}> = ({
       </header>
       <Andamento tarefa={e.tarefa} />
       <div className="cel-rolagem">
-        {CONFIG_CELULAR.mostrarPlano ? <QuadroDoPlano /> : null}
+        {CONFIG_CELULAR.mostrarPlano && conta?.uso ? <QuadroDoPlano uso={conta.uso} /> : null}
         <button type="button" className="bt primario cel-cheio" disabled={e.ocupado} onClick={() => void importar()}>
           ＋ Importar vídeo
         </button>
