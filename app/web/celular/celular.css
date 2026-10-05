@@ -691,6 +691,26 @@
   gap: 7px;
 }
 
+/* Miniaturas quase quadradas, como na referência (1 : 1,05), em vez de 9:16. A
+   composição inteira ocupa a largura do cartão e é recortada em volta da legenda:
+   o centro dela (y = 68% da composição, a posição padrão das miniaturas) cai no
+   meio do cartão. */
+.cel .mini-quadro {
+  position: relative;
+  aspect-ratio: 1 / 1.05 !important;
+  overflow: hidden;
+}
+
+.cel .mini-quadro > * {
+  position: absolute !important;
+  left: 0;
+  top: 50%;
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: var(--proporcao-mini, 0.5625);
+  transform: translateY(-68%);
+}
+
 /* Cores e sons */
 .cel .cores {
   gap: 10px;

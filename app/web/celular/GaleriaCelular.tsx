@@ -37,6 +37,8 @@ export const GaleriaCelular: React.FC<{e: Editor}> = ({e}) => {
   return (
     <div
       className="cel-galeria"
+      // Proporção do vídeo: as miniaturas recortam a composição em volta da legenda.
+      style={{["--proporcao-mini" as string]: e.videoInfo ? e.videoInfo.width / e.videoInfo.height : 9 / 16}}
       onPointerDown={(event) => {
         const chip = event.target instanceof Element ? event.target.closest<HTMLElement>(".chips > .chip") : null;
         if (!chip) {
