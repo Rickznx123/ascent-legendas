@@ -3,7 +3,7 @@
 import {useEffect, useState} from "react";
 import {PREDEFINICOES, posicaoArrastada} from "../../../src/posicao";
 import {abaGuardada, guardarAba} from "../Abas";
-import {ListaDeBlocos, SelosDoBloco} from "../ListaDeBlocos";
+import {SelosDoBloco} from "../ListaDeBlocos";
 import {Cores, Sons} from "../PainelEsquerdo";
 import {PainelGeral} from "../PainelGeral";
 import {Previa} from "../Previa";
@@ -16,6 +16,7 @@ import {AjustesDoBlocoCelular} from "./AjustesDoBlocoCelular";
 import {FaixaDeTempo} from "./FaixaDeTempo";
 import {Folha} from "./Folha";
 import {GaleriaCelular} from "./GaleriaCelular";
+import {ListaCelular} from "./ListaCelular";
 
 const ABAS = [
   {valor: "legendas", nome: "Legendas", icone: "≡"},
@@ -151,16 +152,15 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
           {aba === "legendas" ? (
             projetoDoVideo && estilo ? (
               <>
-                <p className="cel-ajuda">Toque na palavra para destacar · dois toques para editar · toque no bloco para ajustar</p>
-                <ListaDeBlocos
-                blocos={blocos}
-                timeline={e.timeline}
-                blocoAtivo={e.blocoAtivo}
-                blocoSelecionado={e.blocoSelecionado}
-                onIrPara={abrirBloco}
-                onTexto={blocoAcoes.texto}
-                onPalavraChave={blocoAcoes.palavraChave}
-                onExcluirPalavra={blocoAcoes.excluirPalavra}
+                <p className="cel-ajuda">Toque na palavra para corrigir · ⋯ abre os ajustes do bloco</p>
+                <ListaCelular
+                  blocos={blocos}
+                  timeline={e.timeline}
+                  blocoAtivo={e.blocoAtivo}
+                  blocoSelecionado={e.blocoSelecionado}
+                  onIrPara={e.irParaBloco}
+                  onAjustes={abrirBloco}
+                  onTexto={blocoAcoes.texto}
                 />
               </>
             ) : (
@@ -284,7 +284,7 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
               </span>
             }
           >
-            <p className="cel-ajuda">Toque para destacar · dois toques para editar · arraste a legenda no vídeo para mover só este bloco</p>
+            <p className="cel-ajuda">Toque na palavra para corrigir · arraste a legenda no vídeo para mover só este bloco</p>
             <AjustesDoBlocoCelular
               indice={indice}
               blocos={blocos}

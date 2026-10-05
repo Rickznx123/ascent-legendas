@@ -366,6 +366,94 @@
   font-size: 16px;
 }
 
+/* Palavra que edita com um toque (PalavraCelular): um campo sempre presente, com
+   cara de texto. A largura acompanha o texto: o ::after invisível ocupa a mesma
+   célula da grade que o campo. 16 px no campo: o iPhone não dá zoom ao focar. */
+.cel .cel-palavra {
+  display: inline-grid;
+  align-items: center;
+  padding: 0;
+  font-size: 16px;
+  cursor: text;
+}
+
+.cel .cel-palavra::after,
+.cel .cel-palavra input {
+  grid-area: 1 / 1;
+  padding: 0 12px;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.cel .cel-palavra::after {
+  content: attr(data-valor);
+  visibility: hidden;
+  white-space: pre;
+}
+
+/* width 0 + min-width 100%: o campo não mede a célula, só a preenche. */
+.cel .cel-palavra input {
+  width: 0;
+  min-width: 100%;
+  height: 100%;
+  min-height: 44px;
+  margin: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+  outline: none;
+  touch-action: manipulation;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.cel .cel-palavra:focus-within {
+  border-color: var(--acento);
+  box-shadow: 0 0 0 2px var(--acento);
+}
+
+/* Lista: as palavras e, no fim da linha, o ⋯ que abre a folha do bloco. */
+.cel-bloco-linha {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.cel-bloco-linha > .palavras {
+  flex: 1;
+  min-width: 0;
+}
+
+.cel-mais {
+  margin: 0 -6px 0 auto;
+  font-size: 22px;
+  color: var(--texto);
+  touch-action: manipulation;
+}
+
+/* ---------- teclado aberto (LayoutCelular) ---------- */
+/* O app ocupa só a área visível acima do teclado; abas e linha de tocar saem e a
+   prévia encolhe. Sem espaço para ela (tela deitada), a prévia também sai. */
+.cel.cel-teclado {
+  height: var(--altura-visivel, 100dvh);
+  transform: translateY(var(--topo-visivel, 0px));
+}
+
+.cel-teclado .cel-abas,
+.cel-teclado .cel-transporte {
+  display: none;
+}
+
+.cel-teclado .cel-palco {
+  height: clamp(120px, calc(var(--altura-visivel, 100dvh) * 0.36), 40dvh);
+}
+
+.cel-teclado-apertado .cel-palco {
+  display: none;
+}
+
 .cel .dividir {
   min-width: 44px;
   min-height: 44px;
@@ -552,18 +640,43 @@
 }
 
 .cel-ajustes-bloco > .titulo-linha,
+.cel-ajustes-bloco > .palavras-ajustes,
 .cel-ajustes-bloco > .campo:has(> .campo-direita),
 .cel-ajustes-bloco > .campo-deslizante,
 .cel-ajustes-bloco > .acoes {
   display: none;
 }
 
-.cel-ajustes-bloco > .palavras-ajustes {
+/* As palavras do celular (editam com um toque) entram no lugar das do computador. */
+.cel-palavras-bloco {
   order: -2;
+  margin-bottom: 4px;
 }
 
-.cel-ajuda-dividir {
+.cel-ajuda-dividir,
+.cel-campo-destaque {
   order: -1;
+}
+
+/* Destaque: a palavra-chave escolhida entre as palavras do bloco. */
+.cel-escolhas {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 6px 0;
+}
+
+.cel-escolhas .chip {
+  min-height: 44px;
+  padding: 0 14px;
+  touch-action: manipulation;
+}
+
+.cel-escolhas .chip[aria-checked="true"] {
+  background: var(--acento);
+  border-color: var(--acento);
+  color: var(--acento-texto);
 }
 
 .cel-campo-posicao {
@@ -579,15 +692,11 @@
 }
 
 /* Os ✂ entre as palavras só aparecem depois de tocar em Dividir. */
-.cel-ajustes-bloco:not(.cel-dividindo) .dividir {
-  display: none;
-}
-
 .cel-dividindo .dividir {
   color: var(--acento);
 }
 
-.cel-dividindo .palavras-ajustes {
+.cel-dividindo .cel-palavras-bloco {
   gap: 4px;
 }
 

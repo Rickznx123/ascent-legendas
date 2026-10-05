@@ -1,10 +1,12 @@
-// Ajustes do bloco na folha do celular. Usa os campos do computador (palavras,
-// layout, cor, som) e troca o resto pelo desenho da referência: posição em
-// Cima / Meio / Baixo e Dividir / Juntar / Excluir lado a lado. As peças do
-// computador que saem ficam escondidas em celular.css.
-import {useEffect, useRef, useState} from "react";
+// Ajustes do bloco na folha do celular. Usa os campos do computador (layout, cor,
+// som) e troca o resto pelo desenho da referência: palavras que editam com um
+// toque, posição em Cima / Meio / Baixo e Dividir / Juntar / Excluir lado a lado.
+// As peças do computador que saem ficam escondidas em celular.css.
+import {Fragment, useEffect, useRef, useState} from "react";
+import {findKeywordIndex} from "../../../src/captions";
 import {PREDEFINICOES} from "../../../src/posicao";
 import {AjustesDoBloco} from "../AjustesDoBloco";
+import {PalavraCelular} from "./PalavraCelular";
 
 type Props = React.ComponentProps<typeof AjustesDoBloco>;
 
@@ -12,7 +14,8 @@ type Props = React.ComponentProps<typeof AjustesDoBloco>;
 const NOMES_DAS_POSICOES = ["Cima", "Meio", "Baixo"];
 
 export const AjustesDoBlocoCelular: React.FC<Props> = (props) => {
-  const {indice, blocos, posicaoGeral, ocupado, onDividir, onJuntar, onExcluirBloco, onInicioPosicao, onPosicaoDoBloco} = props;
+  const {indice, blocos, posicaoGeral, ocupado, onTexto, onPalavraChave, onDividir, onJuntar, onExcluirBloco, onInicioPosicao, onPosicaoDoBloco} =
+    props;
   const bloco = blocos[indice];
   // "Dividir" mostra os ✂ entre as palavras; tocar num deles divide ali.
   const [dividindo, setDividindo] = useState(false);
@@ -22,7 +25,7 @@ export const AjustesDoBlocoCelular: React.FC<Props> = (props) => {
   const raiz = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (dividindo) {
-      raiz.current?.querySelector(".palavras-ajustes")?.scrollIntoView({block: "nearest", behavior: "smooth"});
+      raiz.current?.querySelector(".cel-palavras-bloco")?.scrollIntoView({block: "nearest", behavior: "smooth"});
     }
   }, [dividindo]);
 
@@ -30,12 +33,55 @@ export const AjustesDoBlocoCelular: React.FC<Props> = (props) => {
     return <AjustesDoBloco {...props} />;
   }
   const posicao = bloco.posicao ?? posicaoGeral;
+  const chave = findKeywordIndex(bloco.words, bloco.keyword);
 
   return (
     <div ref={raiz} className={`cel-ajustes-bloco ${dividindo ? "cel-dividindo" : ""}`}>
       <AjustesDoBloco {...props} mostrarSoEsteBloco={false} />
 
+      <div className="palavras cel-palavras-bloco">
+        {bloco.words.map((palavra, posicaoNaFrase) => (
+          <Fragment key={`${palavra.startMs}-${posicaoNaFrase}`}>
+            {dividindo && posicaoNaFrase > 0 ? (
+              <button
+                type="button"
+                className="dividir"
+                aria-label={`Dividir o bloco ${indice + 1} antes de "${palavra.text}"`}
+                onClick={() => onDividir(indice, posicaoNaFrase)}
+              >
+                ✂
+              </button>
+            ) : null}
+            <PalavraCelular
+              texto={palavra.text}
+              chave={posicaoNaFrase === chave}
+              rotulo={`Palavra ${posicaoNaFrase + 1} do bloco ${indice + 1}`}
+              onEditar={(texto) => onTexto(indice, posicaoNaFrase, texto)}
+            />
+          </Fragment>
+        ))}
+      </div>
+
       {dividindo ? <p className="cel-ajuda cel-ajuda-dividir">Toque no ✂ onde o bloco deve ser dividido</p> : null}
+
+      <div className="campo cel-campo-destaque">
+        <span className="rotulo">Destaque</span>
+        <span className="cel-escolhas" role="radiogroup" aria-label={`Palavra-chave do bloco ${indice + 1}`}>
+          {bloco.words.map((palavra, posicaoNaFrase) => (
+            <button
+              key={`${palavra.startMs}-${posicaoNaFrase}`}
+              type="button"
+              role="radio"
+              className="chip"
+              aria-checked={posicaoNaFrase === chave}
+              disabled={ocupado}
+              onClick={() => posicaoNaFrase !== chave && onPalavraChave(indice, posicaoNaFrase)}
+            >
+              {palavra.text}
+            </button>
+          ))}
+        </span>
+      </div>
 
       <div className="campo cel-campo-posicao">
         <span className="rotulo">Posição</span>

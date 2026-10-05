@@ -13,6 +13,27 @@ type Tela = "inicio" | "editor" | "exportar";
 // aparelho sobe um nível em vez de sair do app.
 const NIVEL: Record<Tela, number> = {inicio: 0, editor: 1, exportar: 2};
 
+// Campos que não abrem o teclado.
+const CAMPOS_SEM_TECLADO = new Set(["range", "checkbox", "radio", "button", "color", "file"]);
+// Com o teclado aberto, abaixo desta altura visível (px) a prévia sai: barra (52) +
+// prévia mínima (120) + espaço para a palavra em edição (~150).
+const ALTURA_COM_PREVIA = 320;
+
+// Põe o campo no meio da lista que rola em volta dele (sem rolar a página: no iOS
+// isso empurraria o app para cima do teclado).
+const centralizarNaLista = (campo: HTMLElement) => {
+  const lista = campo.closest<HTMLElement>(".cel-conteudo, .cel-folha-conteudo, .cel-rolagem");
+  if (!lista) {
+    return;
+  }
+  const caixaDoCampo = campo.getBoundingClientRect();
+  const caixaDaLista = lista.getBoundingClientRect();
+  const desvio = caixaDoCampo.top + caixaDoCampo.height / 2 - (caixaDaLista.top + caixaDaLista.height / 2);
+  if (Math.abs(desvio) > 4) {
+    lista.scrollBy({top: desvio, behavior: "smooth"});
+  }
+};
+
 export const LayoutCelular: React.FC<{e: Editor}> = ({e}) => {
   const [tela, setTela] = useState<Tela>("inicio");
   const [folhaAberta, setFolhaAberta] = useState(false);
@@ -63,19 +84,52 @@ export const LayoutCelular: React.FC<{e: Editor}> = ({e}) => {
     return () => document.removeEventListener("visibilitychange", aoMudar);
   }, [playerRef]);
 
-  // Teclado aberto: o campo em edição continua à vista.
+  // Teclado aberto (um campo de texto em foco): o app ocupa só a área visível acima
+  // do teclado (visualViewport), as abas e a linha de tocar saem, a prévia encolhe
+  // (e só some se não couber) e o campo vai para o meio da lista em que está.
+  const raiz = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const mostrarCampo = () => {
+    const elemento = raiz.current;
+    const visivel = window.visualViewport;
+    if (!elemento) {
+      return;
+    }
+    const campoEmFoco = () => {
       const campo = document.activeElement;
-      if (campo instanceof HTMLInputElement && campo.closest(".cel")) {
-        window.setTimeout(() => campo.scrollIntoView({block: "center", behavior: "smooth"}), 60);
+      return campo instanceof HTMLInputElement && !CAMPOS_SEM_TECLADO.has(campo.type) && elemento.contains(campo)
+        ? campo
+        : undefined;
+    };
+    let quadro = 0;
+    const atualizar = () => {
+      const campo = campoEmFoco();
+      const altura = visivel?.height ?? window.innerHeight;
+      elemento.classList.toggle("cel-teclado", Boolean(campo));
+      elemento.classList.toggle("cel-teclado-apertado", Boolean(campo) && altura < ALTURA_COM_PREVIA);
+      if (campo && visivel) {
+        elemento.style.setProperty("--altura-visivel", `${visivel.height}px`);
+        elemento.style.setProperty("--topo-visivel", `${visivel.offsetTop}px`);
+      } else {
+        elemento.style.removeProperty("--altura-visivel");
+        elemento.style.removeProperty("--topo-visivel");
+      }
+      if (campo) {
+        window.cancelAnimationFrame(quadro);
+        quadro = window.requestAnimationFrame(() => centralizarNaLista(campo));
       }
     };
-    window.visualViewport?.addEventListener("resize", mostrarCampo);
-    document.addEventListener("focusin", mostrarCampo);
+    // No focusout o próximo campo ainda não recebeu o foco: confere logo depois.
+    const aoSairDoCampo = () => window.setTimeout(atualizar, 0);
+    document.addEventListener("focusin", atualizar);
+    document.addEventListener("focusout", aoSairDoCampo);
+    visivel?.addEventListener("resize", atualizar);
+    visivel?.addEventListener("scroll", atualizar);
     return () => {
-      window.visualViewport?.removeEventListener("resize", mostrarCampo);
-      document.removeEventListener("focusin", mostrarCampo);
+      window.cancelAnimationFrame(quadro);
+      document.removeEventListener("focusin", atualizar);
+      document.removeEventListener("focusout", aoSairDoCampo);
+      visivel?.removeEventListener("resize", atualizar);
+      visivel?.removeEventListener("scroll", atualizar);
     };
   }, []);
 
@@ -88,7 +142,7 @@ export const LayoutCelular: React.FC<{e: Editor}> = ({e}) => {
   };
 
   return (
-    <div className="cel">
+    <div ref={raiz} className="cel">
       {tela === "inicio" ? <Inicio e={e} onAbrir={abrirVideo} /> : null}
       {tela === "editor" ? (
         <EditorCelular
