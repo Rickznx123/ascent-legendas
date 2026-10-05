@@ -3,8 +3,6 @@
 import {useEffect, useState} from "react";
 import {PREDEFINICOES, posicaoArrastada} from "../../../src/posicao";
 import {abaGuardada, guardarAba} from "../Abas";
-import {AjustesDoBloco} from "../AjustesDoBloco";
-import {GaleriaDoProjeto} from "../GaleriaDoProjeto";
 import {ListaDeBlocos, SelosDoBloco} from "../ListaDeBlocos";
 import {Cores, Sons} from "../PainelEsquerdo";
 import {PainelGeral} from "../PainelGeral";
@@ -14,8 +12,10 @@ import {api} from "../api";
 import {tempoDoBloco} from "../quadro";
 import type {Editor} from "../useEditor";
 import {Andamento} from "./Andamento";
+import {AjustesDoBlocoCelular} from "./AjustesDoBlocoCelular";
 import {FaixaDeTempo} from "./FaixaDeTempo";
 import {Folha} from "./Folha";
+import {GaleriaCelular} from "./GaleriaCelular";
 
 const ABAS = [
   {valor: "legendas", nome: "Legendas", icone: "≡"},
@@ -167,7 +167,7 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
               naoTranscrito
             )
           ) : null}
-          {aba === "templates" ? <GaleriaDoProjeto e={e} /> : null}
+          {aba === "templates" ? <GaleriaCelular e={e} /> : null}
           {aba === "cores" ? (
             <Cores
               paletas={e.catalogo.paletas}
@@ -284,8 +284,8 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
               </span>
             }
           >
-            <p className="cel-ajuda">Toque para destacar · dois toques para editar · ✂ divide o bloco ali · arraste a legenda no vídeo para mover só este bloco</p>
-            <AjustesDoBloco
+            <p className="cel-ajuda">Toque para destacar · dois toques para editar · arraste a legenda no vídeo para mover só este bloco</p>
+            <AjustesDoBlocoCelular
               indice={indice}
               blocos={blocos}
               timeline={e.timeline}

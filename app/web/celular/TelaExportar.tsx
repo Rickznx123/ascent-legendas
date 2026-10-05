@@ -1,8 +1,11 @@
-// Tela de exportar: progresso enquanto o vídeo é gerado e, no fim, Baixar,
-// Compartilhar (quando o navegador permite) e Voltar a editar.
+// Tela de exportar: progresso enquanto o vídeo é gerado e, no fim, Salvar na
+// galeria (por enquanto, o download), Compartilhar (quando o navegador permite) e
+// Voltar a editar.
 import {useEffect, useRef, useState} from "react";
 import {plataforma} from "../plataforma";
 import type {Editor} from "../useEditor";
+import {CONFIG_CELULAR} from "./plano";
+import type {UsoDoPlano} from "./plano";
 
 const urlDoExportado = (nome: string) => `/saidas/${encodeURIComponent(nome)}`;
 
@@ -13,6 +16,23 @@ const podeCompartilharVideo = (): boolean => {
   } catch {
     return false;
   }
+};
+
+// Minutos que o vídeo gastou e o que sobra no mês (só com o plano ligado em
+// CONFIG_CELULAR, quando o login existir).
+const MinutosDoPlano: React.FC<{duracaoMs: number; uso?: UsoDoPlano}> = ({duracaoMs, uso}) => {
+  const minutos = Math.max(1, Math.ceil(duracaoMs / 60000));
+  return (
+    <p>
+      Este vídeo usou {minutos} min do seu plano.
+      {uso ? (
+        <>
+          <br />
+          Restam {Math.max(0, uso.minutosDoPlano - uso.minutosUsados)} min neste mês.
+        </>
+      ) : null}
+    </p>
+  );
 };
 
 export const TelaExportar: React.FC<{e: Editor; onVoltar: () => void}> = ({e, onVoltar}) => {
@@ -65,9 +85,10 @@ export const TelaExportar: React.FC<{e: Editor; onVoltar: () => void}> = ({e, on
             <video className="cel-pronto" src={urlDoExportado(pronto.nome)} controls playsInline preload="metadata" />
             <h2>Vídeo pronto</h2>
             <p>{pronto.nome}</p>
+            {CONFIG_CELULAR.mostrarPlano ? <MinutosDoPlano duracaoMs={(e.durationInFrames / e.fps) * 1000} /> : null}
             <div className="cel-pilha">
               <button type="button" className="bt primario cel-cheio" onClick={() => plataforma.baixarExportado(pronto.nome)}>
-                Baixar
+                Salvar na galeria
               </button>
               {podeCompartilharVideo() ? (
                 <button type="button" className="bt cel-cheio" disabled={compartilhando} onClick={() => void compartilhar()}>

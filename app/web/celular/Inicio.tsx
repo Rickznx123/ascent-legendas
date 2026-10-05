@@ -89,6 +89,63 @@ const Cartao: React.FC<{nome: string; situacao: string; atual: boolean; ocupado:
   );
 };
 
+// Menu ☰ da barra: abre por cima da tela e fecha ao tocar fora ou escolher um item.
+const Menu: React.FC<{ocupado: boolean; onImportar: () => void}> = ({ocupado, onImportar}) => {
+  const [aberto, setAberto] = useState(false);
+  const raiz = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!aberto) {
+      return;
+    }
+    const aoTocar = (event: PointerEvent) => {
+      if (event.target instanceof Node && !raiz.current?.contains(event.target)) {
+        setAberto(false);
+      }
+    };
+    const aoTeclar = (event: KeyboardEvent) => event.key === "Escape" && setAberto(false);
+    document.addEventListener("pointerdown", aoTocar);
+    document.addEventListener("keydown", aoTeclar);
+    return () => {
+      document.removeEventListener("pointerdown", aoTocar);
+      document.removeEventListener("keydown", aoTeclar);
+    };
+  }, [aberto]);
+  return (
+    <div ref={raiz} className="cel-menu-raiz">
+      <button
+        type="button"
+        className="cel-ic"
+        aria-label="Menu"
+        aria-haspopup="menu"
+        aria-expanded={aberto}
+        onClick={() => setAberto(!aberto)}
+      >
+        ☰
+      </button>
+      {aberto ? (
+        <div className="cel-menu" role="menu">
+          <button
+            type="button"
+            role="menuitem"
+            disabled={ocupado}
+            onClick={() => {
+              setAberto(false);
+              onImportar();
+            }}
+          >
+            Importar vídeo
+          </button>
+          {/* Conta e plano dependem do login, que ainda não existe. */}
+          <button type="button" role="menuitem" disabled={!CONFIG_CELULAR.mostrarPlano}>
+            Conta e plano
+            {CONFIG_CELULAR.mostrarPlano ? null : <small>em breve</small>}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
 export const Inicio: React.FC<{e: Editor; onAbrir: (nome: string) => void}> = ({e, onAbrir}) => {
   const situacao = (nome: string) =>
     e.projetoSalvo?.video === nome ? `Em edição · ${e.projetoSalvo.blocos} blocos` : "Não transcrito";
@@ -102,6 +159,7 @@ export const Inicio: React.FC<{e: Editor; onAbrir: (nome: string) => void}> = ({
     <div className="cel-tela">
       <header className="cel-barra">
         <span className="cel-nome cel-marca">Ascent Legendas</span>
+        <Menu ocupado={e.ocupado} onImportar={() => void importar()} />
       </header>
       <Andamento tarefa={e.tarefa} />
       <div className="cel-rolagem">
