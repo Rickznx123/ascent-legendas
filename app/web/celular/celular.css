@@ -36,8 +36,8 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  min-height: calc(48px + env(safe-area-inset-top));
-  padding: env(safe-area-inset-top) 8px 0 2px;
+  min-height: calc(44px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) 6px 0 0;
   background: var(--painel);
   border-bottom: 1px solid var(--linha);
 }
@@ -79,14 +79,28 @@
   color: var(--texto);
 }
 
+/* Exportar: 34 px de desenho, mas 44 px de área de toque (o fundo é o ::before). */
 .cel-pilula {
+  position: relative;
+  isolation: isolate;
   min-height: 44px;
-  padding: 0 16px;
+  padding: 0 14px;
   margin-left: 4px;
-  border-radius: var(--raio-pilula);
-  background: var(--acento);
   color: var(--acento-texto);
   font-weight: 700;
+}
+
+.cel-pilula::before {
+  content: "";
+  position: absolute;
+  inset: 5px 0;
+  z-index: -1;
+  border-radius: var(--raio-pilula);
+  background: var(--acento);
+}
+
+.cel-pilula:disabled::before {
+  opacity: 0.5;
 }
 
 .cel-andamento {
@@ -202,12 +216,13 @@
 }
 
 /* ---------- editor: prévia e faixa de tempo ---------- */
-/* Prévia com metade da altura visível (dvh), o vídeo vertical usando toda ela. A
+/* Prévia com 60% da altura visível (dvh), o vídeo vertical usando toda ela. A
    alça de arrastar a legenda (ArrastoCelular) fica na mesma célula da grade, com a
    mesma caixa da prévia. Com a folha do bloco aberta, 40%. */
 .cel-palco {
+  position: relative;
   flex: none;
-  height: 50dvh;
+  height: 60dvh;
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   grid-template-columns: minmax(0, 1fr);
@@ -220,6 +235,51 @@
 
 .cel-palco > * {
   grid-area: 1 / 1;
+}
+
+/* Botão de tela cheia, no canto da prévia (fora do vídeo vertical). */
+.cel-bt-tela-cheia {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 3;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--veu);
+  color: var(--texto);
+  font-size: 18px;
+  touch-action: manipulation;
+}
+
+/* Tela cheia: a prévia cobre a tela toda; embaixo, a linha de tocar/tempo e o ✕. */
+.cel-em-tela-cheia .cel-palco {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  height: auto;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) calc(45px + env(safe-area-inset-bottom)) env(safe-area-inset-left);
+}
+
+.cel-tela-cheia-controles {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 61;
+  display: flex;
+  align-items: center;
+  padding: 0 6px env(safe-area-inset-bottom) 0;
+  background: var(--painel);
+  border-top: 1px solid var(--linha);
+}
+
+.cel-tela-cheia-controles .cel-transporte {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
 }
 
 .cel-com-folha .cel-palco {
@@ -320,7 +380,7 @@
 
 .cel-aba {
   flex: 1;
-  min-height: 50px;
+  min-height: 46px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -333,7 +393,7 @@
 
 .cel-aba i {
   font-style: normal;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1;
 }
 
@@ -459,9 +519,9 @@
 }
 
 /* Teclado aberto: pelo menos 35% da área visível; com folga (a barra de cima, a
-   palavra em edição e a barra de excluir somam ~220 px), mais que isso, até os 50%. */
+   palavra em edição e a barra de excluir somam ~220 px), mais que isso, até os 60%. */
 .cel-teclado .cel-palco {
-  height: min(50dvh, max(calc(var(--altura-visivel, 100dvh) * 0.35), calc(var(--altura-visivel, 100dvh) - 220px)));
+  height: min(60dvh, max(calc(var(--altura-visivel, 100dvh) * 0.35), calc(var(--altura-visivel, 100dvh) - 220px)));
 }
 
 /* Barra logo acima do teclado enquanto uma palavra está em edição (PalavraCelular).

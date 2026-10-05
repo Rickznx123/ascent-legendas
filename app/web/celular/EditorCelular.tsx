@@ -63,6 +63,18 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
   // Excluir uma palavra (a última leva o bloco junto; tudo entra no desfazer) e
   // avisar com "Desfazer". Na folha, se o bloco saiu, a folha fecha.
   const [avisoDesfazer, setAvisoDesfazer] = useState<AvisoComDesfazer>();
+
+  // Tela cheia: a prévia cobre a tela toda (feita no próprio app; o iPhone não põe
+  // em tela cheia nada além de um <video>). Esc também sai.
+  const [telaCheia, setTelaCheia] = useState(false);
+  useEffect(() => {
+    if (!telaCheia) {
+      return;
+    }
+    const aoTeclar = (event: KeyboardEvent) => event.key === "Escape" && setTelaCheia(false);
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, [telaCheia]);
   const excluirPalavra = (b: number, p: number, naFolha = false) => {
     const ultima = blocos[b]?.words.length === 1;
     blocoAcoes.excluirPalavra(b, p);
@@ -92,7 +104,7 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
   );
 
   return (
-    <div className={`cel-tela cel-editor ${folhaVisivel ? "cel-com-folha" : ""}`}>
+    <div className={`cel-tela cel-editor ${folhaVisivel ? "cel-com-folha" : ""} ${telaCheia ? "cel-em-tela-cheia" : ""}`}>
       <header className="cel-barra">
         <button type="button" className="cel-ic" aria-label="Voltar para os vídeos" onClick={onVoltar}>
           ‹
@@ -148,6 +160,26 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
                 onToque={() => e.playerRef.current?.toggle()}
               />
             ) : null}
+            {telaCheia ? (
+              <div className="cel-tela-cheia-controles">
+                <FaixaDeTempo
+                  playerRef={e.playerRef}
+                  ativo={e.previaAtiva}
+                  fps={e.fps}
+                  durationInFrames={e.durationInFrames}
+                  blocos={blocos}
+                  timeline={e.timeline}
+                  blocoSelecionado={e.blocoSelecionado}
+                />
+                <button type="button" className="cel-ic cel-ic-forte" aria-label="Sair da tela cheia" onClick={() => setTelaCheia(false)}>
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <button type="button" className="cel-bt-tela-cheia" aria-label="Tela cheia" onClick={() => setTelaCheia(true)}>
+                ⛶
+              </button>
+            )}
           </>
         ) : (
           <p className="vazio">{video ? "Carregando..." : ""}</p>
@@ -288,9 +320,10 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
 
         {folhaVisivel && bloco && estilo && projetoDoVideo ? (
           <Folha
-            // A prévia e a alça de arrastar a legenda, a barra acima do teclado e o
-            // aviso com Desfazer ficam fora da folha, mas tocar neles não a fecha.
-            ignorarFora=".previa, .cel-arrasto, .cel-barra-teclado, .cel-aviso-desfazer"
+            // A prévia (com a alça de arrastar a legenda e a tela cheia), a barra acima
+            // do teclado e o aviso com Desfazer ficam fora da folha, mas tocar neles
+            // não a fecha.
+            ignorarFora=".cel-palco, .cel-barra-teclado, .cel-aviso-desfazer"
             onFechar={onFecharFolha}
             titulo={
               <span className="cab">
