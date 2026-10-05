@@ -286,6 +286,12 @@
   height: 40dvh;
 }
 
+/* Com a folha do bloco aberta, ela começa logo abaixo do vídeo: a linha de
+   tocar/tempo sai (a folha cobre o lugar dela). */
+.cel-com-folha .cel-transporte {
+  display: none;
+}
+
 .cel .previa {
   border-radius: 6px;
 }
@@ -757,31 +763,99 @@
   padding: 4px 14px 16px;
 }
 
-/* Ajustes do bloco na folha, na ordem da referência: palavras, layout, cor, som,
-   posição e as três ações. Do computador saem o título (já está na alça), a linha
-   de posição com os deslizantes e a linha de ações. */
+/* Ajustes do bloco na folha (AjustesDoBlocoCelular), na ordem da referência:
+   palavras, destaque, layout, cor, som, posição e as três ações. */
 .cel-ajustes-bloco {
   display: flex;
   flex-direction: column;
 }
 
-.cel-ajustes-bloco > .titulo-linha,
-.cel-ajustes-bloco > .palavras-ajustes,
-.cel-ajustes-bloco > .campo:has(> .campo-direita),
-.cel-ajustes-bloco > .campo-deslizante,
-.cel-ajustes-bloco > .acoes {
-  display: none;
-}
-
-/* As palavras do celular (editam com um toque) entram no lugar das do computador. */
 .cel-palavras-bloco {
-  order: -2;
   margin-bottom: 4px;
 }
 
-.cel-ajuda-dividir,
-.cel-campo-destaque {
-  order: -1;
+/* Linha inteira que abre uma lista (Layout ›, Som ›). */
+.cel-campo-abre {
+  width: 100%;
+  text-align: left;
+  touch-action: manipulation;
+}
+
+.cel-campo-abre .valor {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Cor: uma linha só, rolando para o lado, com "padrão" no início. */
+.cel-campo-cor {
+  gap: 10px;
+}
+
+.cel-cores-linha {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding: 6px 2px;
+}
+
+.cel-cores-linha::-webkit-scrollbar {
+  display: none;
+}
+
+.cel-cores-linha .bolinha {
+  flex: none;
+}
+
+/* Lista de opções aberta dentro da folha. */
+.cel-lista-voltar {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0 4px;
+  font-weight: 700;
+  font-size: 15px;
+  touch-action: manipulation;
+}
+
+.cel-opcoes-lista {
+  display: grid;
+}
+
+.cel-linha-opcao {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--linha);
+  text-align: left;
+  touch-action: manipulation;
+}
+
+.cel-linha-opcao small {
+  color: var(--suave);
+}
+
+.cel-linha-opcao[aria-checked="true"] {
+  color: var(--acento);
+  font-weight: 700;
+}
+
+.cel-linha-opcao[aria-checked="true"]::after {
+  content: "✓";
+}
+
+.cel-linha-com-ouvir {
+  display: flex;
+  align-items: center;
 }
 
 /* Destaque: a palavra-chave escolhida entre as palavras do bloco. */
@@ -805,12 +879,7 @@
   color: var(--acento-texto);
 }
 
-.cel-campo-posicao {
-  order: 1;
-}
-
 .cel-acoes-bloco {
-  order: 2;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
