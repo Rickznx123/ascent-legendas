@@ -330,7 +330,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
         // Os blocos vão como foram editados na interface.
         const blocks = projeto.blocks as AssignedCaptionBlock[];
         const efeitos = configDosEfeitos(projeto.efeitos);
-        const sincroniaMs = sincroniaDoProjeto(projeto.sincroniaMs);
+        const sincroniaMs = sincroniaDoProjeto(projeto.sincroniaMs, projeto.sincroniaPrecisa);
         const precisa = precisaoDoProjeto(projeto);
         const cortesMs = cortesDosExcluidos(projeto.excluidos, style.templates, sincroniaMs, precisa);
         const sons = await listarSons(root);

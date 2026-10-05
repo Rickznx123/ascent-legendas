@@ -31,7 +31,7 @@ export const montarProps = async (
     assignForStyle(saved.blocks ?? [], style, {semente, preserveAssignments: saved.pacote === style.pacote}),
   );
   const efeitos = configDosEfeitos(saved.efeitos);
-  const sincroniaMs = sincroniaDoProjeto(saved.sincroniaMs);
+  const sincroniaMs = sincroniaDoProjeto(saved.sincroniaMs, saved.sincroniaPrecisa);
   // A mesma Sincronia precisa do render local: a voz do áudio vai junto nas props.
   // Projeto sem a voz salva (transcrito antes da detecção): detecta agora.
   const voz = saved.voz ?? (saved.sincroniaPrecisa ? await detectarVozDoVideo(inputPath) : undefined);

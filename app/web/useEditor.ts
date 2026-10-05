@@ -130,9 +130,9 @@ export const useEditor = () => {
   // O projeto salvo pertence a um vídeo; para outro vídeo, só depois de transcrever.
   const projetoDoVideo = projeto && projeto.source === video ? projeto : null;
   const blocos = (projetoDoVideo?.blocks ?? []) as AssignedCaptionBlock[];
-  const sincroniaMs = sincroniaDoProjeto(projetoDoVideo?.sincroniaMs);
   // Sincronia precisa (vazio: desligada), com a voz do áudio salva no projeto.
   const sincroniaPrecisa = Boolean(projetoDoVideo?.sincroniaPrecisa);
+  const sincroniaMs = sincroniaDoProjeto(projetoDoVideo?.sincroniaMs, sincroniaPrecisa);
   const voz = projetoDoVideo?.voz;
   const precisa = useMemo(() => precisaoDoProjeto({sincroniaPrecisa, voz}), [sincroniaPrecisa, voz]);
   // Tempos de tela (entrada antes da fala + sincronia), os mesmos do render.

@@ -148,9 +148,11 @@ export const cortesDosExcluidos = (
     .map((block) => block.startMs)
     .sort((a, b) => a - b);
 
-// Sincronia do projeto, ou a padrão da configuração.
-export const sincroniaDoProjeto = (salva: number | undefined): number =>
-  salva ?? AGRUPAMENTO_CONFIG.sincroniaMs;
+// Sincronia do projeto, ou a padrão: 0 com a Sincronia precisa (as palavras já
+// grudam na voz), senão a da configuração. Um valor salvo vale nos dois casos (a
+// interface avisa quando a Sincronia precisa está ligada com um valor diferente de 0).
+export const sincroniaDoProjeto = (salva: number | undefined, precisa = false): number =>
+  salva ?? (precisa ? 0 : AGRUPAMENTO_CONFIG.sincroniaMs);
 
 // Sincronia precisa do projeto (vazio: desligada), com a voz do áudio salva nele.
 export const precisaoDoProjeto = (projeto: {

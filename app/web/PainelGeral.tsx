@@ -81,6 +81,19 @@ export const PainelGeral: React.FC<Props> = ({
           onChange={(event) => onSincroniaPrecisa(event.target.checked)}
         />
       </div>
+      {sincroniaPrecisa && sincroniaMs !== 0 ? (
+        // Valor salvo antes (ajuste à mão): com as palavras já grudadas na voz, o
+        // normal é 0. Só avisa; quem decide é quem edita.
+        <div className="campo aviso-sincronia">
+          <span className="suave pequeno">
+            Este projeto anda as legendas {sincroniaMs > 0 ? "+" : ""}
+            {sincroniaMs} ms. Com a Sincronia precisa, o normal é 0.
+          </span>
+          <button type="button" className="bt bt-p" disabled={ocupado || !temProjeto} onClick={() => onSincronia(0)}>
+            Zerar
+          </button>
+        </div>
+      ) : null}
       <div className="campo" title="Também muda com as predefinições ou com Mover legenda, embaixo da prévia">
         <span className="rotulo">Posição geral</span>
         <span className="campo-direita">

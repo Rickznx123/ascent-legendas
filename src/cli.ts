@@ -181,7 +181,7 @@ const main = async () => {
   console.log(`Transcrição salva em ${transcriptionPath(projectRoot)}`);
 
   const efeitos = configDosEfeitos(saved?.efeitos);
-  const sincroniaMs = sincroniaDoProjeto(saved?.sincroniaMs);
+  const sincroniaMs = sincroniaDoProjeto(saved?.sincroniaMs, saved?.sincroniaPrecisa);
   const precisa = precisaoDoProjeto(saved && {...saved, voz});
   const cortesMs = cortesDosExcluidos(saved?.excluidos, style.templates, sincroniaMs, precisa);
   let lastStage = "";
