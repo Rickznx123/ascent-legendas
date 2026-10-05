@@ -1,6 +1,7 @@
 // O que muda entre o navegador e o Electron fica só aqui. No Electron, o preload
 // expõe window.legendasElectron com as funções que devem substituir as do navegador
 // (seletor nativo do Windows, "Salvar como", abrir pasta pelo shell).
+import {tokenDaSessao} from "./sessao";
 
 export const EXTENSOES_DE_VIDEO = [".mp4", ".mov", ".mkv", ".webm"];
 
@@ -40,6 +41,11 @@ const enviarArquivo = (
     const query = new URLSearchParams({nome: arquivo.name, substituir: substituir ? "1" : "0"});
     xhr.open("PUT", `/api/importar?${query}`);
     xhr.setRequestHeader("Content-Type", "application/octet-stream");
+    // Com login, o envio vai para a pasta do usuário.
+    const token = tokenDaSessao();
+    if (token) {
+      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    }
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
         onProgresso(event.loaded / event.total);

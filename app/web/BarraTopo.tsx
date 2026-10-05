@@ -1,4 +1,5 @@
 import type {Andamento} from "./api";
+import {MenuDaConta} from "./MenuDaConta";
 
 export type Salvamento = "salvo" | "pendente" | "salvando" | "erro";
 
@@ -130,6 +131,7 @@ export const BarraTopo: React.FC<Props> = ({
         </div>
       ) : null}
     </div>
+    <MenuDaConta ocupado={ocupado} />
     <button
       type="button"
       className="ic so-estreita"

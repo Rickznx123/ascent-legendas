@@ -1323,3 +1323,24 @@
 .cel-acao-rodape {
   margin-top: 12px;
 }
+
+/* Conta e plano no menu ☰ do Início (com login). */
+.cel-menu-conta {
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px 10px;
+  border-bottom: 1px solid var(--linha);
+  margin-bottom: 4px;
+}
+
+.cel-menu-conta span {
+  color: var(--suave);
+  font-size: var(--fonte-pequena);
+}
+
+.cel-menu-conta b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 240px;
+}

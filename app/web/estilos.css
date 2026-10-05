@@ -1317,3 +1317,125 @@ h3 {
   min-height: 0;
   padding-top: 4px;
 }
+
+/* ---------- login e primeira entrada (Login.tsx, Entrada.tsx) ---------- */
+.login {
+  height: 100%;
+  overflow-y: auto;
+  display: grid;
+  place-items: center;
+  padding: var(--esp-5);
+  box-sizing: border-box;
+}
+
+.login-caixa {
+  width: 100%;
+  max-width: 380px;
+  background: var(--painel);
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+  padding: 28px 24px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-4);
+}
+
+.login-marca {
+  margin-bottom: var(--esp-2);
+}
+
+.login h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.login p {
+  margin: 0;
+}
+
+.login form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-3);
+}
+
+.login .rotulo {
+  color: var(--suave);
+}
+
+.login input[type="email"] {
+  width: 100%;
+  box-sizing: border-box;
+  /* 16px: o celular não aproxima a tela ao tocar no campo. */
+  font-size: 16px;
+  padding: 10px 12px;
+  background: var(--painel-2);
+  border: 1px solid var(--linha);
+  border-radius: var(--raio-p);
+}
+
+.bt.cheio {
+  width: 100%;
+  height: 40px;
+}
+
+.login-ou {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-3);
+  color: var(--suave);
+  font-size: var(--fonte-pequena);
+}
+
+.login-ou::before,
+.login-ou::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--linha);
+}
+
+.login-erro {
+  color: var(--perigo);
+  background: var(--perigo-fraco);
+  border-radius: var(--raio-p);
+  padding: var(--esp-3) var(--esp-4);
+}
+
+.login-lista {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--suave);
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+/* Conta no topo do computador (BarraTopo). */
+.conta-raiz {
+  position: relative;
+}
+
+.conta-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  min-width: 240px;
+  background: var(--painel-2);
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+  padding: var(--esp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-3);
+}
+
+.conta-menu .conta-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

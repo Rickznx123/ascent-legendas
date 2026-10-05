@@ -3,8 +3,25 @@
 import type {Estilo, Projeto} from "../../src/motor/projeto";
 import type {ArquivoSom} from "../../src/sons";
 import type {VideoMetadata, VozDoAudio} from "../../src/types";
+import {tokenDaSessao} from "./sessao";
 
-export type Catalogo = {pacotes: string[]; paletas: string[]; videos: string[]};
+// Com login, todo pedido leva o token da sessão; um 401 (sessão expirada) avisa a
+// tela para voltar ao login. Sem login, é o fetch de sempre.
+export const EVENTO_SESSAO_EXPIRADA = "sessao-expirada";
+const pedir = async (url: string, init: RequestInit = {}): Promise<Response> => {
+  const token = tokenDaSessao();
+  const resposta = await fetch(url, token ? {...init, headers: {...(init.headers ?? {}), Authorization: `Bearer ${token}`}} : init);
+  if (resposta.status === 401 && token) {
+    window.dispatchEvent(new Event(EVENTO_SESSAO_EXPIRADA));
+  }
+  return resposta;
+};
+
+// projetos: os vídeos que já têm projeto (com login, os do usuário).
+export type Catalogo = {pacotes: string[]; paletas: string[]; videos: string[]; projetos?: {video: string; blocos: number}[]};
+
+export type Plano = "gratis" | "assinante";
+export type Conta = {email: string; nome: string | null; plano: Plano};
 
 export type Andamento = {etapa: string; fracao?: number};
 
@@ -17,17 +34,31 @@ const lerJson = async <T>(response: Response): Promise<T> => {
 };
 
 export const api = {
-  catalogo: () => fetch("/api/catalogo").then((r) => lerJson<Catalogo>(r)),
+  catalogo: () => pedir("/api/catalogo").then((r) => lerJson<Catalogo>(r)),
 
-  recarregar: () => fetch("/api/recarregar", {method: "POST"}).then((r) => lerJson<Catalogo>(r)),
+  recarregar: () => pedir("/api/recarregar", {method: "POST"}).then((r) => lerJson<Catalogo>(r)),
 
-  projeto: () =>
-    fetch("/api/projeto")
+  // O projeto de um vídeo (sem vídeo: o último editado). No modo local, sempre o
+  // do transcricao.json, que pode ser de outro vídeo.
+  projeto: (video?: string) =>
+    pedir(`/api/projeto${video ? `?video=${encodeURIComponent(video)}` : ""}`)
       .then((r) => lerJson<{projeto: Projeto | null}>(r))
       .then((data) => data.projeto),
 
+  // Conta logada (e-mail e plano do perfil); sem login, null.
+  conta: () =>
+    pedir("/api/conta")
+      .then((r) => lerJson<{conta: Conta | null}>(r))
+      .then((data) => data.conta),
+
+  // "Importar projetos deste computador": se está disponível para esta conta.
+  importacaoLocal: () =>
+    pedir("/api/importacao-local").then((r) =>
+      lerJson<{disponivel: boolean; videos?: string[]; projeto?: string | null}>(r),
+    ),
+
   salvar: (projeto: Projeto) =>
-    fetch("/api/projeto", {
+    pedir("/api/projeto", {
       method: "PUT",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify(projeto),
@@ -37,26 +68,26 @@ export const api = {
     const query = new URLSearchParams();
     if (pacote) query.set("pacote", pacote);
     if (paleta) query.set("paleta", paleta);
-    return fetch(`/api/estilo?${query}`).then((r) => lerJson<Estilo>(r));
+    return pedir(`/api/estilo?${query}`).then((r) => lerJson<Estilo>(r));
   },
 
   // Trechos de voz do áudio (Sincronia precisa num projeto sem a voz salva).
-  voz: (nome: string) => fetch(`/api/voz?nome=${encodeURIComponent(nome)}`).then((r) => lerJson<VozDoAudio>(r)),
+  voz: (nome: string) => pedir(`/api/voz?nome=${encodeURIComponent(nome)}`).then((r) => lerJson<VozDoAudio>(r)),
 
   videoInfo: (nome: string) =>
-    fetch(`/api/video-info?nome=${encodeURIComponent(nome)}`).then((r) => lerJson<VideoMetadata>(r)),
+    pedir(`/api/video-info?nome=${encodeURIComponent(nome)}`).then((r) => lerJson<VideoMetadata>(r)),
 
   videoUrl: (nome: string) => `/media/${encodeURIComponent(nome)}`,
 
   // Tira o vídeo da lista (vai para removidos/) e apaga a transcrição dele.
   removerVideo: (nome: string) =>
-    fetch("/api/remover-video", {
+    pedir("/api/remover-video", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({nome}),
     }).then((r) => lerJson<{movidoPara: string; apagouTranscricao: boolean}>(r)),
 
-  sons: () => fetch("/api/sons").then((r) => lerJson<ArquivoSom[]>(r)),
+  sons: () => pedir("/api/sons").then((r) => lerJson<ArquivoSom[]>(r)),
 
   // Endereço da pasta sons/ no servidor local.
   sonsUrl: "/sons/",
@@ -70,7 +101,7 @@ export const executarTarefa = async <T>(
   body: unknown,
   onAndamento: (andamento: Andamento) => void,
 ): Promise<T> => {
-  const response = await fetch(url, {
+  const response = await pedir(url, {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify(body),
