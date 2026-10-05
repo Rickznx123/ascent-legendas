@@ -15,7 +15,8 @@ import {ERRO_VISIVEL_MS, UM_QUADRO_MS, compararComAudio, estatisticas, piores} f
 import type {Estatisticas, Ponto} from "./comparacao";
 import {encaixarNoAudio} from "../src/encaixe";
 import type {VozDoAudio} from "../src/types";
-import {analisarMotor, sincroniaPadraoMs} from "./motor";
+import {analisarMotor, compararTrocas, sincroniaPadraoMs} from "./motor";
+import type {TrocaDoBloco} from "./motor";
 import {montarPagina} from "./pagina";
 import type {TranscricaoNaPagina} from "./pagina";
 import {JANELA_MS, TAXA, VOZ_CONFIG, detectarVoz, energiaPorJanela, extrairAudio, wav} from "./voz";
@@ -165,19 +166,43 @@ const principal = async () => {
   }
 
   console.log("\n=== O motor (mesmas palavras do Whisper local, agrupadas como numa transcrição nova) ===");
-  const motor = await analisarMotor(RAIZ, transcricoes[0].palavras, fps);
+  // Os dois modos medidos com a mesma régua: o instante falado das palavras
+  // encaixadas no áudio (onde não encaixam, o da transcrição).
+  const palavrasDoMotor = transcricoes[0].palavras;
+  const motor = await analisarMotor(RAIZ, palavrasDoMotor, fps, {voz: vozDoAudio});
+  const motorPreciso = await analisarMotor(RAIZ, palavrasDoMotor, fps, {voz: vozDoAudio, precisa: {voz: vozDoAudio}});
   console.log(`  Quadro: ${(1000 / fps).toFixed(1)} ms · sincronia global padrão: ${sincroniaPadraoMs} ms (cada projeto pode ter a sua)`);
-  console.log("  Animações de entrada (tempos relativos à fala; negativo = antes):");
-  for (const a of motor.animacoes) {
+  for (const [modo, m] of [["desligada", motor], ["ligada", motorPreciso]] as const) {
+  console.log(`  Animações de entrada, Sincronia precisa ${modo} (tempos relativos à fala; negativo = antes):`);
+  for (const a of m.animacoes) {
     console.log(
       `    ${a.nome.padEnd(18)} ${String(a.duracaoMs).padStart(4)} ms · começa ${a.comecaAntesMs} ms antes · 70% visível de ${a.setentaPorCentoMs[0]} a ${a.setentaPorCentoMs[1]} ms · inteira em ${a.terminaMs > 0 ? "+" : ""}${a.terminaMs} ms${a.apagaDepoisMs.length ? ` · APAGA (abaixo de 70%) em ${a.apagaDepoisMs.map(([de, ate]) => `${de > 0 ? "+" : ""}${de}…${ate > 0 ? "+" : ""}${ate} ms`).join(", ")}` : ""}`,
     );
   }
-  console.log("  Linha do tempo (um bloco por vez):");
-  for (const l of motor.linhaDoTempo) {
+  }
+  for (const [modo, m] of [["desligada", motor], ["ligada", motorPreciso]] as const) {
+  console.log(`  Linha do tempo, Sincronia precisa ${modo} (um bloco por vez):`);
+  for (const l of m.linhaDoTempo) {
     console.log(
       `    pacote ${l.pacote.padEnd(5)} ${String(l.blocos).padStart(3)} blocos · atrasados ${l.blocosAtrasados} (máx ${l.atrasoMaximoMs} ms, ${l.palavrasAtrasadas} palavras não visíveis na fala) · saem antes do fim da última palavra: ${l.saiAntesDoFim} (mediana ${l.saiAntesMedianaMs} ms, máx ${l.saiAntesMaximoMs} ms) · última palavra na tela: mediana ${l.ultimaNaTelaMedianaMs} ms, menor ${l.ultimaNaTelaMenorMs} ms, ${l.ultimaNaTelaMenosDe200} com menos de 200 ms`,
     );
+  }
+  }
+
+  // As trocas de bloco do pacote A em que a última palavra fica menos de 200 ms na
+  // tela ou a primeira do seguinte não está visível na fala, nos dois modos.
+  const trocas = await compararTrocas(RAIZ, palavrasDoMotor, fps, vozDoAudio, "a");
+  const ruim = (t: TrocaDoBloco) => t.saiDepoisMs < Math.min(200, t.ultimaDuracaoMs) || (t.seguinteVisivelNaFala ?? 1) < 0.7;
+  const casos = trocas.desligada.map((_, i) => i).filter((i) => ruim(trocas.desligada[i]) || ruim(trocas.ligada[i]));
+  const pct = (v?: number) => (v === undefined ? "—" : `${Math.round(v * 100)}%`);
+  const sinal = (v?: number) => (v === undefined ? "—" : `${v > 0 ? "+" : ""}${v} ms`);
+  console.log(`
+  Trocas de bloco do pacote A (${casos.length} casos). "fica": quanto a última palavra fica na tela depois de começar a ser falada; "seguinte": quando o bloco seguinte entra em relação à primeira palavra dele e quanto ela está visível no quadro da fala.`);
+  for (const i of casos) {
+    const [d, l] = [trocas.desligada[i], trocas.ligada[i]];
+    console.log(`    "${d.texto}" → última "${d.ultima}" (${d.ultimaDuracaoMs} ms falada, silêncio até o seguinte ${sinal(d.silencioAteSeguinteMs)})`);
+    console.log(`      desligada: fica ${sinal(d.saiDepoisMs)} · seguinte entra ${sinal(d.seguinteEntraMs)}, ${pct(d.seguinteVisivelNaFala)} visível na fala, ${pct(d.seguinteVisivelUmQuadroDepois)} um quadro depois`);
+    console.log(`      ligada:    fica ${sinal(l.saiDepoisMs)} · seguinte entra ${sinal(l.seguinteEntraMs)}, ${pct(l.seguinteVisivelNaFala)} visível na fala, ${pct(l.seguinteVisivelUmQuadroDepois)} um quadro depois`);
   }
   // Sincronia salva nos projetos (anda todas as legendas).
   for (const arquivo of [path.join(RAIZ, "transcricao.json")]) {
@@ -210,7 +235,7 @@ const principal = async () => {
   const arquivoPagina = path.join(SAIDA, `${base}.sincronia.html`);
   const arquivoJson = path.join(SAIDA, `${base}.sincronia.json`);
   writeFileSync(arquivoPagina, pagina);
-  writeFileSync(arquivoJson, JSON.stringify({video: path.basename(video), fps, voz: {...voz, trechos: voz.trechos.length}, transcricoes: resumo, motor}, null, 2));
+  writeFileSync(arquivoJson, JSON.stringify({video: path.basename(video), fps, voz: {...voz, trechos: voz.trechos.length}, transcricoes: resumo, motor, motorPreciso, trocasPacoteA: trocas}, null, 2));
   console.log(`\nPágina de conferência: ${arquivoPagina}`);
   console.log(`Números: ${arquivoJson}`);
 };

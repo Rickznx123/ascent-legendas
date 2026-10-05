@@ -63,8 +63,36 @@ export const antecipacaoDaEntradaMs = (animation: EntranceAnimation): number => 
   return ms;
 };
 
+// Entrada mais rápida (Sincronia precisa): quando o bloco entrou com antecedência
+// reduzida (a troca de blocos sem silêncio, veja src/tempos.ts), a palavra começa a
+// entrar mais tarde que o previsto e a animação é acelerada para ela ainda estar
+// VISIVEL_NA_FALA visível no quadro em que é falada. Nunca mais rápida que
+// ESCALA_MINIMA_DA_ENTRADA da duração original.
+const ESCALA_MINIMA_DA_ENTRADA = 0.15;
+
+export const entradaAjustada = (
+  animation: EntranceAnimation,
+  startMs: number,
+  faladaMs: number | undefined,
+): EntranceAnimation => {
+  if (faladaMs === undefined) {
+    return animation;
+  }
+  const antecipacao = antecipacaoDaEntradaMs(animation);
+  const disponivel = faladaMs - startMs;
+  // Folga de 1 ms para o arredondamento do início.
+  if (disponivel >= antecipacao - 1) {
+    return animation;
+  }
+  const escala = Math.max(
+    ESCALA_MINIMA_DA_ENTRADA,
+    (disponivel - MARGEM_DE_QUADRO_MS) / (antecipacao - MARGEM_DE_QUADRO_MS),
+  );
+  return {...animation, durationMs: animation.durationMs * escala};
+};
+
 // Animação de entrada de cada palavra do bloco (a palavra-chave tem a dela).
-const animacaoDaPalavra = (block: AssignedCaptionBlock, template: CaptionTemplate, indice: number): EntranceAnimation => {
+export const animacaoDaPalavra = (block: AssignedCaptionBlock, template: CaptionTemplate, indice: number): EntranceAnimation => {
   const {animations} = template;
   if (template.structure === "linear") {
     return block.words.length === 2 && animations.linearPair ? animations.linearPair[indice] : animations.word;
@@ -125,6 +153,9 @@ export const blocosNaTela = (
         ...word,
         startMs: Math.max(0, Math.round(word.startMs - antecipacao + sincroniaMs)),
         endMs: Math.max(0, word.endMs + sincroniaMs),
+        // Com a Sincronia precisa, a troca de blocos e a entrada acelerada precisam
+        // saber quando a palavra é falada.
+        ...(precisa ? {faladaMs: Math.max(0, word.startMs + sincroniaMs)} : {}),
       };
     });
     return {

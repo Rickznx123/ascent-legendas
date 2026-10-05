@@ -15,7 +15,7 @@ import {
 } from "remotion";
 import {measureText} from "@remotion/layout-utils";
 import {findKeywordIndex, findProtectedSpans, isBlockEndingFunctionWord} from "./captions";
-import {blocosNaTela} from "./entrada";
+import {blocosNaTela, entradaAjustada} from "./entrada";
 import {centroDentroDaMargem, posicaoDoBloco} from "./posicao";
 import type {Posicao} from "./posicao";
 import {waitForFonts} from "./fontes";
@@ -207,11 +207,15 @@ const fitFontSize = (
 const AnimatedWord: React.FC<{
   text: string;
   startMs: number;
+  // Sincronia precisa: quando a palavra é falada (a entrada acelera se o bloco
+  // entrou com antecedência reduzida, veja entradaAjustada).
+  faladaMs?: number;
   animation: EntranceAnimation;
   style?: CSSProperties;
   // Filtro fixo somado ao desfoque da animação.
   filter?: string;
-}> = ({text, startMs, animation, style, filter}) => {
+}> = ({text, startMs, faladaMs, animation: original, style, filter}) => {
+  const animation = entradaAjustada(original, startMs, faladaMs);
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const elapsedMs = (frame / fps) * 1000 - startMs;
@@ -260,6 +264,7 @@ const spacedWords = (
       key={`${word.startMs}-${index}`}
       text={cleanWord(word.text)}
       startMs={word.startMs}
+      faladaMs={word.faladaMs}
       animation={animation}
       style={style}
     />,
@@ -277,6 +282,7 @@ const wordsWithEmphasis = (
       key={`${word.startMs}-${index}`}
       text={cleanWord(word.text)}
       startMs={word.startMs}
+      faladaMs={word.faladaMs}
       animation={animation}
       style={emphasis && words.length > 1 && index === words.length - 1 ? emphasis : undefined}
     />,
@@ -327,11 +333,12 @@ const BlockContent: React.FC<{
         key={`${word.startMs}-${index}`}
         text={cleanWord(word.text)}
         startMs={word.startMs}
+        faladaMs={word.faladaMs}
         animation={animationAt(index)}
       />,
     ]);
   const paint = keywordPaint(palette, template);
-  const keywordSpan = (text: string, startMs: number) => {
+  const keywordSpan = (text: string, {startMs, faladaMs}: Word) => {
     const style: CSSProperties = {...styles.keyword, ...paint.style};
     if (keywordFit) {
       style.fontSize = fitFontSize(text, style, keywordFit, videoWidth);
@@ -340,6 +347,7 @@ const BlockContent: React.FC<{
       <AnimatedWord
         text={text}
         startMs={startMs}
+        faladaMs={faladaMs}
         animation={animations.keyword}
         style={style}
         filter={paint.filter}
@@ -384,10 +392,10 @@ const BlockContent: React.FC<{
     return (
       <>
         {support(words.slice(0, start), {marginBottom: ".12em"})}
-        {keywordSpan(cleanWord(first.text), first.startMs)}
+        {keywordSpan(cleanWord(first.text), first)}
         {rest.length > 0 ? (
           <span style={styles.complement}>
-            {keywordSpan(rest.map((word) => cleanWord(word.text)).join(" "), rest[0].startMs)}
+            {keywordSpan(rest.map((word) => cleanWord(word.text)).join(" "), rest[0])}
           </span>
         ) : null}
         {support(words.slice(end), {marginTop: ".12em"})}
@@ -399,7 +407,7 @@ const BlockContent: React.FC<{
   const keyword = words[keywordIndex];
   const before = words.slice(0, keywordIndex);
   const after = words.slice(keywordIndex + 1);
-  const keywordElement = keywordSpan(cleanWord(keyword.text), keyword.startMs);
+  const keywordElement = keywordSpan(cleanWord(keyword.text), keyword);
 
   if (template.structure === "pesada-italica") {
     return (

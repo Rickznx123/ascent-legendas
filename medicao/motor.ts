@@ -6,11 +6,12 @@ import path from "node:path";
 import {Easing} from "remotion";
 import {AGRUPAMENTO_CONFIG} from "../src/agrupamento-config";
 import {groupWords} from "../src/captions";
-import {antecipacaoDaEntradaMs, blocosNaTela} from "../src/entrada";
+import {encaixarNoAudio} from "../src/encaixe";
+import {animacaoDaPalavra, antecipacaoDaEntradaMs, blocosNaTela, entradaAjustada} from "../src/entrada";
 import {assignForStyle} from "../src/motor/blocos";
 import {loadCatalog, loadStyle} from "../src/motor/projeto";
-import {computeTimeline} from "../src/tempos";
-import type {EntranceAnimation, Word} from "../src/types";
+import {computeTimeline, findActiveBlockIndex} from "../src/tempos";
+import type {AssignedCaptionBlock, CaptionTemplate, EntranceAnimation, SincroniaPrecisa, VozDoAudio, Word} from "../src/types";
 
 const VISIVEL = 0.7;
 
@@ -120,7 +121,7 @@ export type AnaliseDaLinhaDoTempo = {
   // Blocos que entram depois da hora (empurrados pelo anterior).
   blocosAtrasados: number;
   atrasoMaximoMs: number;
-  // Palavras que, por causa disso, não estão 70% visíveis quando são faladas.
+  // Palavras que não estão 70% visíveis no quadro em que são faladas.
   palavrasAtrasadas: number;
   // Bloco que sai da tela antes de a última palavra dele terminar de ser falada
   // (o seguinte entra adiantado e só um bloco aparece por vez).
@@ -145,7 +146,11 @@ export const analisarMotor = async (
   raiz: string,
   palavras: Word[],
   fps: number,
+  // voz: régua do instante falado (as palavras encaixadas no áudio); precisa: liga a
+  // Sincronia precisa no motor.
+  {voz, precisa}: {voz?: VozDoAudio; precisa?: SincroniaPrecisa} = {},
 ): Promise<{animacoes: AnaliseDaAnimacao[]; linhaDoTempo: AnaliseDaLinhaDoTempo[]}> => {
+  const referencia = voz ? encaixarNoAudio(palavras, voz).palavras : undefined;
   const pacotes = loadCatalog(raiz).pacotes;
   const nomes = await nomesDasAnimacoes(raiz, pacotes);
 
@@ -174,30 +179,95 @@ export const analisarMotor = async (
   for (const pacote of [...pacotes, "misto"]) {
     const estilo = await loadStyle(raiz, {pacote});
     const blocos = assignForStyle(blocosDaFala, estilo, {semente: 1});
-    const naTela = blocosNaTela(blocos, estilo.templates, 0);
-    const tempos = computeTimeline(naTela);
-    let blocosAtrasados = 0;
-    let atrasoMaximoMs = 0;
-    let palavrasAtrasadas = 0;
-    const saiAntes: {ms: number; texto: string}[] = [];
-    const ultimaNaTela: number[] = [];
-    blocos.forEach((bloco, i) => {
-      const atraso = tempos[i].showMs - naTela[i].startMs;
-      if (atraso > 0) {
-        blocosAtrasados++;
-        atrasoMaximoMs = Math.max(atrasoMaximoMs, atraso);
-        palavrasAtrasadas += bloco.words.filter((w) => tempos[i].showMs > w.startMs).length;
-      }
-      const ultima = bloco.words[bloco.words.length - 1];
-      if (i < blocos.length - 1 && bloco.dupla !== "primeiro") ultimaNaTela.push(tempos[i].hideMs - ultima.startMs);
+    linhaDoTempo.push(analisarLinhaDoTempo(pacote, blocos, estilo.templates, fps, referencia, precisa).resumo);
+  }
+  return {animacoes, linhaDoTempo};
+};
+
+export type TrocaDoBloco = {
+  texto: string;
+  ultima: string;
+  // Tempos relativos ao início falado da última palavra.
+  ultimaDuracaoMs: number;
+  saiDepoisMs: number;
+  // O bloco seguinte: quando entra em relação à primeira palavra dele (negativo =
+  // antes) e quanto ela está visível no quadro em que é falada.
+  seguinteEntraMs?: number;
+  seguinteVisivelNaFala?: number;
+  seguinteVisivelUmQuadroDepois?: number;
+  silencioAteSeguinteMs?: number;
+};
+
+// Uma linha do tempo completa, como o render a desenha (mesmas funções).
+// referencia: o instante falado de cada palavra (o do áudio, quando houver), para
+// medir os dois modos com a mesma régua.
+const analisarLinhaDoTempo = (
+  pacote: string,
+  blocos: AssignedCaptionBlock[],
+  templates: Record<string, CaptionTemplate>,
+  fps: number,
+  referencia: Word[] | undefined,
+  precisa: SincroniaPrecisa | undefined,
+): {resumo: AnaliseDaLinhaDoTempo; trocas: TrocaDoBloco[]} => {
+  const naTela = blocosNaTela(blocos, templates, 0, precisa);
+  const tempos = computeTimeline(naTela);
+  const quadroMs = 1000 / fps;
+  // Instante falado de cada palavra, na régua comum.
+  let cursor = 0;
+  const ref = blocos.map((b) => b.words.map((w) => referencia?.[cursor++] ?? w));
+
+  // Opacidade da palavra k do bloco i no quadro em que ela é falada.
+  // quadros: 0 = o quadro na tela no instante da fala; 1 = o seguinte.
+  const visivelNaFala = (i: number, k: number, quadros = 0): number => {
+    const t = (Math.floor(ref[i][k].startMs / quadroMs) + quadros) * quadroMs;
+    const ativo = findActiveBlockIndex(tempos, t);
+    const dono = ativo === i || (ativo === i - 1 && blocos[i].dupla === "segundo");
+    if (!dono) return 0;
+    const palavra = naTela[i].words[k];
+    const inicio = Math.max(palavra.startMs, tempos[i].showMs);
+    const template = templates[blocos[i].template];
+    const anim = entradaAjustada(animacaoDaPalavra(naTela[i], template, k), inicio, palavra.faladaMs);
+    return opacidade(anim, t - inicio);
+  };
+
+  let blocosAtrasados = 0;
+  let atrasoMaximoMs = 0;
+  let palavrasAtrasadas = 0;
+  const saiAntes: {ms: number; texto: string}[] = [];
+  const ultimaNaTela: number[] = [];
+  const trocas: TrocaDoBloco[] = [];
+  blocos.forEach((bloco, i) => {
+    const atraso = tempos[i].showMs - naTela[i].startMs;
+    if (atraso > 0) {
+      blocosAtrasados++;
+      atrasoMaximoMs = Math.max(atrasoMaximoMs, atraso);
+    }
+    palavrasAtrasadas += bloco.words.filter((_, k) => visivelNaFala(i, k) < VISIVEL).length;
+    const ultima = ref[i][bloco.words.length - 1];
+    const texto = bloco.words.map((w) => w.text).join(" ");
+    // Dupla: o primeiro bloco fica até o segundo sair.
+    if (i < blocos.length - 1 && bloco.dupla !== "primeiro") {
+      ultimaNaTela.push(tempos[i].hideMs - ultima.startMs);
       const antes = ultima.endMs - tempos[i].hideMs;
-      // Dupla: o primeiro bloco fica até o segundo sair.
-      if (antes > 0 && i < blocos.length - 1 && bloco.dupla !== "primeiro") {
-        saiAntes.push({ms: antes, texto: `"${bloco.words.map((w) => w.text).join(" ")}" sai ${Math.round(antes)} ms antes do fim de "${ultima.text}"`});
+      if (antes > 0) {
+        saiAntes.push({ms: antes, texto: `"${texto}" sai ${Math.round(antes)} ms antes do fim de "${ultima.text}"`});
       }
+    }
+    const seguinte = blocos[i + 1];
+    trocas.push({
+      texto,
+      ultima: ultima.text,
+      ultimaDuracaoMs: Math.round(ultima.endMs - ultima.startMs),
+      saiDepoisMs: Math.round(tempos[i].hideMs - ultima.startMs),
+      seguinteEntraMs: seguinte ? Math.round(tempos[i + 1].showMs - ref[i + 1][0].startMs) : undefined,
+      seguinteVisivelNaFala: seguinte ? visivelNaFala(i + 1, 0) : undefined,
+      seguinteVisivelUmQuadroDepois: seguinte ? visivelNaFala(i + 1, 0, 1) : undefined,
+      silencioAteSeguinteMs: seguinte ? Math.round(ref[i + 1][0].startMs - ultima.endMs) : undefined,
     });
-    saiAntes.sort((a, b) => b.ms - a.ms);
-    linhaDoTempo.push({
+  });
+  saiAntes.sort((a, b) => b.ms - a.ms);
+  return {
+    resumo: {
       pacote,
       blocos: blocos.length,
       blocosAtrasados,
@@ -210,9 +280,27 @@ export const analisarMotor = async (
       ultimaNaTelaMedianaMs: Math.round(mediana(ultimaNaTela)),
       ultimaNaTelaMenorMs: Math.round(Math.min(...ultimaNaTela)),
       ultimaNaTelaMenosDe200: ultimaNaTela.filter((ms) => ms < 200).length,
-    });
-  }
-  return {animacoes, linhaDoTempo};
+    },
+    trocas,
+  };
+};
+
+// Trocas de bloco de um pacote com a Sincronia precisa desligada e ligada, na
+// mesma régua (os tempos encaixados no áudio).
+export const compararTrocas = async (
+  raiz: string,
+  palavras: Word[],
+  fps: number,
+  voz: VozDoAudio,
+  pacote: string,
+): Promise<{desligada: TrocaDoBloco[]; ligada: TrocaDoBloco[]}> => {
+  const estilo = await loadStyle(raiz, {pacote});
+  const blocos = assignForStyle(groupWords(palavras), estilo, {semente: 1});
+  const referencia = encaixarNoAudio(palavras, voz).palavras;
+  return {
+    desligada: analisarLinhaDoTempo(pacote, blocos, estilo.templates, fps, referencia, undefined).trocas,
+    ligada: analisarLinhaDoTempo(pacote, blocos, estilo.templates, fps, referencia, {voz}).trocas,
+  };
 };
 
 export const sincroniaPadraoMs = AGRUPAMENTO_CONFIG.sincroniaMs;
