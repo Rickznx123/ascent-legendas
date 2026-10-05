@@ -458,6 +458,8 @@ export const useEditor = () => {
       limparHistorico();
       setBlocoSelecionado(-1);
       setEstilo(await api.estilo(novo.pacote, novo.paleta));
+      // A lista do Início mostra este vídeo como transcrito.
+      setCatalogo(await api.catalogo());
       setAviso(
         (recomecar
           ? `Recomeçado do zero: transcrição nova com ${novo.blocks.length} blocos.`
@@ -574,7 +576,8 @@ export const useEditor = () => {
       await salvar(projetoDoVideo, true);
       const {caminho} = await executarTarefa<{caminho: string}>(
         "/api/exportar",
-        {},
+        // Com login, o projeto deste vídeo (cada vídeo tem o seu).
+        {video: projetoDoVideo.source},
         (andamento) => setTarefa({nome: "Exportar", ...andamento}),
       );
       setExportado({nome: nomeDoArquivo(caminho), caminho});
@@ -601,6 +604,31 @@ export const useEditor = () => {
   useEffect(() => {
     setBlocoSelecionado(-1);
     limparHistorico();
+  }, [video]);
+
+  // Projeto do vídeo aberto. Com login, cada vídeo tem o seu (no Supabase) e ele é
+  // carregado ao abrir o vídeo; no modo local, o servidor devolve o único projeto
+  // (o do transcricao.json), que só vale se for deste vídeo.
+  const videoAberto = useRef(video);
+  videoAberto.current = video;
+  useEffect(() => {
+    if (!video || projeto?.source === video) {
+      return;
+    }
+    api
+      .projeto(video)
+      .then(async (lido) => {
+        if (!lido || lido.source !== video || videoAberto.current !== video) {
+          return;
+        }
+        // Blocos curtos demais ficam marcados como "revisar" (a divisão não muda).
+        setProjeto({...lido, blocks: markShortBlocks(lido.blocks as AssignedCaptionBlock[])});
+        if (lido.pacote !== estilo?.pacote || lido.paleta !== estilo?.paleta) {
+          setEstilo(await api.estilo(lido.pacote, lido.paleta));
+        }
+      })
+      .catch(mostrarErro);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só ao trocar de vídeo
   }, [video]);
 
   // Galeria: estilo com todos os pacotes, carregado ao abrir (e de novo depois de recarregar).

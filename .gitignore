@@ -11,6 +11,8 @@ nuvem/resultados/
 medicao/resultados/
 conferencia/
 removidos/
+# Vídeos e saídas de cada conta (com login), até a Etapa 3 (S3)
+usuarios/
 saida.mp4
 
 # Vídeos de entrada (grandes demais para o git)

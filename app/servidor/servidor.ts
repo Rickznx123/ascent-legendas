@@ -1,25 +1,24 @@
 import {spawn} from "node:child_process";
-import {createWriteStream, existsSync} from "node:fs";
-import {mkdir, rename, rm} from "node:fs/promises";
+import {createWriteStream, existsSync, writeFileSync} from "node:fs";
+import {copyFile, mkdir, rename, rm} from "node:fs/promises";
 import type {Server} from "node:http";
 import os from "node:os";
 import path from "node:path";
 import {pipeline} from "node:stream/promises";
 import express from "express";
-import type {Response} from "express";
+import type {NextFunction, Request, Response} from "express";
 import {groupWords} from "../../src/captions";
 import {assignForStyle, novaSemente, wordsOfBlocks} from "../../src/motor/blocos";
 import {renderVideo} from "../../src/motor/exportar";
 import {caminhoDoSom, listarSons, somTocadoEmCache} from "../../src/motor/pasta-sons";
 import {getVideoMetadata} from "../../src/motor/ferramentas";
 import {
+  listarVideos,
   loadCatalog,
   loadStyle,
   outputPathFor,
   readProject,
-  saveProject,
   SINCRONIA_DE_PROJETO_NOVO,
-  transcriptionPath,
 } from "../../src/motor/projeto";
 import type {Projeto} from "../../src/motor/projeto";
 import {carregarEnv} from "../../src/motor/env";
@@ -29,6 +28,10 @@ import {reloadModules} from "../../src/template-loader";
 import {configDosEfeitos, planejarEfeitos} from "../../src/sons";
 import {cortesDosExcluidos, precisaoDoProjeto, sincroniaDoProjeto} from "../../src/entrada";
 import type {AssignedCaptionBlock} from "../../src/types";
+import {contasDoAmbiente} from "./contas";
+import type {ConfigDoLogin} from "./contas";
+import {espacoDoUsuario, espacoLocal} from "./espaco";
+import type {Espaco} from "./espaco";
 
 export type OpcoesServidor = {
   porta: number;
@@ -71,14 +74,41 @@ const destinoLivre = (pasta: string, nome: string): string => {
   return destino;
 };
 
+// Espaço (vídeos e projetos) de quem fez o pedido, preenchido pela autenticação.
+const espacoDe = (response: Response): Espaco => response.locals.espaco as Espaco;
+
+// Token da sessão: no cabeçalho Authorization; nos GET de arquivos (vídeo da
+// prévia, sons, download), que o navegador pede sem cabeçalho, no cookie sessao.
+const tokenDoPedido = (request: Request): string | undefined => {
+  const cabecalho = request.headers.authorization;
+  if (cabecalho?.startsWith("Bearer ")) {
+    return cabecalho.slice("Bearer ".length).trim() || undefined;
+  }
+  if (request.method !== "GET") {
+    return undefined;
+  }
+  const cookie = (request.headers.cookie ?? "").split(";").map((parte) => parte.trim()).find((parte) => parte.startsWith("sessao="));
+  return cookie ? decodeURIComponent(cookie.slice("sessao=".length)) || undefined : undefined;
+};
+
+// Pedido feito na própria máquina (não por túnel nem pela rede).
+const pedidoLocal = (request: Request): boolean => {
+  const endereco = request.socket.remoteAddress ?? "";
+  const encaminhado = ["x-forwarded-for", "cf-connecting-ip", "x-real-ip", "forwarded"].some((nome) => request.headers[nome]);
+  return !encaminhado && (endereco === "127.0.0.1" || endereco === "::1" || endereco === "::ffff:127.0.0.1");
+};
+
 export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}: OpcoesServidor): Promise<Server> => {
   const root = path.resolve(pastaProjeto);
-  // Chaves do Replicate e da Groq (transcrição) do .env da pasta do projeto.
+  // Chaves do Replicate, da Groq e do Supabase do .env da pasta do projeto.
   carregarEnv(root);
+  // Sem as variáveis do Supabase, o modo local de sempre, sem login.
+  const contas = contasDoAmbiente();
+  console.log(contas ? "Login pelo Supabase: ligado." : "Login: desligado (sem as variáveis do Supabase no .env), modo local.");
   const app = express();
   app.use(express.json({limit: "20mb"}));
 
-  // Só uma tarefa longa (transcrever ou exportar) por vez.
+  // Só uma tarefa longa (transcrever ou exportar) por vez nesta máquina.
   let tarefaAtual: string | undefined;
   const reservar = (nome: string, response: Response): boolean => {
     if (tarefaAtual) {
@@ -89,16 +119,16 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
     return true;
   };
 
-  const videoPath = (nome: string): string => {
-    if (!loadCatalog(root).videos.includes(nome)) {
-      throw new Error(`Vídeo não encontrado na pasta do projeto: ${nome}`);
+  const videoPath = (espaco: Espaco, nome: string): string => {
+    if (!espaco.videos().includes(nome)) {
+      throw new Error(`Vídeo não encontrado: ${nome}`);
     }
-    return path.join(root, nome);
+    return path.join(espaco.pasta, nome);
   };
 
   const handle =
-    (fn: (request: express.Request, response: Response) => Promise<unknown> | unknown) =>
-    async (request: express.Request, response: Response) => {
+    (fn: (request: Request, response: Response) => Promise<unknown> | unknown) =>
+    async (request: Request, response: Response) => {
       try {
         const result = await fn(request, response);
         if (!response.headersSent) {
@@ -109,14 +139,60 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
       }
     };
 
-  app.get("/api/catalogo", handle(() => loadCatalog(root)));
+  // O que a tela precisa para mostrar (ou não) o login. Sem token: é o primeiro
+  // pedido. A chave publicável pode ir ao navegador; a secreta nunca.
+  app.get("/api/config", (_request, response) => {
+    const config: ConfigDoLogin = contas?.config ?? {login: false};
+    response.json(config);
+  });
+
+  // Todas as outras rotas: com login, o token do usuário é validado e o pedido
+  // passa a usar o espaço dele; sem login, o espaço local.
+  app.use(["/api", "/media", "/saidas", "/sons"], async (request: Request, response: Response, next: NextFunction) => {
+    if (!contas) {
+      response.locals.espaco = espacoLocal(root);
+      next();
+      return;
+    }
+    const token = tokenDoPedido(request);
+    if (!token) {
+      response.status(401).json({mensagem: "Entre na sua conta."});
+      return;
+    }
+    try {
+      const usuario = await contas.validar(token);
+      response.locals.espaco = espacoDoUsuario(root, contas, usuario, token);
+      response.locals.token = token;
+      next();
+    } catch (error) {
+      response.status(401).json({mensagem: error instanceof Error ? error.message : String(error)});
+    }
+  });
+
+  // Vídeos do espaço e os que já têm projeto (para a lista do Início).
+  const catalogo = async (espaco: Espaco) => ({...loadCatalog(root, espaco.pasta), projetos: await espaco.projetos()});
+
+  app.get("/api/catalogo", handle((_request, response) => catalogo(espacoDe(response))));
+
+  // Conta: e-mail e plano (o plano vem do perfil). Sem login: null.
+  app.get(
+    "/api/conta",
+    handle(async (_request, response) => {
+      const espaco = espacoDe(response);
+      if (!contas || !espaco.usuario) {
+        return {conta: null};
+      }
+      const perfil = await contas.perfil(espaco.usuario, response.locals.token as string);
+      return {conta: {email: espaco.usuario.email, nome: perfil.nome, plano: perfil.plano}};
+    }),
+  );
 
   // Relê templates/ e paletas/ sem reiniciar o servidor.
   app.post(
     "/api/recarregar",
-    handle(async () => {
+    handle(async (_request, response) => {
       await reloadModules();
-      return loadCatalog(root);
+      return catalogo(espacoDe(response));
     }),
   );
 
@@ -136,23 +212,34 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
     response.sendFile(arquivo);
   });
 
-  app.get("/api/projeto", handle(() => ({projeto: readProject(root) ?? null})));
+  // O projeto de um vídeo (?video=); sem vídeo, o último editado. No modo local,
+  // o do transcricao.json (a tela confere se é do vídeo aberto).
+  app.get(
+    "/api/projeto",
+    handle(async (request, response) => {
+      const video = typeof request.query.video === "string" && request.query.video ? request.query.video : undefined;
+      return {projeto: (await espacoDe(response).lerProjeto(video)) ?? null};
+    }),
+  );
 
   app.put(
     "/api/projeto",
-    handle((request) => {
+    handle(async (request, response) => {
+      const espaco = espacoDe(response);
       const projeto = request.body as Projeto;
+      // Só projetos de vídeos do próprio espaço.
+      videoPath(espaco, projeto.source);
       // A lista de palavras acompanha sempre as palavras dos blocos editados.
-      saveProject(root, {...projeto, words: wordsOfBlocks(projeto.blocks)});
+      await espaco.salvarProjeto({...projeto, words: wordsOfBlocks(projeto.blocks)});
       return {ok: true};
     }),
   );
 
   app.get(
     "/api/estilo",
-    handle(async (request) => {
+    handle(async (request, response) => {
       const {pacote, paleta} = request.query as {pacote?: string; paleta?: string};
-      return loadStyle(root, {pacote, paleta}, readProject(root));
+      return loadStyle(root, {pacote, paleta}, await espacoDe(response).lerProjeto());
     }),
   );
 
@@ -160,17 +247,17 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
   // antes de existir a detecção (a transcrição nova já salva a voz).
   app.get(
     "/api/voz",
-    handle((request) => detectarVozDoVideo(videoPath(String(request.query.nome ?? "")))),
+    handle((request, response) => detectarVozDoVideo(videoPath(espacoDe(response), String(request.query.nome ?? "")))),
   );
 
   app.get(
     "/api/video-info",
-    handle((request) => getVideoMetadata(videoPath(String(request.query.nome ?? "")))),
+    handle((request, response) => getVideoMetadata(videoPath(espacoDe(response), String(request.query.nome ?? "")))),
   );
 
   app.get("/media/:nome", (request, response) => {
     try {
-      response.sendFile(videoPath(request.params.nome));
+      response.sendFile(videoPath(espacoDe(response), request.params.nome));
     } catch (error) {
       response.status(404).send(error instanceof Error ? error.message : String(error));
     }
@@ -179,19 +266,21 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
   // Importar vídeo: o corpo da requisição é o arquivo; ele é gravado num arquivo
   // temporário e só ganha o nome final quando a cópia termina.
   app.put("/api/importar", async (request, response) => {
+    const espaco = espacoDe(response);
     const nome = path.basename(String(request.query.nome ?? ""));
     const substituir = request.query.substituir === "1";
     if (!/\.(mp4|mov|mkv|webm)$/iu.test(nome) || nome.toLowerCase() === "saida.mp4") {
       response.status(400).json({mensagem: "Escolha um vídeo .mp4, .mov, .mkv ou .webm."});
       return;
     }
-    const destino = path.join(root, nome);
+    const destino = path.join(espaco.pasta, nome);
     if (existsSync(destino) && !substituir) {
       response.status(409).json({mensagem: `Já existe um vídeo chamado ${nome}.`});
       return;
     }
     const temporario = `${destino}.importando`;
     try {
+      await mkdir(espaco.pasta, {recursive: true});
       await pipeline(request, createWriteStream(temporario));
       await rename(temporario, destino);
       response.json({nome});
@@ -203,7 +292,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
 
   // Vídeos exportados: download pelo navegador.
   app.get("/saidas/:nome", (request, response) => {
-    const arquivo = path.join(root, "saidas", path.basename(request.params.nome));
+    const arquivo = path.join(espacoDe(response).pasta, "saidas", path.basename(request.params.nome));
     if (!existsSync(arquivo)) {
       response.status(404).send("Arquivo não encontrado em saidas/.");
       return;
@@ -214,8 +303,8 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
   // Abre a pasta saidas/ no explorador de arquivos do sistema.
   app.post(
     "/api/abrir-saidas",
-    handle(async () => {
-      const pasta = path.join(root, "saidas");
+    handle(async (_request, response) => {
+      const pasta = path.join(espacoDe(response).pasta, "saidas");
       await mkdir(pasta, {recursive: true});
       const comando =
         process.platform === "win32" ? "explorer.exe" : process.platform === "darwin" ? "open" : "xdg-open";
@@ -228,6 +317,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
     if (!reservar("transcrição", response)) {
       return;
     }
+    const espaco = espacoDe(response);
     // manterAjustes ("Recomeçar do zero"): as edições somem, mas os ajustes do vídeo
     // (efeitos sonoros e sincronia) continuam. A transcrição antiga só é trocada
     // quando a nova fica pronta: se o whisper falhar, ela continua como estava.
@@ -239,11 +329,11 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
     };
     try {
       await streamTask(response, async (progress) => {
-        const anterior = readProject(root);
+        const anterior = await espaco.lerProjeto(video);
         const ajustes = manterAjustes && anterior?.source === video ? anterior : undefined;
         // WhisperX, com a Groq e o Whisper local de reserva; a voz do áudio
         // (Sincronia precisa) é detectada junto (veja src/motor/transcricao.ts).
-        const {words, voz, model, avisos} = await transcrever(root, videoPath(video), {
+        const {words, voz, model, avisos} = await transcrever(root, videoPath(espaco, video), {
           onProgress: progress,
           log: (texto) => console.log(`[${video}] ${texto}`),
         });
@@ -268,7 +358,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
           words,
           blocks,
         };
-        saveProject(root, projeto);
+        await espaco.salvarProjeto(projeto);
         // A tela mostra qual reserva foi usada, se não foi o WhisperX.
         return {projeto, avisos};
       });
@@ -284,9 +374,10 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
       return;
     }
     try {
+      const espaco = espacoDe(response);
       const nome = String((request.body as {nome?: string}).nome ?? "");
-      const origem = videoPath(nome);
-      const pasta = path.join(root, PASTA_DE_REMOVIDOS);
+      const origem = videoPath(espaco, nome);
+      const pasta = path.join(espaco.pasta, PASTA_DE_REMOVIDOS);
       await mkdir(pasta, {recursive: true});
       const destino = destinoLivre(pasta, nome);
       // No Windows o arquivo pode ficar preso por instantes (a prévia acabou de soltar).
@@ -302,12 +393,8 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
           await new Promise((resolve) => setTimeout(resolve, 300));
         }
       }
-      const projeto = readProject(root);
-      const apagouTranscricao = projeto?.source === nome;
-      if (apagouTranscricao) {
-        await rm(transcriptionPath(root), {force: true});
-      }
-      response.json({movidoPara: path.relative(root, destino), apagouTranscricao});
+      const apagouTranscricao = await espaco.apagarProjeto(nome);
+      response.json({movidoPara: path.relative(espaco.pasta, destino), apagouTranscricao});
     } catch (error) {
       response.status(400).json({mensagem: error instanceof Error ? error.message : String(error)});
     } finally {
@@ -319,15 +406,18 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
     if (!reservar("exportação", response)) {
       return;
     }
+    const espaco = espacoDe(response);
+    // O vídeo do projeto a exportar (sem ele, o último editado).
+    const {video: pedido} = (request.body ?? {}) as {video?: string};
     try {
       await streamTask(response, async (progress) => {
-        const projeto = readProject(root);
-        if (!projeto) {
-          throw new Error("Não há transcricao.json para exportar.");
+        const projeto = await espaco.lerProjeto(pedido);
+        if (!projeto || (pedido && projeto.source !== pedido)) {
+          throw new Error("Não há projeto para exportar.");
         }
-        const inputPath = videoPath(projeto.source);
+        const inputPath = videoPath(espaco, projeto.source);
         const style = await loadStyle(root, {pacote: projeto.pacote, paleta: projeto.paleta}, projeto);
-        const outputPath = outputPathFor(root, projeto.source, style.pacote, style.paleta);
+        const outputPath = outputPathFor(espaco.pasta, projeto.source, style.pacote, style.paleta);
         const missing = projeto.blocks.findIndex((block) => !style.templates[block.template]);
         if (missing >= 0) {
           throw new Error(
@@ -366,7 +456,64 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
           },
           progress,
         );
+        // Com login: conta para os minutos do plano (Etapa 2b).
+        await espaco.registrarExportacao(projeto.source, video.durationInFrames / video.fps);
         return {caminho: outputPath};
+      });
+    } finally {
+      tarefaAtual = undefined;
+    }
+  });
+
+  // "Importar projetos deste computador": no primeiro login, traz para a conta os
+  // vídeos da pasta do projeto e o transcricao.json (copiados; o modo local
+  // continua com eles). Só pedido na própria máquina (não pelo túnel nem pela
+  // rede) e uma vez só: a primeira conta que importa fica registrada.
+  const marcaDaImportacao = path.join(root, "usuarios", ".importacao-local.json");
+  const importacaoLocal = async (request: Request, espaco: Espaco) => {
+    const videos = listarVideos(root);
+    const projeto = readProject(root);
+    const projetoValido = projeto && videos.includes(projeto.source) ? projeto : undefined;
+    const disponivel =
+      Boolean(contas && espaco.usuario) &&
+      pedidoLocal(request) &&
+      !existsSync(marcaDaImportacao) &&
+      videos.length > 0 &&
+      espaco.videos().length === 0 &&
+      (await espaco.projetos()).length === 0;
+    return {disponivel, videos, projeto: projetoValido};
+  };
+
+  app.get(
+    "/api/importacao-local",
+    handle(async (request, response) => {
+      const {disponivel, videos, projeto} = await importacaoLocal(request, espacoDe(response));
+      return disponivel ? {disponivel, videos, projeto: projeto?.source ?? null} : {disponivel: false};
+    }),
+  );
+
+  app.post("/api/importacao-local", async (request, response) => {
+    if (!reservar("importação dos projetos", response)) {
+      return;
+    }
+    const espaco = espacoDe(response);
+    try {
+      await streamTask(response, async (progress) => {
+        const {disponivel, videos, projeto} = await importacaoLocal(request, espaco);
+        if (!disponivel) {
+          throw new Error("A importação deste computador não está disponível para esta conta.");
+        }
+        await mkdir(espaco.pasta, {recursive: true});
+        for (const [indice, nome] of videos.entries()) {
+          progress(`Copiando ${nome}...`, indice / videos.length);
+          await copyFile(path.join(root, nome), path.join(espaco.pasta, nome));
+        }
+        if (projeto) {
+          progress("Importando o projeto...");
+          await espaco.salvarProjeto(projeto);
+        }
+        writeFileSync(marcaDaImportacao, JSON.stringify({usuario: espaco.usuario?.id, quando: new Date().toISOString()}, null, 2));
+        return {videos: videos.length, projetos: projeto ? 1 : 0};
       });
     } finally {
       tarefaAtual = undefined;
@@ -398,3 +545,4 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
     const server = app.listen(porta, rede ? "0.0.0.0" : "127.0.0.1", () => resolve(server));
   });
 };
+

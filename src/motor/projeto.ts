@@ -82,12 +82,19 @@ const OLD_OUTPUT = "saida.mp4";
 
 // Pacotes, paletas e vídeos disponíveis na pasta do projeto. Os vídeos são só os
 // da raiz (a pasta saidas/ não entra) e sem o saida.mp4 antigo.
-export const loadCatalog = (root: string) => ({
+// Vídeos de uma pasta (sem o saida.mp4 antigo); a pasta pode não existir ainda.
+export const listarVideos = (pasta: string): string[] =>
+  existsSync(pasta)
+    ? readdirSync(pasta)
+        .filter((file) => /\.(mp4|mov|m4v|mkv|webm)$/iu.test(file) && file.toLowerCase() !== OLD_OUTPUT)
+        .sort((left, right) => left.localeCompare(right))
+    : [];
+
+// pastaDosVideos: com login, a pasta do usuário (os templates continuam em root).
+export const loadCatalog = (root: string, pastaDosVideos = root) => ({
   pacotes: listPackages(templatesDirectory(root)),
   paletas: listPalettes(palettesDirectory(root)),
-  videos: readdirSync(root)
-    .filter((file) => /\.(mp4|mov|m4v|mkv|webm)$/iu.test(file) && file.toLowerCase() !== OLD_OUTPUT)
-    .sort((left, right) => left.localeCompare(right)),
+  videos: listarVideos(pastaDosVideos),
 });
 
 // Escolhe um pacote ou paleta: o pedido, senão o salvo no transcricao.json,

@@ -4,7 +4,8 @@ import {api} from "../api";
 import {relogio} from "../quadro";
 import type {Editor} from "../useEditor";
 import {Andamento} from "./Andamento";
-import {CONFIG_CELULAR} from "./plano";
+import {useConta} from "../conta";
+import {CONFIG_CELULAR, nomeDoPlano} from "./plano";
 import type {UsoDoPlano} from "./plano";
 
 // Quadro de minutos do plano (desligado em CONFIG_CELULAR até existir o login).
@@ -91,6 +92,7 @@ const Cartao: React.FC<{nome: string; situacao: string; atual: boolean; ocupado:
 
 // Menu ☰ da barra: abre por cima da tela e fecha ao tocar fora ou escolher um item.
 const Menu: React.FC<{ocupado: boolean; onImportar: () => void}> = ({ocupado, onImportar}) => {
+  const {conta, sair} = useConta();
   const [aberto, setAberto] = useState(false);
   const raiz = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -135,11 +137,32 @@ const Menu: React.FC<{ocupado: boolean; onImportar: () => void}> = ({ocupado, on
           >
             Importar vídeo
           </button>
-          {/* Conta e plano dependem do login, que ainda não existe. */}
-          <button type="button" role="menuitem" disabled={!CONFIG_CELULAR.mostrarPlano}>
-            Conta e plano
-            {CONFIG_CELULAR.mostrarPlano ? null : <small>em breve</small>}
-          </button>
+          {/* Conta e plano: o e-mail e o plano do perfil. Sem login (modo local), não há conta. */}
+          {conta ? (
+            <>
+              <div className="cel-menu-conta" role="none">
+                <span>Conta e plano</span>
+                <b>{conta.email}</b>
+                <small>Plano {nomeDoPlano(conta)}</small>
+              </div>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={ocupado}
+                onClick={() => {
+                  setAberto(false);
+                  sair();
+                }}
+              >
+                Sair
+              </button>
+            </>
+          ) : (
+            <button type="button" role="menuitem" disabled>
+              Conta e plano
+              <small>modo local</small>
+            </button>
+          )}
         </div>
       ) : null}
     </div>
@@ -147,8 +170,12 @@ const Menu: React.FC<{ocupado: boolean; onImportar: () => void}> = ({ocupado, on
 };
 
 export const Inicio: React.FC<{e: Editor; onAbrir: (nome: string) => void}> = ({e, onAbrir}) => {
-  const situacao = (nome: string) =>
-    e.projetoSalvo?.video === nome ? `Em edição · ${e.projetoSalvo.blocos} blocos` : "Não transcrito";
+  // O projeto aberto tem o número de blocos mais recente; os outros vêm da lista do
+  // servidor (com login, os projetos da conta).
+  const situacao = (nome: string) => {
+    const projeto = e.projetoSalvo?.video === nome ? e.projetoSalvo : e.catalogo.projetos?.find((p) => p.video === nome);
+    return projeto ? `Em edição · ${projeto.blocos} blocos` : "Não transcrito";
+  };
   const importar = async () => {
     const nome = await e.escolherEImportar({galeria: true});
     if (nome) {
