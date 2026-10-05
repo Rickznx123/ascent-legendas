@@ -18,6 +18,7 @@ import {
   outputPathFor,
   readProject,
   saveProject,
+  SINCRONIA_DE_PROJETO_NOVO,
   transcriptionPath,
 } from "../../src/motor/projeto";
 import type {Projeto} from "../../src/motor/projeto";
@@ -258,8 +259,11 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
           paleta: style.paleta,
           semente,
           efeitos: ajustes?.efeitos,
-          sincroniaMs: ajustes?.sincroniaMs,
-          sincroniaPrecisa: ajustes?.sincroniaPrecisa,
+          // Recomeçar do zero mantém a sincronia do projeto; um projeto novo nasce
+          // com a Sincronia precisa ligada e 0 ms.
+          ...(ajustes
+            ? {sincroniaMs: ajustes.sincroniaMs, sincroniaPrecisa: ajustes.sincroniaPrecisa}
+            : SINCRONIA_DE_PROJETO_NOVO),
           voz,
           words,
           blocks,

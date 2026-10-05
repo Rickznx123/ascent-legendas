@@ -7,7 +7,7 @@ import {listarSons} from "./motor/pasta-sons";
 import {renderVideo} from "./motor/exportar";
 import {getVideoMetadata} from "./motor/ferramentas";
 import {carregarEnv} from "./motor/env";
-import {loadStyle, outputPathFor, readProject, saveProject, transcriptionPath} from "./motor/projeto";
+import {SINCRONIA_DE_PROJETO_NOVO, loadStyle, outputPathFor, readProject, saveProject, transcriptionPath} from "./motor/projeto";
 import type {Projeto} from "./motor/projeto";
 import {transcrever} from "./motor/transcricao";
 import {detectarVozDoVideo} from "./motor/voz";
@@ -163,6 +163,11 @@ const main = async () => {
     voz = await detectarVozDoVideo(inputPath);
   }
 
+  // Projeto novo: Sincronia precisa ligada e 0 ms; o salvo fica como está.
+  const sincronia = saved
+    ? {sincroniaMs: saved.sincroniaMs, sincroniaPrecisa: saved.sincroniaPrecisa}
+    : SINCRONIA_DE_PROJETO_NOVO;
+
   // No modo misto, a semente salva repete o mesmo sorteio da interface.
   const semente = saved?.semente ?? novaSemente();
   const chosenBlocks = assignForStyle(blocks, style, {
@@ -182,8 +187,7 @@ const main = async () => {
     paleta: style.paleta,
     semente,
     efeitos: saved?.efeitos,
-    sincroniaMs: saved?.sincroniaMs,
-    sincroniaPrecisa: saved?.sincroniaPrecisa,
+    ...sincronia,
     voz,
     posicao: saved?.posicao,
     excluidos: saved?.excluidos,
@@ -193,8 +197,8 @@ const main = async () => {
   console.log(`Transcrição salva em ${transcriptionPath(projectRoot)}`);
 
   const efeitos = configDosEfeitos(saved?.efeitos);
-  const sincroniaMs = sincroniaDoProjeto(saved?.sincroniaMs, saved?.sincroniaPrecisa);
-  const precisa = precisaoDoProjeto(saved && {...saved, voz}, video.fps);
+  const sincroniaMs = sincroniaDoProjeto(sincronia.sincroniaMs, sincronia.sincroniaPrecisa);
+  const precisa = precisaoDoProjeto({...sincronia, voz}, video.fps);
   const cortesMs = cortesDosExcluidos(saved?.excluidos, style.templates, sincroniaMs, precisa);
   let lastStage = "";
   await renderVideo(

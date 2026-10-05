@@ -14,6 +14,10 @@ import {PACOTE_MISTO} from "./blocos";
 
 export const WHISPER_MODEL = "small";
 
+// Sincronia de um projeto novo (transcrição nova de um vídeo sem projeto):
+// Sincronia precisa ligada e ajuste em 0 ms. Projetos existentes ficam como estão.
+export const SINCRONIA_DE_PROJETO_NOVO = {sincroniaPrecisa: true, sincroniaMs: 0} as const;
+
 // Conteúdo do transcricao.json, usado pelo terminal e pela interface.
 export type Projeto = {
   source: string;

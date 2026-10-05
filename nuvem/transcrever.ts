@@ -6,6 +6,7 @@
 import {mkdirSync, writeFileSync} from "node:fs";
 import path from "node:path";
 import {groupWords} from "../src/captions";
+import {SINCRONIA_DE_PROJETO_NOVO} from "../src/motor/projeto";
 import type {Projeto} from "../src/motor/projeto";
 import {transcrever} from "../src/motor/transcricao";
 import {RAIZ} from "./env";
@@ -27,6 +28,8 @@ const projeto: Projeto = {
   source: path.basename(inputPath),
   language: "pt",
   model: t.model,
+  // Projeto novo: Sincronia precisa ligada e 0 ms.
+  ...SINCRONIA_DE_PROJETO_NOVO,
   voz: t.voz,
   words: t.words,
   blocks: groupWords(t.words),
