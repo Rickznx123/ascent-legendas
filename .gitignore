@@ -8,6 +8,7 @@ whisper.cpp/
 # Saídas de render e conferência
 saidas/
 nuvem/resultados/
+medicao/resultados/
 conferencia/
 removidos/
 saida.mp4

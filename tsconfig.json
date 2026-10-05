@@ -19,7 +19,8 @@
     "templates/**/*.ts",
     "app/**/*.ts",
     "app/**/*.tsx",
-    "nuvem/**/*.ts"
+    "nuvem/**/*.ts",
+    "medicao/**/*.ts"
   ],
   "exclude": [
     "app/web/dist"

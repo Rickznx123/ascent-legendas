@@ -10,7 +10,8 @@
     "app": "tsx app/servidor/index.ts",
     "app:rede": "tsx app/servidor/index.ts --rede",
     "app:montar": "vite build --config app/web/vite.config.ts",
-    "app:producao": "tsx app/servidor/index.ts --producao"
+    "app:producao": "tsx app/servidor/index.ts --producao",
+    "medir-sincronia": "tsx medicao/medir-sincronia.ts"
   },
   "dependencies": {
     "@remotion/bundler": "4.0.532",
