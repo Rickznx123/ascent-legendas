@@ -13,6 +13,8 @@ import {transcribeVideo} from "../src/motor/transcrever";
 import type {Word} from "../src/types";
 import {ERRO_VISIVEL_MS, UM_QUADRO_MS, compararComAudio, estatisticas, piores} from "./comparacao";
 import type {Estatisticas, Ponto} from "./comparacao";
+import {encaixarNoAudio} from "../src/encaixe";
+import type {VozDoAudio} from "../src/types";
 import {analisarMotor, sincroniaPadraoMs} from "./motor";
 import {montarPagina} from "./pagina";
 import type {TranscricaoNaPagina} from "./pagina";
@@ -100,6 +102,14 @@ const relatorioDaTranscricao = (nome: string, est: Estatisticas, porTipo: Record
   }
 };
 
+const relatorioCurto = (rotulo: string, porTipo: Record<string, Estatisticas>) => {
+  for (const [tipo, e] of Object.entries(porTipo)) {
+    console.log(
+      `    ${rotulo.padEnd(7)} ${tipo.padEnd(7)} médio ${ms(e.erroMedioMs).padStart(6)} · mediana ${ms(e.medianaMs).padStart(6)} · pior ${ms(e.piorMs).padStart(6)} · >${UM_QUADRO_MS} ms: ${String(e.acimaDeUmQuadro).padStart(3)} de ${e.pontos} · >${ERRO_VISIVEL_MS} ms: ${String(e.acimaDe80Ms).padStart(3)}`,
+    );
+  }
+};
+
 const principal = async () => {
   mkdirSync(SAIDA, {recursive: true});
   const video = acharVideo();
@@ -120,6 +130,8 @@ const principal = async () => {
 
   const naPagina: TranscricaoNaPagina[] = [];
   const resumo: Record<string, unknown> = {};
+  // A voz no formato salvo no projeto (a mesma que a Sincronia precisa usa).
+  const vozDoAudio: VozDoAudio = {trechos: voz.trechos.map((t) => [t.inicioMs, t.fimMs]), duracaoMs};
   for (const t of transcricoes) {
     const pontos = compararComAudio(t.palavras, voz.comecos, voz.fins);
     const est = estatisticas(pontos);
@@ -130,7 +142,26 @@ const principal = async () => {
     const ruins = piores(pontos, 15);
     relatorioDaTranscricao(t.nome, est, porTipo, ruins);
     naPagina.push({nome: t.nome, palavras: t.palavras, pontos, estatisticas: est, piores: ruins});
-    resumo[t.nome] = {arquivo: path.relative(RAIZ, t.arquivo), total: est, ...porTipo, piores: ruins};
+    // Com o encaixe da Sincronia precisa (src/encaixe.ts). Atenção: a detecção de
+    // voz é a mesma da medição, então um ponto encaixado mede zero por construção; o
+    // que interessa é quantos pontos encaixaram e o erro dos que ficaram de fora.
+    const encaixe = encaixarNoAudio(t.palavras, vozDoAudio);
+    const pontosDepois = compararComAudio(encaixe.palavras, voz.comecos, voz.fins);
+    const depois = {
+      total: estatisticas(pontosDepois),
+      início: estatisticas(pontosDepois.filter((p) => p.tipo === "início")),
+      fim: estatisticas(pontosDepois.filter((p) => p.tipo === "fim")),
+    };
+    console.log(
+      `  Com o encaixe (Sincronia precisa): ${encaixe.inicios} inícios e ${encaixe.fins} fins encaixados, ${encaixe.trechosDuvidosos} trechos duvidosos não encaixados`,
+    );
+    relatorioCurto("antes", porTipo);
+    relatorioCurto("depois", {início: depois.início, fim: depois.fim});
+    const restantes = piores(pontosDepois, 8).filter((p) => Math.abs(p.erroMs) > UM_QUADRO_MS);
+    for (const p of restantes) {
+      console.log(`    sobrou: ${p.palavra.padEnd(16)} ${p.tipo.padEnd(6)} erro ${p.erroMs > 0 ? "+" : ""}${Math.round(p.erroMs)} ms`);
+    }
+    resumo[t.nome] = {arquivo: path.relative(RAIZ, t.arquivo), total: est, ...porTipo, piores: ruins, comEncaixe: {...depois, inicios: encaixe.inicios, fins: encaixe.fins, trechosDuvidosos: encaixe.trechosDuvidosos}};
   }
 
   console.log("\n=== O motor (mesmas palavras do Whisper local, agrupadas como numa transcrição nova) ===");

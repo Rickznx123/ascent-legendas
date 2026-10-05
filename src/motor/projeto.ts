@@ -9,7 +9,7 @@ import {
 } from "../template-loader";
 import type {PackageRules} from "../rhythm";
 import type {ConfigEfeitos} from "../sons";
-import type {CaptionBlock, CaptionTemplate, Palette, Word} from "../types";
+import type {CaptionBlock, CaptionTemplate, Palette, VozDoAudio, Word} from "../types";
 import {PACOTE_MISTO} from "./blocos";
 
 export const WHISPER_MODEL = "small";
@@ -28,6 +28,11 @@ export type Projeto = {
   // Sincronia das legendas em ms (positivo atrasa, negativo adianta). Sem valor:
   // AGRUPAMENTO_CONFIG.sincroniaMs.
   sincroniaMs?: number;
+  // Sincronia precisa: as palavras grudam na voz do áudio e a troca de blocos
+  // protege a última palavra (veja src/encaixe.ts e src/tempos.ts). Sem valor: desligada.
+  sincroniaPrecisa?: boolean;
+  // Trechos de voz do áudio (detectados na transcrição, veja src/motor/voz.ts).
+  voz?: VozDoAudio;
   // Posição geral das legendas: centro do bloco em % da largura e da altura.
   // Sem valor: 50% × 68% (POSICAO_PADRAO).
   posicao?: {x: number; y: number};

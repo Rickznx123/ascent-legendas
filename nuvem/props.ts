@@ -5,9 +5,10 @@ import path from "node:path";
 import {assignForStyle, markShortBlocks, novaSemente} from "../src/motor/blocos";
 import {getVideoMetadata} from "../src/motor/ferramentas";
 import {listarSons} from "../src/motor/pasta-sons";
+import {detectarVozDoVideo} from "../src/motor/voz";
 import {loadStyle, readProject} from "../src/motor/projeto";
 import {configDosEfeitos, planejarEfeitos} from "../src/sons";
-import {cortesDosExcluidos, sincroniaDoProjeto} from "../src/entrada";
+import {cortesDosExcluidos, precisaoDoProjeto, sincroniaDoProjeto} from "../src/entrada";
 import type {KineticCaptionVideoProps} from "../src/types";
 import {RAIZ} from "./env";
 
@@ -31,16 +32,21 @@ export const montarProps = async (
   );
   const efeitos = configDosEfeitos(saved.efeitos);
   const sincroniaMs = sincroniaDoProjeto(saved.sincroniaMs);
-  const cortesMs = cortesDosExcluidos(saved.excluidos, style.templates, sincroniaMs);
+  // A mesma Sincronia precisa do render local: a voz do áudio vai junto nas props.
+  // Projeto sem a voz salva (transcrito antes da detecção): detecta agora.
+  const voz = saved.voz ?? (saved.sincroniaPrecisa ? await detectarVozDoVideo(inputPath) : undefined);
+  const precisa = precisaoDoProjeto({...saved, voz});
+  const cortesMs = cortesDosExcluidos(saved.excluidos, style.templates, sincroniaMs, precisa);
   return {
     blocks,
     templates: style.templates,
     palette: style.palette,
     palettes: style.paletas,
     video: await getVideoMetadata(inputPath),
-    efeitos: planejarEfeitos(blocks, style.templates, await listarSons(RAIZ), efeitos, semente, sincroniaMs, cortesMs),
+    efeitos: planejarEfeitos(blocks, style.templates, await listarSons(RAIZ), efeitos, semente, sincroniaMs, cortesMs, precisa),
     volumeEfeitos: efeitos.volume,
     sincroniaMs,
+    precisa,
     posicao: saved.posicao,
     cortesMs,
   };

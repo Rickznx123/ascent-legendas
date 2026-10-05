@@ -143,6 +143,7 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
               volumeEfeitos={e.configEfeitos.volume}
               sonsUrl={api.sonsUrl}
               sincroniaMs={e.sincroniaMs}
+              precisa={e.precisa}
               onQuadro={e.aoMudarQuadro}
               posicao={projetoDoVideo?.posicao}
               cortesMs={e.cortesMs}
@@ -256,6 +257,9 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
                 ocupado={e.ocupado}
                 sincroniaMs={e.sincroniaMs}
                 onSincronia={(valor) => e.atualizarProjeto({sincroniaMs: valor})}
+                sincroniaPrecisa={e.sincroniaPrecisa}
+                detectandoVoz={e.detectandoVoz}
+                onSincroniaPrecisa={e.alternarSincroniaPrecisa}
                 posicao={e.posicaoGeral}
                 onInicioPosicao={e.inicioDeAjuste}
                 onPosicao={(posicao) => e.atualizarProjeto({posicao})}

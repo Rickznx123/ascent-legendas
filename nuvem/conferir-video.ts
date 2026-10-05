@@ -16,4 +16,4 @@ const indice = process.argv.indexOf("--pacote");
 const pacote = indice > 0 ? process.argv[indice + 1] : "misto";
 
 const props = await montarProps(path.join(RAIZ, readProject(RAIZ)?.source ?? ""), {pacote});
-await exportBlockFrames(props.blocks, props.templates, path.resolve(video), path.resolve(pasta), props.video.fps, props.sincroniaMs, props.cortesMs);
+await exportBlockFrames(props.blocks, props.templates, path.resolve(video), path.resolve(pasta), props.video.fps, props.sincroniaMs, props.cortesMs, props.precisa);

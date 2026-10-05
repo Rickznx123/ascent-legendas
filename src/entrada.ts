@@ -4,7 +4,15 @@
 import {Easing} from "remotion";
 import {AGRUPAMENTO_CONFIG} from "./agrupamento-config";
 import {findKeywordIndex} from "./captions";
-import type {AssignedCaptionBlock, CaptionBlock, CaptionTemplate, EntranceAnimation} from "./types";
+import {encaixarNoAudio} from "./encaixe";
+import type {
+  AssignedCaptionBlock,
+  CaptionBlock,
+  CaptionTemplate,
+  EntranceAnimation,
+  SincroniaPrecisa,
+  VozDoAudio,
+} from "./types";
 
 // Quanto a palavra precisa estar visível no instante em que é falada (0 a 1).
 const VISIVEL_NA_FALA = 0.7;
@@ -71,8 +79,9 @@ export const cortesDosExcluidos = (
   excluidos: CaptionBlock[] | undefined,
   templates: Record<string, CaptionTemplate>,
   sincroniaMs = 0,
+  precisa?: SincroniaPrecisa,
 ): number[] =>
-  blocosNaTela((excluidos ?? []) as AssignedCaptionBlock[], templates, sincroniaMs)
+  blocosNaTela((excluidos ?? []) as AssignedCaptionBlock[], templates, sincroniaMs, precisa)
     .map((block) => block.startMs)
     .sort((a, b) => a - b);
 
@@ -80,15 +89,35 @@ export const cortesDosExcluidos = (
 export const sincroniaDoProjeto = (salva: number | undefined): number =>
   salva ?? AGRUPAMENTO_CONFIG.sincroniaMs;
 
+// Sincronia precisa do projeto (vazio: desligada), com a voz do áudio salva nele.
+export const precisaoDoProjeto = (projeto: {
+  sincroniaPrecisa?: boolean;
+  voz?: VozDoAudio;
+} | undefined): SincroniaPrecisa | undefined => (projeto?.sincroniaPrecisa ? {voz: projeto.voz} : undefined);
+
+// Palavras de todos os blocos encaixadas juntas na voz (o encaixe olha as vizinhas,
+// mesmo de outro bloco), devolvidas a cada bloco.
+const encaixarBlocos = (blocks: AssignedCaptionBlock[], voz: VozDoAudio): AssignedCaptionBlock[] => {
+  const {palavras} = encaixarNoAudio(blocks.flatMap((block) => block.words), voz);
+  let proxima = 0;
+  return blocks.map((block) => {
+    const words = palavras.slice(proxima, proxima + block.words.length);
+    proxima += block.words.length;
+    return {...block, words};
+  });
+};
+
 // Blocos com os tempos de tela: cada palavra começa a entrar antes da fala o
 // suficiente para estar legível nela, e tudo anda sincroniaMs (positivo atrasa,
 // negativo adianta). O fim das palavras só anda com a sincronia.
+// Com a Sincronia precisa, as palavras antes grudam na voz do áudio (src/encaixe.ts).
 export const blocosNaTela = (
   blocks: AssignedCaptionBlock[],
   templates: Record<string, CaptionTemplate>,
   sincroniaMs = 0,
+  precisa?: SincroniaPrecisa,
 ): AssignedCaptionBlock[] =>
-  blocks.map((block) => {
+  (precisa?.voz ? encaixarBlocos(blocks, precisa.voz) : blocks).map((block) => {
     const template = templates[block.template];
     const words = block.words.map((word, indice) => {
       const antecipacao = template ? antecipacaoDaEntradaMs(animacaoDaPalavra(block, template, indice)) : 0;
@@ -102,6 +131,7 @@ export const blocosNaTela = (
       ...block,
       words,
       startMs: Math.min(...words.map((word) => word.startMs)),
-      endMs: Math.max(0, block.endMs + sincroniaMs),
+      // Com o encaixe, o bloco termina onde a última palavra termina agora.
+      endMs: Math.max(0, (precisa?.voz ? block.words[block.words.length - 1].endMs : block.endMs) + sincroniaMs),
     };
   });

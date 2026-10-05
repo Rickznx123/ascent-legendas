@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import {bundle} from "@remotion/bundler";
 import {renderMedia, selectComposition} from "@remotion/renderer";
-import type {AssignedCaptionBlock, CaptionTemplate, EfeitoSonoro, Palette, VideoMetadata} from "../types";
+import type {AssignedCaptionBlock, CaptionTemplate, EfeitoSonoro, Palette, SincroniaPrecisa, VideoMetadata} from "../types";
 import {prepararSons} from "./pasta-sons";
 import type {Progresso} from "./transcrever";
 
@@ -22,6 +22,8 @@ export type Exportacao = {
   volumeEfeitos?: number;
   // Sincronia das legendas em ms (positivo atrasa, negativo adianta).
   sincroniaMs?: number;
+  // Sincronia precisa (vazio: desligada).
+  precisa?: SincroniaPrecisa;
   // Posição geral das legendas e instantes dos blocos excluídos.
   posicao?: {x: number; y: number};
   cortesMs?: number[];
@@ -29,7 +31,7 @@ export type Exportacao = {
 
 // Renderiza o MP4 final com as legendas.
 export const renderVideo = async (
-  {root, inputPath, outputPath, blocks, templates, palette, palettes, video, efeitos, volumeEfeitos, sincroniaMs, posicao, cortesMs}: Exportacao,
+  {root, inputPath, outputPath, blocks, templates, palette, palettes, video, efeitos, volumeEfeitos, sincroniaMs, precisa, posicao, cortesMs}: Exportacao,
   onProgress: Progresso = () => undefined,
 ): Promise<void> => {
   const tempDirectory = mkdtempSync(path.join(os.tmpdir(), "legendas-dinamicas-"));
@@ -51,6 +53,7 @@ export const renderVideo = async (
       efeitos,
       volumeEfeitos,
       sincroniaMs,
+      precisa,
       posicao,
       cortesMs,
     };

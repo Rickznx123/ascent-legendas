@@ -4,6 +4,22 @@ export type Word = {
   text: string;
   startMs: number;
   endMs: number;
+  // Só nos tempos de tela com a Sincronia precisa (veja blocosNaTela): o instante
+  // em que a palavra é falada (startMs passa a ser o início da animação).
+  faladaMs?: number;
+};
+
+// Trechos de voz do áudio [início, fim) em ms, separados por silêncios de 150 ms
+// ou mais (veja src/motor/voz.ts), e a duração do áudio.
+export type VozDoAudio = {
+  trechos: [number, number][];
+  duracaoMs: number;
+};
+
+// Sincronia precisa ligada: as palavras grudam nos começos e fins de voz (quando
+// houver a voz do áudio) e a troca de blocos segue as regras de src/tempos.ts.
+export type SincroniaPrecisa = {
+  voz?: VozDoAudio;
 };
 
 export type CaptionBlock = {
@@ -237,6 +253,8 @@ export type KineticCaptionVideoProps = {
   sonsUrl?: string;
   // Ajuste de sincronia das legendas em ms (positivo atrasa, negativo adianta).
   sincroniaMs?: number;
+  // Sincronia precisa (vazio: desligada).
+  precisa?: SincroniaPrecisa;
   // Posição geral das legendas (centro do bloco, em %). Vazio: 50% × 68%.
   posicao?: {x: number; y: number};
   // Instantes (de tela) em que começavam blocos excluídos: o bloco anterior não

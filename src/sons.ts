@@ -5,7 +5,7 @@ import {blocosNaTela} from "./entrada";
 import {createRandom} from "./rhythm";
 import {SONS_CONFIG} from "./sons-config";
 import {computeTimeline} from "./tempos";
-import type {AssignedCaptionBlock, CaptionTemplate, EfeitoSonoro, TemplateFamily} from "./types";
+import type {AssignedCaptionBlock, CaptionTemplate, EfeitoSonoro, SincroniaPrecisa, TemplateFamily} from "./types";
 
 // Um arquivo da pasta sons/. A categoria é a subpasta ("destaque" ou "linear").
 export type ArquivoSom = {arquivo: string; categoria: string; duracaoMs: number};
@@ -159,13 +159,15 @@ export const planejarEfeitos = (
   sincroniaMs = 0,
   // Instantes dos blocos excluídos (veja cortesDosExcluidos).
   cortesMs: number[] = [],
+  // Sincronia precisa, como nas legendas.
+  precisa?: SincroniaPrecisa,
 ): EfeitoSonoro[] => {
   if (sons.length === 0) {
     return [];
   }
   const random = createRandom((semente ^ SAL_DA_SEMENTE) >>> 0);
   // Tempos de tela, os mesmos das legendas (veja src/entrada.ts).
-  const blocks = blocosNaTela(blocosDaFala, templates, sincroniaMs);
+  const blocks = blocosNaTela(blocosDaFala, templates, sincroniaMs, precisa);
   const timeline = computeTimeline(blocks, cortesMs);
   const daCategoria = (categoria: string) => sons.filter((som) => som.categoria === categoria);
   const manual = (block: AssignedCaptionBlock): ArquivoSom | undefined =>

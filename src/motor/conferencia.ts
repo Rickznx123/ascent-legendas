@@ -2,7 +2,7 @@ import {mkdirSync} from "node:fs";
 import path from "node:path";
 import {blocosNaTela} from "../entrada";
 import {computeTimeline} from "../tempos";
-import type {AssignedCaptionBlock, CaptionTemplate} from "../types";
+import type {AssignedCaptionBlock, CaptionTemplate, SincroniaPrecisa} from "../types";
 import {execFileAsync, ffmpegPath} from "./ferramentas";
 
 const slugifyExpectedText = (text: string): string =>
@@ -22,10 +22,11 @@ export const exportBlockFrames = async (
   fps: number,
   sincroniaMs = 0,
   cortesMs: number[] = [],
+  precisa?: SincroniaPrecisa,
 ): Promise<void> => {
   mkdirSync(outputDirectory, {recursive: true});
   // Mesmos tempos de tela do render.
-  const blocks = blocosNaTela(blocosDaFala, templates, sincroniaMs);
+  const blocks = blocosNaTela(blocosDaFala, templates, sincroniaMs, precisa);
   const timeline = computeTimeline(blocks, cortesMs);
 
   for (const [index, block] of blocks.entries()) {

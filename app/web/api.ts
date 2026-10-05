@@ -2,7 +2,7 @@
 // mesma tela funciona no navegador e dentro do Electron.
 import type {Estilo, Projeto} from "../../src/motor/projeto";
 import type {ArquivoSom} from "../../src/sons";
-import type {VideoMetadata} from "../../src/types";
+import type {VideoMetadata, VozDoAudio} from "../../src/types";
 
 export type Catalogo = {pacotes: string[]; paletas: string[]; videos: string[]};
 
@@ -39,6 +39,9 @@ export const api = {
     if (paleta) query.set("paleta", paleta);
     return fetch(`/api/estilo?${query}`).then((r) => lerJson<Estilo>(r));
   },
+
+  // Trechos de voz do áudio (Sincronia precisa num projeto sem a voz salva).
+  voz: (nome: string) => fetch(`/api/voz?nome=${encodeURIComponent(nome)}`).then((r) => lerJson<VozDoAudio>(r)),
 
   videoInfo: (nome: string) =>
     fetch(`/api/video-info?nome=${encodeURIComponent(nome)}`).then((r) => lerJson<VideoMetadata>(r)),

@@ -26,7 +26,7 @@ import {
 import type {Estilo, Projeto} from "../../src/motor/projeto";
 import {configDosEfeitos, planejarEfeitos} from "../../src/sons";
 import type {ArquivoSom, ConfigEfeitos} from "../../src/sons";
-import {blocosNaTela, cortesDosExcluidos, sincroniaDoProjeto} from "../../src/entrada";
+import {blocosNaTela, cortesDosExcluidos, precisaoDoProjeto, sincroniaDoProjeto} from "../../src/entrada";
 import {POSICAO_PADRAO} from "../../src/posicao";
 import type {Posicao} from "../../src/posicao";
 import {computeTimeline, findActiveBlockIndex} from "../../src/tempos";
@@ -131,16 +131,20 @@ export const useEditor = () => {
   const projetoDoVideo = projeto && projeto.source === video ? projeto : null;
   const blocos = (projetoDoVideo?.blocks ?? []) as AssignedCaptionBlock[];
   const sincroniaMs = sincroniaDoProjeto(projetoDoVideo?.sincroniaMs);
+  // Sincronia precisa (vazio: desligada), com a voz do áudio salva no projeto.
+  const sincroniaPrecisa = Boolean(projetoDoVideo?.sincroniaPrecisa);
+  const voz = projetoDoVideo?.voz;
+  const precisa = useMemo(() => precisaoDoProjeto({sincroniaPrecisa, voz}), [sincroniaPrecisa, voz]);
   // Tempos de tela (entrada antes da fala + sincronia), os mesmos do render.
   const blocosNaTelaAtual = useMemo(
-    () => (estilo ? blocosNaTela(blocos, estilo.templates, sincroniaMs) : blocos),
-    [blocos, estilo, sincroniaMs],
+    () => (estilo ? blocosNaTela(blocos, estilo.templates, sincroniaMs, precisa) : blocos),
+    [blocos, estilo, sincroniaMs, precisa],
   );
   const excluidos = (projetoDoVideo?.excluidos ?? []) as AssignedCaptionBlock[];
   // Onde começavam os blocos excluídos: o bloco anterior sai ali (sem esticar).
   const cortesMs = useMemo(
-    () => (estilo ? cortesDosExcluidos(excluidos, estilo.templates, sincroniaMs) : []),
-    [excluidos, estilo, sincroniaMs],
+    () => (estilo ? cortesDosExcluidos(excluidos, estilo.templates, sincroniaMs, precisa) : []),
+    [excluidos, estilo, sincroniaMs, precisa],
   );
   const timeline = useMemo(() => computeTimeline(blocosNaTelaAtual, cortesMs), [blocosNaTelaAtual, cortesMs]);
   const configEfeitos = useMemo(() => configDosEfeitos(projetoDoVideo?.efeitos), [projetoDoVideo?.efeitos]);
@@ -148,9 +152,9 @@ export const useEditor = () => {
   const efeitos = useMemo(
     () =>
       estilo
-        ? planejarEfeitos(blocos, estilo.templates, sons, configEfeitos, projetoDoVideo?.semente ?? 0, sincroniaMs, cortesMs)
+        ? planejarEfeitos(blocos, estilo.templates, sons, configEfeitos, projetoDoVideo?.semente ?? 0, sincroniaMs, cortesMs, precisa)
         : [],
-    [blocos, estilo, sons, configEfeitos, projetoDoVideo?.semente, sincroniaMs, cortesMs],
+    [blocos, estilo, sons, configEfeitos, projetoDoVideo?.semente, sincroniaMs, cortesMs, precisa],
   );
   const posicaoGeral = projetoDoVideo?.posicao ?? POSICAO_PADRAO;
 
@@ -195,6 +199,22 @@ export const useEditor = () => {
     }
     setProjeto(novo);
     void salvar(novo, imediato);
+  };
+
+  // Liga ou desliga a Sincronia precisa. Num projeto transcrito antes da detecção
+  // de voz, a voz do áudio é detectada agora (uma vez) e salva no projeto.
+  const [detectandoVoz, setDetectandoVoz] = useState(false);
+  const alternarSincroniaPrecisa = (ligar: boolean) => {
+    if (!ligar || voz || !projetoDoVideo) {
+      atualizarProjeto({sincroniaPrecisa: ligar});
+      return;
+    }
+    setDetectandoVoz(true);
+    api
+      .voz(projetoDoVideo.source)
+      .then((detectada) => atualizarProjeto({sincroniaPrecisa: true, voz: detectada}))
+      .catch(mostrarErro)
+      .finally(() => setDetectandoVoz(false));
   };
 
   // Edições da lista e da posição: entram no histórico.
@@ -711,6 +731,10 @@ export const useEditor = () => {
     playerRef,
     blocos,
     sincroniaMs,
+    sincroniaPrecisa,
+    precisa,
+    detectandoVoz,
+    alternarSincroniaPrecisa,
     excluidos,
     cortesMs,
     timeline,

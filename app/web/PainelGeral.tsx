@@ -10,6 +10,11 @@ type Props = {
   // Sincronia das legendas em ms (positivo atrasa, negativo adianta).
   sincroniaMs: number;
   onSincronia: (valor: number) => void;
+  // Sincronia precisa: palavras grudadas na voz e troca de blocos protegida.
+  sincroniaPrecisa: boolean;
+  // Detectando a voz do áudio (projeto transcrito antes da detecção).
+  detectandoVoz: boolean;
+  onSincroniaPrecisa: (ligar: boolean) => void;
   posicao: Posicao;
   // Controles deslizantes da posição geral (o mesmo valor do arrasto na prévia).
   onInicioPosicao: () => void;
@@ -28,6 +33,9 @@ export const PainelGeral: React.FC<Props> = ({
   ocupado,
   sincroniaMs,
   onSincronia,
+  sincroniaPrecisa,
+  detectandoVoz,
+  onSincroniaPrecisa,
   posicao,
   onInicioPosicao,
   onPosicao,
@@ -58,6 +66,19 @@ export const PainelGeral: React.FC<Props> = ({
               onSincronia(Math.max(-2000, Math.min(2000, Math.round(valor))));
             }
           }}
+        />
+      </div>
+      <div
+        className="campo"
+        title="Liga para encaixar as palavras no começo e no fim da voz e não tirar a última palavra do bloco antes de ela ser falada. Desligue para comparar."
+      >
+        <label htmlFor="geral-sincronia-precisa">Sincronia precisa{detectandoVoz ? " (analisando o áudio...)" : ""}</label>
+        <input
+          id="geral-sincronia-precisa"
+          type="checkbox"
+          checked={sincroniaPrecisa}
+          disabled={ocupado || !temProjeto || detectandoVoz}
+          onChange={(event) => onSincroniaPrecisa(event.target.checked)}
         />
       </div>
       <div className="campo" title="Também muda com as predefinições ou com Mover legenda, embaixo da prévia">

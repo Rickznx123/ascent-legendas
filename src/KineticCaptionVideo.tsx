@@ -565,6 +565,7 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
   volumeEfeitos,
   sonsUrl,
   sincroniaMs,
+  precisa,
   posicao,
   cortesMs,
 }) => {
@@ -573,8 +574,8 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
   const fontsReady = useFontsReady();
   // Tempos de tela: a entrada começa antes da fala (veja src/entrada.ts).
   const blocks = useMemo(
-    () => blocosNaTela(blocosDaFala, templates, sincroniaMs),
-    [blocosDaFala, templates, sincroniaMs],
+    () => blocosNaTela(blocosDaFala, templates, sincroniaMs, precisa),
+    [blocosDaFala, templates, sincroniaMs, precisa],
   );
   const timeline = useMemo(() => computeTimeline(blocks, cortesMs), [blocks, cortesMs]);
   const active = findActiveBlocks(blocks, timeline, (frame / fps) * 1000);

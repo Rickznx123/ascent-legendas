@@ -5,7 +5,7 @@ import {KineticCaptionVideo} from "../../src/KineticCaptionVideo";
 import type {Estilo} from "../../src/motor/projeto";
 import {MARGEM_SEGURA} from "../../src/posicao";
 import type {Posicao} from "../../src/posicao";
-import type {AssignedCaptionBlock, EfeitoSonoro, KineticCaptionVideoProps, VideoMetadata} from "../../src/types";
+import type {AssignedCaptionBlock, EfeitoSonoro, KineticCaptionVideoProps, SincroniaPrecisa, VideoMetadata} from "../../src/types";
 
 // "Mover legenda": arrastar na prévia muda a posição (a geral ou a de um bloco).
 export type MoverLegenda = {
@@ -27,6 +27,7 @@ type Props = {
   volumeEfeitos: number;
   sonsUrl: string;
   sincroniaMs: number;
+  precisa?: SincroniaPrecisa;
   // Posição geral e instantes dos blocos excluídos, como no render.
   posicao?: Posicao;
   cortesMs: number[];
@@ -109,7 +110,7 @@ const CamadaDeArrasto: React.FC<{mover: MoverLegenda}> = ({mover}) => {
 
 // Prévia ao vivo: o mesmo componente da renderização, dentro do Remotion Player.
 export const Previa = forwardRef<PlayerRef, Props>((props, ref) => {
-  const {videoUrl, video, blocos, estilo, efeitos, volumeEfeitos, sonsUrl, sincroniaMs, posicao, cortesMs, mover, onQuadro} =
+  const {videoUrl, video, blocos, estilo, efeitos, volumeEfeitos, sonsUrl, sincroniaMs, precisa, posicao, cortesMs, mover, onQuadro} =
     props;
   const inputProps: KineticCaptionVideoProps = useMemo(
     () => ({
@@ -123,10 +124,11 @@ export const Previa = forwardRef<PlayerRef, Props>((props, ref) => {
       volumeEfeitos,
       sonsUrl,
       sincroniaMs,
+      precisa,
       posicao,
       cortesMs,
     }),
-    [videoUrl, blocos, estilo, video, efeitos, volumeEfeitos, sonsUrl, sincroniaMs, posicao, cortesMs],
+    [videoUrl, blocos, estilo, video, efeitos, volumeEfeitos, sonsUrl, sincroniaMs, precisa, posicao, cortesMs],
   );
 
   // Os controles ficam embaixo da prévia; em tela cheia, os do próprio Player.

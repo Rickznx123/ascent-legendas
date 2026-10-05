@@ -23,9 +23,10 @@ import {
 } from "../../src/motor/projeto";
 import type {Projeto} from "../../src/motor/projeto";
 import {transcribeVideo} from "../../src/motor/transcrever";
+import {detectarVozDoVideo} from "../../src/motor/voz";
 import {reloadModules} from "../../src/template-loader";
 import {configDosEfeitos, planejarEfeitos} from "../../src/sons";
-import {cortesDosExcluidos, sincroniaDoProjeto} from "../../src/entrada";
+import {cortesDosExcluidos, precisaoDoProjeto, sincroniaDoProjeto} from "../../src/entrada";
 import type {AssignedCaptionBlock} from "../../src/types";
 
 export type OpcoesServidor = {
@@ -152,6 +153,13 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
     }),
   );
 
+  // Trechos de voz do áudio, para a Sincronia precisa de um projeto transcrito
+  // antes de existir a detecção (a transcrição nova já salva a voz).
+  app.get(
+    "/api/voz",
+    handle((request) => detectarVozDoVideo(videoPath(String(request.query.nome ?? "")))),
+  );
+
   app.get(
     "/api/video-info",
     handle((request) => getVideoMetadata(videoPath(String(request.query.nome ?? "")))),
@@ -230,7 +238,11 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
       await streamTask(response, async (progress) => {
         const anterior = readProject(root);
         const ajustes = manterAjustes && anterior?.source === video ? anterior : undefined;
-        const words = await transcribeVideo(root, videoPath(video), progress);
+        // A voz do áudio (Sincronia precisa) é detectada junto com a transcrição.
+        const [words, voz] = await Promise.all([
+          transcribeVideo(root, videoPath(video), progress),
+          detectarVozDoVideo(videoPath(video)),
+        ]);
         progress("Escolhendo os layouts...");
         const style = await loadStyle(root, {pacote, paleta});
         const semente = novaSemente();
@@ -244,6 +256,8 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
           semente,
           efeitos: ajustes?.efeitos,
           sincroniaMs: ajustes?.sincroniaMs,
+          sincroniaPrecisa: ajustes?.sincroniaPrecisa,
+          voz,
           words,
           blocks,
         };
@@ -317,12 +331,13 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
         const blocks = projeto.blocks as AssignedCaptionBlock[];
         const efeitos = configDosEfeitos(projeto.efeitos);
         const sincroniaMs = sincroniaDoProjeto(projeto.sincroniaMs);
-        const cortesMs = cortesDosExcluidos(projeto.excluidos, style.templates, sincroniaMs);
+        const precisa = precisaoDoProjeto(projeto);
+        const cortesMs = cortesDosExcluidos(projeto.excluidos, style.templates, sincroniaMs, precisa);
         const sons = await listarSons(root);
         // No log do servidor: o que entra no render (pasta vazia = nenhum efeito).
-        const plano = planejarEfeitos(blocks, style.templates, sons, efeitos, projeto.semente ?? 0, sincroniaMs, cortesMs);
+        const plano = planejarEfeitos(blocks, style.templates, sons, efeitos, projeto.semente ?? 0, sincroniaMs, cortesMs, precisa);
         console.log(
-          `Exportar: ${sons.length} sons em sons/, ${plano.length} efeitos (destaque ${efeitos.destaque}, linear ${efeitos.linear}, volume ${efeitos.volume}%), sincronia ${sincroniaMs} ms.`,
+          `Exportar: ${sons.length} sons em sons/, ${plano.length} efeitos (destaque ${efeitos.destaque}, linear ${efeitos.linear}, volume ${efeitos.volume}%), sincronia ${sincroniaMs} ms${precisa ? " (precisa)" : ""}.`,
         );
         await renderVideo(
           {
@@ -337,6 +352,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
             efeitos: plano,
             volumeEfeitos: efeitos.volume,
             sincroniaMs,
+            precisa,
             posicao: projeto.posicao,
             cortesMs,
           },

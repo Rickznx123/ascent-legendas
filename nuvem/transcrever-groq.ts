@@ -10,7 +10,8 @@ import {groupWords} from "../src/captions";
 import {execFileAsync, ffmpegPath} from "../src/motor/ferramentas";
 import {readProject} from "../src/motor/projeto";
 import type {Projeto} from "../src/motor/projeto";
-import type {Word} from "../src/types";
+import {detectarVozDoVideo} from "../src/motor/voz";
+import type {VozDoAudio, Word} from "../src/types";
 import {RAIZ, exigir} from "./env";
 
 export const MODELO_GROQ = "whisper-large-v3";
@@ -55,8 +56,12 @@ const comPontuacao = (resposta: RespostaGroq): Word[] => {
 
 export const transcreverGroq = async (
   inputPath: string,
-): Promise<{words: Word[]; respostaMs: number; extracaoMs: number; audioKb: number}> => {
+): Promise<{words: Word[]; voz: VozDoAudio; respostaMs: number; extracaoMs: number; audioKb: number}> => {
   exigir("GROQ_API_KEY");
+  // A detecção de voz (Sincronia precisa) roda enquanto a Groq transcreve.
+  const deteccao = detectarVozDoVideo(inputPath);
+  // Sem rejeição solta se a transcrição falhar antes.
+  deteccao.catch(() => undefined);
   const temp = mkdtempSync(path.join(os.tmpdir(), "legendas-groq-"));
   try {
     // Mono, 16 kHz, MP3 de 48 kbps: a fala fica intacta e o arquivo pequeno.
@@ -89,7 +94,7 @@ export const transcreverGroq = async (
     if (words.length === 0) {
       throw new Error("A Groq não devolveu palavras com tempo.");
     }
-    return {words, respostaMs, extracaoMs, audioKb: bytes.length / 1024};
+    return {words, voz: await deteccao, respostaMs, extracaoMs, audioKb: bytes.length / 1024};
   } finally {
     rmSync(temp, {recursive: true, force: true});
   }
@@ -97,11 +102,12 @@ export const transcreverGroq = async (
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const inputPath = path.resolve(process.argv[2] ?? path.join(RAIZ, readProject(RAIZ)?.source ?? ""));
-  const {words, respostaMs, extracaoMs, audioKb} = await transcreverGroq(inputPath);
+  const {words, voz, respostaMs, extracaoMs, audioKb} = await transcreverGroq(inputPath);
   const projeto: Projeto = {
     source: path.basename(inputPath),
     language: "pt",
     model: `groq/${MODELO_GROQ}`,
+    voz,
     words,
     blocks: groupWords(words),
   };

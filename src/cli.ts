@@ -9,9 +9,10 @@ import {getVideoMetadata} from "./motor/ferramentas";
 import {loadStyle, outputPathFor, readProject, saveProject, transcriptionPath, WHISPER_MODEL} from "./motor/projeto";
 import type {Projeto} from "./motor/projeto";
 import {transcribeVideo} from "./motor/transcrever";
+import {detectarVozDoVideo} from "./motor/voz";
 import {configDosEfeitos, planejarEfeitos} from "./sons";
-import {cortesDosExcluidos, sincroniaDoProjeto} from "./entrada";
-import type {CaptionBlock, Word} from "./types";
+import {cortesDosExcluidos, precisaoDoProjeto, sincroniaDoProjeto} from "./entrada";
+import type {CaptionBlock, VozDoAudio, Word} from "./types";
 
 const projectRoot = process.cwd();
 
@@ -121,6 +122,7 @@ const main = async () => {
 
   let words: Word[];
   let blocks: CaptionBlock[];
+  let voz: VozDoAudio | undefined = saved?.voz;
   if (saved) {
     words = saved.words;
     // Os blocos salvos são usados como estão (inclusive junções e divisões feitas
@@ -136,8 +138,17 @@ const main = async () => {
         : "Reutilizando transcricao.json editado...",
     );
   } else {
-    words = await transcribeVideo(projectRoot, inputPath, (etapa) => console.log(etapa));
+    [words, voz] = await Promise.all([
+      transcribeVideo(projectRoot, inputPath, (etapa) => console.log(etapa)),
+      detectarVozDoVideo(inputPath),
+    ]);
     blocks = groupWords(words);
+  }
+
+  // Projeto transcrito antes da detecção de voz: detecta agora, se a Sincronia
+  // precisa estiver ligada.
+  if (!voz && saved?.sincroniaPrecisa) {
+    voz = await detectarVozDoVideo(inputPath);
   }
 
   // No modo misto, a semente salva repete o mesmo sorteio da interface.
@@ -160,6 +171,8 @@ const main = async () => {
     semente,
     efeitos: saved?.efeitos,
     sincroniaMs: saved?.sincroniaMs,
+    sincroniaPrecisa: saved?.sincroniaPrecisa,
+    voz,
     posicao: saved?.posicao,
     excluidos: saved?.excluidos,
     words,
@@ -169,7 +182,8 @@ const main = async () => {
 
   const efeitos = configDosEfeitos(saved?.efeitos);
   const sincroniaMs = sincroniaDoProjeto(saved?.sincroniaMs);
-  const cortesMs = cortesDosExcluidos(saved?.excluidos, style.templates, sincroniaMs);
+  const precisa = precisaoDoProjeto(saved && {...saved, voz});
+  const cortesMs = cortesDosExcluidos(saved?.excluidos, style.templates, sincroniaMs, precisa);
   let lastStage = "";
   await renderVideo(
     {
@@ -181,9 +195,10 @@ const main = async () => {
       palette: style.palette,
       palettes: style.paletas,
       video,
-      efeitos: planejarEfeitos(assignedBlocks, style.templates, await listarSons(projectRoot), efeitos, semente, sincroniaMs, cortesMs),
+      efeitos: planejarEfeitos(assignedBlocks, style.templates, await listarSons(projectRoot), efeitos, semente, sincroniaMs, cortesMs, precisa),
       volumeEfeitos: efeitos.volume,
       sincroniaMs,
+      precisa,
       posicao: saved?.posicao,
       cortesMs,
     },
@@ -198,7 +213,7 @@ const main = async () => {
 
   if (options.exportReviewFrames) {
     const reviewDirectory = path.join(projectRoot, "conferencia");
-    await exportBlockFrames(assignedBlocks, style.templates, outputPath, reviewDirectory, video.fps, sincroniaMs, cortesMs);
+    await exportBlockFrames(assignedBlocks, style.templates, outputPath, reviewDirectory, video.fps, sincroniaMs, cortesMs, precisa);
     console.log(`Conferência exportada em ${reviewDirectory}`);
   }
 };
