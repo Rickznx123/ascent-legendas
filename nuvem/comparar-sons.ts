@@ -1,15 +1,25 @@
-// npx tsx nuvem/comparar-sons.ts <local.mp4> <nuvem.mp4>
+// npx tsx nuvem/comparar-sons.ts <local.mp4> <nuvem.mp4> [--pacote misto] [--paleta nome]
+//   [--projeto projeto.json --video arquivo.mp4]
 // Compara efeito por efeito o áudio de dois renders do mesmo projeto: o ataque
 // (primeiros 30 ms, em janelas de 5 ms) e o som inteiro, e marca onde diferem.
 import {spawnSync} from "node:child_process";
+import {readFileSync} from "node:fs";
 import path from "node:path";
 import {ffmpegPath} from "../src/motor/ferramentas";
 import {quadrosDoEfeito} from "../src/sons";
 import {readProject} from "../src/motor/projeto";
+import type {Projeto} from "../src/motor/projeto";
 import {RAIZ} from "./env";
 import {montarProps} from "./props";
 
-const [local, nuvem] = process.argv.slice(2).map((arquivo) => path.resolve(arquivo));
+const valor = (opcao: string) => {
+  const indice = process.argv.indexOf(opcao);
+  return indice > 0 ? process.argv[indice + 1] : undefined;
+};
+const [local, nuvem] = process.argv.slice(2, 4).map((arquivo) => path.resolve(arquivo));
+// Projeto salvo à parte (o mesmo do render), como em nuvem/renderizar.ts.
+const arquivoDoProjeto = valor("--projeto");
+const projeto = arquivoDoProjeto ? (JSON.parse(readFileSync(path.resolve(arquivoDoProjeto), "utf8")) as Projeto) : undefined;
 if (!local || !nuvem) {
   throw new Error("Uso: npx tsx nuvem/comparar-sons.ts <local.mp4> <nuvem.mp4>");
 }
@@ -28,7 +38,8 @@ const envelope = (arquivo: string, inicio: number, duracao: number): number[] =>
   return [...stdout.matchAll(/RMS_level=(-?[\d.]+|-inf)/gu)].map((m) => (m[1] === "-inf" ? -120 : Number(m[1])));
 };
 
-const props = await montarProps(path.join(RAIZ, readProject(RAIZ)?.source ?? ""), {pacote: "misto"});
+const video = valor("--video") ? path.resolve(valor("--video")!) : path.join(RAIZ, (projeto ?? readProject(RAIZ))?.source ?? "");
+const props = await montarProps(video, {pacote: valor("--pacote") ?? "misto", paleta: valor("--paleta")}, projeto);
 const {fps} = props.video;
 let diferentes = 0;
 for (const efeito of props.efeitos ?? []) {

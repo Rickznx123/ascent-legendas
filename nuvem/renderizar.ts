@@ -1,5 +1,7 @@
-// npx tsx nuvem/renderizar.ts --rotulo frio [--memoria 2048] [--quadros 200] [--pacote misto] [--baixar]
-// Renderiza o vídeo do transcricao.json no Lambda e acrescenta o resultado
+// npx tsx nuvem/renderizar.ts --rotulo frio [--memoria 2048] [--quadros 200] [--pacote misto] [--paleta nome] [--baixar]
+//   [--projeto projeto.json --video arquivo.mp4]
+// Renderiza o vídeo do transcricao.json (ou de um projeto salvo à parte, como o
+// de nuvem/transcrever.ts, com --projeto e --video) no Lambda e acrescenta o resultado
 // (custo estimado pelo Remotion, tempos, configuração) em nuvem/resultados/renders.json.
 // O vídeo vai uma vez para o bucket (entradas/) e a função lê por URL assinada.
 // A função com a memória pedida precisa existir: npx tsx nuvem/implantar.ts --memoria N
@@ -18,6 +20,7 @@ import {
 } from "@remotion/lambda";
 import {prepararSons} from "../src/motor/pasta-sons";
 import {readProject} from "../src/motor/projeto";
+import type {Projeto} from "../src/motor/projeto";
 import {RAIZ, REGIAO, exigir} from "./env";
 import {montarProps} from "./props";
 
@@ -31,6 +34,10 @@ const rotulo = valor("--rotulo") ?? "render";
 const memoria = Number(valor("--memoria") ?? 2048);
 const quadrosPorLambda = Number(valor("--quadros") ?? 200);
 const pacote = valor("--pacote") ?? "misto";
+const paleta = valor("--paleta");
+// Projeto salvo à parte (o transcricao.json não muda) e o vídeo dele.
+const arquivoDoProjeto = valor("--projeto");
+const projeto = arquivoDoProjeto ? (JSON.parse(readFileSync(path.resolve(arquivoDoProjeto), "utf8")) as Projeto) : undefined;
 
 const RESULTADOS = path.join(RAIZ, "nuvem", "resultados");
 mkdirSync(RESULTADOS, {recursive: true});
@@ -49,7 +56,7 @@ if (!site) {
 const {bucketName} = await getOrCreateBucket({region: REGIAO});
 
 // Sobe o vídeo uma vez (mesmo nome e tamanho: reaproveita).
-const inputPath = path.join(RAIZ, readProject(RAIZ)?.source ?? "");
+const inputPath = valor("--video") ? path.resolve(valor("--video")!) : path.join(RAIZ, (projeto ?? readProject(RAIZ))?.source ?? "");
 const chave = "entradas/video-teste.mp4";
 const s3 = new S3Client({
   region: REGIAO,
@@ -84,7 +91,7 @@ const videoSrc = await presignUrl({
   checkIfObjectExists: true,
 });
 
-const props = await montarProps(inputPath, {pacote});
+const props = await montarProps(inputPath, {pacote, paleta}, projeto);
 
 // Sons tocados (veja somTocado em src/sons.ts): gerados aqui e enviados para a
 // pasta pública do site, ao lado dos sons de sons/. Um novo implantar.ts os apaga;
