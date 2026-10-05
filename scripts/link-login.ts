@@ -7,6 +7,7 @@
 // sem nada acessível pelo navegador.
 import path from "node:path";
 import {createClient} from "@supabase/supabase-js";
+import qrcode from "qrcode-terminal";
 import {carregarEnv} from "../src/motor/env";
 
 const [email, endereco] = process.argv.slice(2);
@@ -44,6 +45,10 @@ const principal = async () => {
 
   console.log(`\nLink de login para ${email} (volta para ${redirectTo}):\n`);
   console.log(data.properties.action_link);
+  // QR para abrir no celular pela câmera: mandar o link por WhatsApp gasta o uso
+  // único na pré-visualização do link.
+  console.log("\nOu aponte a câmera do celular:\n");
+  qrcode.generate(data.properties.action_link, {small: true});
   console.log(
     "\nAtenção: este link é pessoal e de uso único. Quem abrir entra na conta de " +
       `${email}. Não compartilhe; depois de usado (ou vencido: 1 hora, por padrão), gere outro.`,
