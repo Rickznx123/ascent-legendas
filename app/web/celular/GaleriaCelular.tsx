@@ -5,6 +5,7 @@ import {useEffect, useRef} from "react";
 import {PACOTE_MISTO} from "../../../src/motor/blocos";
 import {GaleriaDoProjeto} from "../GaleriaDoProjeto";
 import type {Editor} from "../useEditor";
+import {Dica, marcarDica} from "./Dica";
 
 // Tempo segurando o chip (ms) para aplicar o pacote.
 const TEMPO_PARA_APLICAR = 500;
@@ -53,6 +54,7 @@ export const GaleriaCelular: React.FC<{e: Editor}> = ({e}) => {
           chip.classList.add("cel-chip-aplicado");
           window.setTimeout(() => chip.classList.remove("cel-chip-aplicado"), TEMPO_DO_RETORNO);
           void e.trocarPacote(pacote);
+          marcarDica("templates");
         }, TEMPO_PARA_APLICAR);
         toque.current = {chip, x: event.clientX, y: event.clientY, timer};
       }}
@@ -70,7 +72,7 @@ export const GaleriaCelular: React.FC<{e: Editor}> = ({e}) => {
       // Segurar o dedo não abre o menu do navegador.
       onContextMenu={(event) => event.target instanceof Element && event.target.closest(".chips") && event.preventDefault()}
     >
-      <p className="cel-ajuda">Toque no pacote para ver os layouts · segure para aplicar ao vídeo inteiro</p>
+      <Dica nome="templates">Segure o pacote para aplicar ao vídeo inteiro</Dica>
       <GaleriaDoProjeto e={e} />
     </div>
   );

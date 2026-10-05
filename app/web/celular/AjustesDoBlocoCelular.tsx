@@ -14,7 +14,7 @@ type Props = React.ComponentProps<typeof AjustesDoBloco>;
 const NOMES_DAS_POSICOES = ["Cima", "Meio", "Baixo"];
 
 export const AjustesDoBlocoCelular: React.FC<Props> = (props) => {
-  const {indice, blocos, posicaoGeral, ocupado, onTexto, onExcluirPalavra, onPalavraChave, onDividir, onJuntar, onExcluirBloco, onInicioPosicao, onPosicaoDoBloco} =
+  const {indice, blocos, posicaoGeral, ocupado, onTexto, onExcluirPalavra, onPalavraChave, onDividir, onJuntar, onExcluirBloco, onInicioPosicao, onPosicaoDoBloco, onPosicaoGeral} =
     props;
   const bloco = blocos[indice];
   // "Dividir" mostra os ✂ entre as palavras; tocar num deles divide ali.
@@ -102,6 +102,17 @@ export const AjustesDoBlocoCelular: React.FC<Props> = (props) => {
             </button>
           ))}
         </span>
+        {bloco.posicao ? (
+          <button
+            type="button"
+            className="cel-link"
+            disabled={ocupado}
+            title="O bloco volta para a posição geral do vídeo"
+            onClick={() => onPosicaoGeral(indice)}
+          >
+            Usar posição geral
+          </button>
+        ) : null}
       </div>
 
       <div className="cel-acoes-bloco">

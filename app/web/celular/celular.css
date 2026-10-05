@@ -36,8 +36,8 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  min-height: calc(52px + env(safe-area-inset-top));
-  padding: env(safe-area-inset-top) 10px 0 4px;
+  min-height: calc(48px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) 8px 0 2px;
   background: var(--painel);
   border-bottom: 1px solid var(--linha);
 }
@@ -202,16 +202,28 @@
 }
 
 /* ---------- editor: prévia e faixa de tempo ---------- */
+/* Prévia com metade da altura visível (dvh), o vídeo vertical usando toda ela. A
+   alça de arrastar a legenda (ArrastoCelular) fica na mesma célula da grade, com a
+   mesma caixa da prévia. Com a folha do bloco aberta, 40%. */
 .cel-palco {
   flex: none;
-  height: clamp(180px, 40dvh, 440px);
+  height: 50dvh;
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   grid-template-columns: minmax(0, 1fr);
   place-items: center;
-  padding: 6px;
+  padding: 0;
   background: var(--tela);
   container-type: size;
+  transition: height 0.18s ease-out;
+}
+
+.cel-palco > * {
+  grid-area: 1 / 1;
+}
+
+.cel-com-folha .cel-palco {
+  height: 40dvh;
 }
 
 .cel .previa {
@@ -223,8 +235,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  min-height: 52px;
-  padding: 0 12px 0 4px;
+  min-height: 44px;
+  padding: 0 12px 0 0;
   background: var(--painel);
   border-bottom: 1px solid var(--linha);
 }
@@ -295,7 +307,7 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 10px 12px 16px;
+  padding: 8px 12px 12px;
 }
 
 .cel-abas {
@@ -308,14 +320,14 @@
 
 .cel-aba {
   flex: 1;
-  min-height: 58px;
+  min-height: 50px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 2px;
   color: var(--suave);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 600;
 }
 
@@ -446,25 +458,10 @@
   display: none;
 }
 
+/* Teclado aberto: pelo menos 35% da área visível; com folga (a barra de cima, a
+   palavra em edição e a barra de excluir somam ~220 px), mais que isso, até os 50%. */
 .cel-teclado .cel-palco {
-  height: clamp(120px, calc(var(--altura-visivel, 100dvh) * 0.36), 40dvh);
-}
-
-.cel-teclado-apertado .cel-palco {
-  display: none;
-}
-
-/* Rótulo do arrasto na prévia ("Só este bloco · 50% × 68%"): sempre numa linha,
-   com reticências se faltar espaço; com o teclado aberto (prévia encolhida), sai. */
-.cel .arrasto-legenda {
-  max-width: calc(100% - 2 * var(--esp-3));
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.cel-teclado .arrasto-legenda {
-  display: none;
+  height: min(50dvh, max(calc(var(--altura-visivel, 100dvh) * 0.35), calc(var(--altura-visivel, 100dvh) - 220px)));
 }
 
 /* Barra logo acima do teclado enquanto uma palavra está em edição (PalavraCelular).
@@ -769,8 +766,29 @@
   gap: 4px;
 }
 
+.cel-campo-posicao {
+  flex-wrap: wrap;
+  column-gap: 8px;
+}
+
 .cel-campo-posicao .seg button {
-  padding: 0 14px;
+  padding: 0 10px;
+}
+
+/* "Usar posição geral": link pequeno ao lado de Cima / Meio / Baixo. */
+.cel-link {
+  min-height: 44px;
+  padding: 0 2px;
+  color: var(--acento);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  touch-action: manipulation;
+}
+
+.cel-link:disabled {
+  color: var(--suave);
 }
 
 /* ---------- início ---------- */
@@ -955,4 +973,70 @@
 .cel-progresso {
   width: 100%;
   height: 8px;
+}
+
+/* ---------- arrastar a legenda na prévia (ArrastoCelular) ---------- */
+.cel-arrasto {
+  position: relative;
+  z-index: 2;
+  width: min(100cqw, calc(100cqh * var(--proporcao, 0.5625)));
+  aspect-ratio: var(--proporcao, 0.5625);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* A área da legenda: só ela recebe o dedo (o resto da prévia toca/pausa). */
+.cel-alca-legenda {
+  position: absolute;
+  width: 84%;
+  height: 24%;
+  transform: translate(-50%, -50%);
+  border-radius: 10px;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.cel-alca-marcada,
+.cel-arrasto-ativo .cel-alca-legenda {
+  outline: 1px dashed var(--acento);
+  outline-offset: -1px;
+}
+
+.cel-arrasto-rotulo {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  max-width: calc(100% - 16px);
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--veu);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- dicas que somem depois do primeiro uso (Dica) ---------- */
+.cel-dica {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: -4px 0 4px;
+}
+
+.cel-dica > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.cel-dica-fechar {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  margin: -4px -8px -4px 0;
+  color: var(--suave);
+  touch-action: manipulation;
 }

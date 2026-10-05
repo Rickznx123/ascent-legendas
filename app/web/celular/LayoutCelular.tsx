@@ -15,9 +15,6 @@ const NIVEL: Record<Tela, number> = {inicio: 0, editor: 1, exportar: 2};
 
 // Campos que não abrem o teclado.
 const CAMPOS_SEM_TECLADO = new Set(["range", "checkbox", "radio", "button", "color", "file"]);
-// Com o teclado aberto, abaixo desta altura visível (px) a prévia sai: barra (52) +
-// prévia mínima (120) + espaço para a palavra em edição (~150).
-const ALTURA_COM_PREVIA = 320;
 
 // Põe o campo no meio da lista que rola em volta dele (sem rolar a página: no iOS
 // isso empurraria o app para cima do teclado).
@@ -86,7 +83,8 @@ export const LayoutCelular: React.FC<{e: Editor}> = ({e}) => {
 
   // Teclado aberto (um campo de texto em foco): o app ocupa só a área visível acima
   // do teclado (visualViewport), as abas e a linha de tocar saem, a prévia encolhe
-  // (e só some se não couber) e o campo vai para o meio da lista em que está.
+  // (até 35% da área visível, não menos; celular.css) e o campo vai para o meio da
+  // lista em que está.
   const raiz = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const elemento = raiz.current;
@@ -103,9 +101,7 @@ export const LayoutCelular: React.FC<{e: Editor}> = ({e}) => {
     let quadro = 0;
     const atualizar = () => {
       const campo = campoEmFoco();
-      const altura = visivel?.height ?? window.innerHeight;
       elemento.classList.toggle("cel-teclado", Boolean(campo));
-      elemento.classList.toggle("cel-teclado-apertado", Boolean(campo) && altura < ALTURA_COM_PREVIA);
       if (campo && visivel) {
         elemento.style.setProperty("--altura-visivel", `${visivel.height}px`);
         elemento.style.setProperty("--topo-visivel", `${visivel.offsetTop}px`);

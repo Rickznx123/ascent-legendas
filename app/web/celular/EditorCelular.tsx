@@ -7,7 +7,6 @@ import {SelosDoBloco} from "../ListaDeBlocos";
 import {Cores, Sons} from "../PainelEsquerdo";
 import {PainelGeral} from "../PainelGeral";
 import {Previa} from "../Previa";
-import type {MoverLegenda} from "../Previa";
 import {api} from "../api";
 import {tempoDoBloco} from "../quadro";
 import type {Editor} from "../useEditor";
@@ -15,6 +14,8 @@ import {Andamento} from "./Andamento";
 import {AvisoDesfazer} from "./AvisoDesfazer";
 import type {AvisoComDesfazer} from "./AvisoDesfazer";
 import {AjustesDoBlocoCelular} from "./AjustesDoBlocoCelular";
+import {ArrastoCelular} from "./ArrastoCelular";
+import {Dica, marcarDica} from "./Dica";
 import {FaixaDeTempo} from "./FaixaDeTempo";
 import {Folha} from "./Folha";
 import {GaleriaCelular} from "./GaleriaCelular";
@@ -45,9 +46,6 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
     setAba(nova);
     guardarAba("abaCelular", nova);
   };
-  // "Mover legenda" da aba Ajustes: arrastar na prévia muda a posição geral.
-  const [moverGeral, setMoverGeral] = useState(false);
-
   const {setGaleriaAberta, projetoDoVideo, estilo, blocos, video, videoInfo, blocoAcoes} = e;
   useEffect(() => setGaleriaAberta(aba === "templates"), [aba, setGaleriaAberta]);
 
@@ -59,6 +57,7 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
   const abrirBloco = (b: number) => {
     e.irParaBloco(b);
     onAbrirFolha();
+    marcarDica("legendas");
   };
 
   // Excluir uma palavra (a última leva o bloco junto; tudo entra no desfazer) e
@@ -73,25 +72,13 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
     }
   };
 
-  // Com a folha aberta, arrastar a legenda move só aquele bloco; senão, com
-  // "Mover legenda" ligado, move todas.
-  const mover: MoverLegenda | undefined = !projetoDoVideo
-    ? undefined
-    : folhaVisivel && bloco
-      ? {
-          posicao: bloco.posicao ?? e.posicaoGeral,
-          soUmBloco: true,
-          onInicio: e.inicioDeAjuste,
-          onMover: (p) => e.moverPosicao(indice, posicaoArrastada(p)),
-        }
-      : moverGeral
-        ? {
-            posicao: e.posicaoGeral,
-            soUmBloco: false,
-            onInicio: e.inicioDeAjuste,
-            onMover: (p) => e.moverPosicao(-1, posicaoArrastada(p)),
-          }
-        : undefined;
+  // Arrastar a legenda na prévia move o que está na tela: com a folha aberta, o
+  // bloco dela; sem a folha, o bloco tocando se ele tem posição própria, senão a
+  // posição geral (todas as legendas). -1 é a geral.
+  const blocoNaTela = blocos[e.blocoAtivo];
+  const alvoDoArrasto = folhaVisivel ? indice : blocoNaTela?.posicao ? e.blocoAtivo : -1;
+  const posicaoDoArrasto = blocos[alvoDoArrasto]?.posicao ?? e.posicaoGeral;
+  const rotuloDoArrasto = alvoDoArrasto < 0 ? "Todas as legendas" : `Bloco #${alvoDoArrasto + 1}`;
 
   const naoTranscrito = (
     <div className="cel-vazio">
@@ -105,7 +92,7 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
   );
 
   return (
-    <div className="cel-tela">
+    <div className={`cel-tela cel-editor ${folhaVisivel ? "cel-com-folha" : ""}`}>
       <header className="cel-barra">
         <button type="button" className="cel-ic" aria-label="Voltar para os vídeos" onClick={onVoltar}>
           ‹
@@ -132,21 +119,36 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
 
       <div className="cel-palco">
         {video && videoInfo && estilo ? (
-          <Previa
-            ref={e.playerRef}
-            videoUrl={api.videoUrl(video)}
-            video={videoInfo}
-            blocos={blocos}
-            estilo={estilo}
-            efeitos={e.efeitos}
-            volumeEfeitos={e.configEfeitos.volume}
-            sonsUrl={api.sonsUrl}
-            sincroniaMs={e.sincroniaMs}
-            onQuadro={e.aoMudarQuadro}
-            posicao={projetoDoVideo?.posicao}
-            cortesMs={e.cortesMs}
-            mover={mover}
-          />
+          <>
+            <Previa
+              ref={e.playerRef}
+              videoUrl={api.videoUrl(video)}
+              video={videoInfo}
+              blocos={blocos}
+              estilo={estilo}
+              efeitos={e.efeitos}
+              volumeEfeitos={e.configEfeitos.volume}
+              sonsUrl={api.sonsUrl}
+              sincroniaMs={e.sincroniaMs}
+              onQuadro={e.aoMudarQuadro}
+              posicao={projetoDoVideo?.posicao}
+              cortesMs={e.cortesMs}
+            />
+            {projetoDoVideo ? (
+              <ArrastoCelular
+                proporcao={videoInfo.width / videoInfo.height}
+                posicao={posicaoDoArrasto}
+                rotulo={rotuloDoArrasto}
+                marcada={folhaVisivel}
+                onInicio={() => {
+                  e.inicioDeAjuste();
+                  marcarDica("arrastar");
+                }}
+                onMover={(p) => e.moverPosicao(alvoDoArrasto, posicaoArrastada(p))}
+                onToque={() => e.playerRef.current?.toggle()}
+              />
+            ) : null}
+          </>
         ) : (
           <p className="vazio">{video ? "Carregando..." : ""}</p>
         )}
@@ -162,11 +164,18 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
       />
 
       <div className="cel-corpo">
-        <div className="cel-conteudo" role="tabpanel" id="cel-painel" aria-labelledby={`cel-aba-${aba}`}>
+        <div
+          className="cel-conteudo"
+          role="tabpanel"
+          id="cel-painel"
+          aria-labelledby={`cel-aba-${aba}`}
+          // Primeira palavra editada na lista: a dica da aba Legendas já cumpriu o papel.
+          onFocus={(event) => aba === "legendas" && event.target instanceof HTMLInputElement && marcarDica("legendas")}
+        >
           {aba === "legendas" ? (
             projetoDoVideo && estilo ? (
               <>
-                <p className="cel-ajuda">Toque na palavra para corrigir · ⋯ abre os ajustes do bloco</p>
+                <Dica nome="legendas">Toque na palavra para corrigir · ⋯ ajusta o bloco · arraste a legenda no vídeo</Dica>
                 <ListaCelular
                   blocos={blocos}
                   timeline={e.timeline}
@@ -225,15 +234,6 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
                   </button>
                 ))}
               </div>
-              <button
-                type="button"
-                className="bt bt-ligado cel-cheio"
-                aria-pressed={moverGeral}
-                disabled={e.ocupado || !e.podeExportar}
-                onClick={() => setMoverGeral(!moverGeral)}
-              >
-                {moverGeral ? "Mover legenda: arraste no vídeo" : "Mover legenda"}
-              </button>
               <div className="titulo">Geral</div>
               <PainelGeral
                 temProjeto={e.podeExportar}
@@ -288,9 +288,9 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
 
         {folhaVisivel && bloco && estilo && projetoDoVideo ? (
           <Folha
-            // A prévia (arrastar a legenda), a barra acima do teclado e o aviso com
-            // Desfazer ficam fora da folha, mas tocar neles não a fecha.
-            ignorarFora=".previa, .cel-barra-teclado, .cel-aviso-desfazer"
+            // A prévia e a alça de arrastar a legenda, a barra acima do teclado e o
+            // aviso com Desfazer ficam fora da folha, mas tocar neles não a fecha.
+            ignorarFora=".previa, .cel-arrasto, .cel-barra-teclado, .cel-aviso-desfazer"
             onFechar={onFecharFolha}
             titulo={
               <span className="cab">
@@ -301,7 +301,7 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
               </span>
             }
           >
-            <p className="cel-ajuda">Toque na palavra para corrigir · arraste a legenda no vídeo para mover só este bloco</p>
+            <Dica nome="arrastar">Arraste a legenda no vídeo para mover só este bloco</Dica>
             <AjustesDoBlocoCelular
               indice={indice}
               blocos={blocos}
