@@ -16,6 +16,7 @@ import {
 import {measureText} from "@remotion/layout-utils";
 import {findKeywordIndex, findProtectedSpans, isBlockEndingFunctionWord} from "./captions";
 import {blocosNaTela, entradaAjustada} from "./entrada";
+import {MarcaDagua} from "./marca-dagua";
 import {centroDentroDaMargem, posicaoDoBloco} from "./posicao";
 import type {Posicao} from "./posicao";
 import {waitForFonts} from "./fontes";
@@ -576,6 +577,7 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
   precisa,
   posicao,
   cortesMs,
+  marcaDagua,
 }) => {
   const frame = useCurrentFrame();
   const {fps, width} = useVideoConfig();
@@ -676,6 +678,8 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
           </Posicionado>
         ) : null}
       </AbsoluteFill>
+      {/* Por cima de tudo, com as fontes já carregadas (a marca usa a Inter Tight). */}
+      {marcaDagua && fontsReady ? <MarcaDagua /> : null}
     </AbsoluteFill>
   );
 };

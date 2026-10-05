@@ -263,4 +263,7 @@ export type KineticCaptionVideoProps = {
   // Instantes (de tela) em que começavam blocos excluídos: o bloco anterior não
   // fica na tela depois deles.
   cortesMs?: number[];
+  // Marca d'água do plano grátis (veja src/marca-dagua.tsx). No vídeo exportado,
+  // definida pelo servidor conforme o plano; na prévia, só mostra o que vai sair.
+  marcaDagua?: boolean;
 };

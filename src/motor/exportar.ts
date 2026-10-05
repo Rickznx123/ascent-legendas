@@ -27,11 +27,13 @@ export type Exportacao = {
   // Posição geral das legendas e instantes dos blocos excluídos.
   posicao?: {x: number; y: number};
   cortesMs?: number[];
+  // Marca d'água do plano grátis (o servidor decide pelo plano da conta).
+  marcaDagua?: boolean;
 };
 
 // Renderiza o MP4 final com as legendas.
 export const renderVideo = async (
-  {root, inputPath, outputPath, blocks, templates, palette, palettes, video, efeitos, volumeEfeitos, sincroniaMs, precisa, posicao, cortesMs}: Exportacao,
+  {root, inputPath, outputPath, blocks, templates, palette, palettes, video, efeitos, volumeEfeitos, sincroniaMs, precisa, posicao, cortesMs, marcaDagua}: Exportacao,
   onProgress: Progresso = () => undefined,
 ): Promise<void> => {
   const tempDirectory = mkdtempSync(path.join(os.tmpdir(), "legendas-dinamicas-"));
@@ -56,6 +58,7 @@ export const renderVideo = async (
       precisa,
       posicao,
       cortesMs,
+      marcaDagua,
     };
 
     onProgress("Preparando a composição...", 0);
