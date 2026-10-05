@@ -55,11 +55,23 @@ const streamTask = async (
     const result = await task((etapa, fracao) => send({tipo: "progresso", etapa, fracao}));
     send({tipo: "fim", resultado: result});
   } catch (error) {
-    send({tipo: "erro", mensagem: error instanceof Error ? error.message : String(error)});
+    // codigo: a tela mostra uma tela própria (ex.: "assine" → Assine para continuar).
+    const codigo = error instanceof ErroDoPlano ? error.codigo : undefined;
+    send({tipo: "erro", mensagem: error instanceof Error ? error.message : String(error), codigo});
   } finally {
     response.end();
   }
 };
+
+// Exportação que o plano não permite (o render nem começa).
+class ErroDoPlano extends Error {
+  constructor(
+    mensagem: string,
+    readonly codigo: string,
+  ) {
+    super(mensagem);
+  }
+}
 
 // Vídeos tirados da lista por "Remover vídeo" (o arquivo não é apagado).
 const PASTA_DE_REMOVIDOS = "removidos";
@@ -183,7 +195,8 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
         return {conta: null};
       }
       const perfil = await contas.perfil(espaco.usuario, response.locals.token as string);
-      return {conta: {email: espaco.usuario.email, nome: perfil.nome, plano: perfil.plano}};
+      const uso = await espaco.cota?.uso();
+      return {conta: {email: espaco.usuario.email, nome: perfil.nome, plano: perfil.plano, uso}};
     }),
   );
 
@@ -402,6 +415,21 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
     }
   });
 
+  // Antes de exportar: quanto vai descontar, quanto sobra, se sai com marca d'água
+  // ou por que não pode. Sem login: sem limite. A exportação decide de novo.
+  app.get(
+    "/api/exportar/previa",
+    handle(async (request, response) => {
+      const espaco = espacoDe(response);
+      if (!espaco.cota) {
+        return {semLimite: true};
+      }
+      const video = String(request.query.video ?? "");
+      const metadados = await getVideoMetadata(videoPath(espaco, video));
+      return espaco.cota.decidir(video, metadados.durationInFrames / metadados.fps);
+    }),
+  );
+
   app.post("/api/exportar", async (request, response) => {
     if (!reservar("exportação", response)) {
       return;
@@ -425,6 +453,13 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
           );
         }
         const video = await getVideoMetadata(inputPath);
+        // O plano decide aqui, com a duração do arquivo medida no servidor: se não
+        // cabe, o render nem começa; a marca d'água vem do plano, nunca do pedido.
+        const duracaoS = video.durationInFrames / video.fps;
+        const decisao = await espaco.cota?.decidir(projeto.source, duracaoS);
+        if (decisao && !decisao.permitido) {
+          throw new ErroDoPlano(decisao.motivo ?? "O seu plano não permite esta exportação.", decisao.codigo ?? "plano");
+        }
         // Os blocos vão como foram editados na interface.
         const blocks = projeto.blocks as AssignedCaptionBlock[];
         const efeitos = configDosEfeitos(projeto.efeitos);
@@ -453,12 +488,15 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
             precisa,
             posicao: projeto.posicao,
             cortesMs,
+            marcaDagua: decisao?.comMarca ?? false,
           },
           progress,
         );
-        // Com login: conta para os minutos do plano (Etapa 2b).
-        await espaco.registrarExportacao(projeto.source, video.durationInFrames / video.fps);
-        return {caminho: outputPath};
+        // Só o que terminou desconta: o registro vem depois do render.
+        if (decisao) {
+          await espaco.cota!.registrar(projeto.source, duracaoS, decisao);
+        }
+        return {caminho: outputPath, descontoS: decisao?.descontoS};
       });
     } finally {
       tarefaAtual = undefined;

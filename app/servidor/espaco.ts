@@ -9,6 +9,8 @@ import path from "node:path";
 import {listarVideos, readProject, saveProject} from "../../src/motor/projeto";
 import type {Projeto} from "../../src/motor/projeto";
 import type {Contas, Usuario} from "./contas";
+import {decidirExportacao, usoDoPlano} from "./cota";
+import type {DecisaoDeExportacao, RegistroDeExportacao, UsoDoPlano} from "./cota";
 
 export type ResumoDoProjeto = {video: string; blocos: number};
 
@@ -26,8 +28,18 @@ export type Espaco = {
   apagarProjeto: (video: string) => Promise<boolean>;
   // Vídeos com projeto (para a lista do Início).
   projetos: () => Promise<ResumoDoProjeto[]>;
-  // Registra um vídeo exportado (minutos do plano na Etapa 2b).
-  registrarExportacao: (video: string, duracaoS: number) => Promise<void>;
+  // Limites do plano (só com login; no modo local, sem limite nem marca d'água).
+  cota?: Cota;
+};
+
+export type Cota = {
+  // Uso do plano agora (quadro do Início, menu da conta).
+  uso: () => Promise<UsoDoPlano>;
+  // O que exportar este vídeo vai fazer (descontar quanto, com marca ou não), ou
+  // por que não pode. duracaoS: a duração do arquivo, medida no servidor.
+  decidir: (video: string, duracaoS: number) => Promise<DecisaoDeExportacao>;
+  // Grava a exportação que terminou, com o que foi decidido antes do render.
+  registrar: (video: string, duracaoS: number, decisao: DecisaoDeExportacao) => Promise<void>;
 };
 
 export const espacoLocal = (root: string): Espaco => ({
@@ -47,7 +59,6 @@ export const espacoLocal = (root: string): Espaco => ({
     const projeto = readProject(root);
     return projeto ? [{video: projeto.source, blocos: projeto.blocks.length}] : [];
   },
-  registrarExportacao: async () => undefined,
 });
 
 // Pasta do usuário no disco: só o id (um uuid) entra no caminho.
@@ -64,6 +75,18 @@ export const espacoDoUsuario = (root: string, contas: Contas, usuario: Usuario, 
   const pasta = pastaDoUsuario(root, usuario);
   const banco = contas.doUsuario(token);
   const falha = (acao: string, erro: {message: string}) => new Error(`Não foi possível ${acao}: ${erro.message}`);
+
+  // Plano do perfil e histórico de exportações, lidos com a chave secreta (o
+  // usuário não muda nenhum dos dois).
+  const plano = async () => (await contas.perfil(usuario, token)).plano;
+  const historico = async (): Promise<RegistroDeExportacao[]> => {
+    const {data, error} = await contas.admin
+      .from("exportacoes")
+      .select("projeto_id, duracao_s, descontado_s, criado_em")
+      .eq("usuario_id", usuario.id);
+    if (error) throw falha("ler as exportações", error);
+    return data as RegistroDeExportacao[];
+  };
 
   const linhaDoVideo = async (video: string): Promise<Linha | undefined> => {
     const {data, error} = await banco
@@ -119,16 +142,24 @@ export const espacoDoUsuario = (root: string, contas: Contas, usuario: Usuario, 
         .filter((linha): linha is {video: string; blocos: unknown[] | null} => Boolean(linha.video))
         .map((linha) => ({video: linha.video, blocos: Array.isArray(linha.blocos) ? linha.blocos.length : 0}));
     },
-    registrarExportacao: async (video, duracaoS) => {
-      const projeto = await linhaDoVideo(video);
-      // Só o servidor insere em exportacoes (a chave secreta; o usuário só lê).
-      const {error} = await contas.admin.from("exportacoes").insert({
-        usuario_id: usuario.id,
-        projeto_id: projeto?.id ?? null,
-        duracao_s: duracaoS,
-        com_marca_dagua: false,
-      });
-      if (error) throw falha("registrar a exportação", error);
+    cota: {
+      uso: async () => usoDoPlano(await plano(), await historico(), new Date()),
+      decidir: async (video, duracaoS) => {
+        const [p, h, projeto] = await Promise.all([plano(), historico(), linhaDoVideo(video)]);
+        return decidirExportacao(p, h, projeto?.id ?? null, duracaoS, new Date());
+      },
+      registrar: async (video, duracaoS, decisao) => {
+        const projeto = await linhaDoVideo(video);
+        // Só o servidor insere em exportacoes (a chave secreta; o usuário só lê).
+        const {error} = await contas.admin.from("exportacoes").insert({
+          usuario_id: usuario.id,
+          projeto_id: projeto?.id ?? null,
+          duracao_s: duracaoS,
+          descontado_s: decisao.descontoS,
+          com_marca_dagua: decisao.comMarca,
+        });
+        if (error) throw falha("registrar a exportação", error);
+      },
     },
   };
 };

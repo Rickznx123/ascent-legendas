@@ -1,0 +1,131 @@
+// Limites dos planos (Etapa 2b). Tudo decidido aqui, no servidor; a tela só mostra.
+//   Grátis: 1 vídeo exportado, com marca d'água. Depois, exportar fica bloqueado
+//   ("Assine para continuar").
+//   Assinante: 30 minutos exportados por mês (mês do calendário, no horário de
+//   Brasília; na Etapa 2c, a partir da data da assinatura), sem marca d'água.
+// Contagem: a duração do vídeo, na primeira exportação de cada projeto. As 5
+// reexportações seguintes do mesmo projeto não descontam; da sexta em diante, cada
+// uma desconta de novo. Só desconta o que terminou: o registro é gravado depois do
+// render (e o que foi descontado fica gravado em descontado_s).
+import type {Plano} from "./contas";
+
+export const LIMITES = {
+  videosNoGratis: 1,
+  segundosPorMesNoAssinante: 30 * 60,
+  reexportacoesSemDesconto: 5,
+};
+
+// Brasília (sem horário de verão desde 2019).
+const FUSO_HORAS = -3;
+
+export type RegistroDeExportacao = {
+  projeto_id: string | null;
+  duracao_s: number;
+  descontado_s: number;
+  criado_em: string;
+};
+
+// Uso do plano para a tela (quadro do Início, menu da conta).
+export type UsoDoPlano =
+  | {plano: "gratis"; comMarca: true; videosUsados: number; videosDoPlano: number}
+  | {plano: "assinante"; comMarca: false; segundosUsados: number; segundosDoPlano: number; renovaEm: string};
+
+// O que uma exportação vai fazer, ou por que não pode.
+export type DecisaoDeExportacao = {
+  permitido: boolean;
+  // Por que não pode: "assine" (grátis sem vídeos) ou "sem-saldo" (assinante).
+  codigo?: "assine" | "sem-saldo";
+  motivo?: string;
+  comMarca: boolean;
+  // Quanto esta exportação desconta (0 numa reexportação sem desconto).
+  descontoS: number;
+  // Quantas vezes este projeto já foi exportado.
+  exportacoesDoProjeto: number;
+  uso: UsoDoPlano;
+  // Depois desta exportação (assinante: segundos; grátis: vídeos).
+  restanteDepois: number;
+};
+
+// Início do mês de agora e do seguinte, no horário de Brasília (em UTC).
+export const mesDoCalendario = (agora: Date): {inicio: Date; fim: Date} => {
+  const local = new Date(agora.getTime() + FUSO_HORAS * 3600_000);
+  const ano = local.getUTCFullYear();
+  const mes = local.getUTCMonth();
+  const emUtc = (a: number, m: number) => new Date(Date.UTC(a, m, 1) - FUSO_HORAS * 3600_000);
+  return {inicio: emUtc(ano, mes), fim: emUtc(ano, mes + 1)};
+};
+
+export const usoDoPlano = (plano: Plano, historico: RegistroDeExportacao[], agora: Date): UsoDoPlano => {
+  if (plano === "gratis") {
+    return {
+      plano,
+      comMarca: true,
+      videosUsados: historico.filter((r) => Number(r.descontado_s) > 0).length,
+      videosDoPlano: LIMITES.videosNoGratis,
+    };
+  }
+  const {inicio, fim} = mesDoCalendario(agora);
+  const segundosUsados = historico
+    .filter((r) => {
+      const quando = new Date(r.criado_em).getTime();
+      return quando >= inicio.getTime() && quando < fim.getTime();
+    })
+    .reduce((soma, r) => soma + Number(r.descontado_s), 0);
+  return {plano, comMarca: false, segundosUsados, segundosDoPlano: LIMITES.segundosPorMesNoAssinante, renovaEm: fim.toISOString()};
+};
+
+// "2 min 05 s", "45 s".
+export const duracaoEmTexto = (segundos: number): string => {
+  const total = Math.ceil(segundos);
+  const minutos = Math.floor(total / 60);
+  const resto = total % 60;
+  return minutos > 0 ? `${minutos} min ${String(resto).padStart(2, "0")} s` : `${resto} s`;
+};
+
+export const decidirExportacao = (
+  plano: Plano,
+  historico: RegistroDeExportacao[],
+  projetoId: string | null,
+  duracaoS: number,
+  agora: Date,
+): DecisaoDeExportacao => {
+  const uso = usoDoPlano(plano, historico, agora);
+  const exportacoesDoProjeto = projetoId ? historico.filter((r) => r.projeto_id === projetoId).length : 0;
+  // Primeira exportação, ou da sexta reexportação em diante: desconta.
+  const desconta = exportacoesDoProjeto === 0 || exportacoesDoProjeto > LIMITES.reexportacoesSemDesconto;
+  const descontoS = desconta ? duracaoS : 0;
+
+  if (uso.plano === "gratis") {
+    const restantes = uso.videosDoPlano - uso.videosUsados;
+    if (desconta && restantes <= 0) {
+      return {
+        permitido: false,
+        codigo: "assine",
+        motivo: `O plano grátis inclui ${uso.videosDoPlano} vídeo exportado, e você já usou. Assine para continuar.`,
+        comMarca: true,
+        descontoS,
+        exportacoesDoProjeto,
+        uso,
+        restanteDepois: 0,
+      };
+    }
+    return {permitido: true, comMarca: true, descontoS, exportacoesDoProjeto, uso, restanteDepois: restantes - (desconta ? 1 : 0)};
+  }
+
+  const restanteS = uso.segundosDoPlano - uso.segundosUsados;
+  if (descontoS > restanteS) {
+    return {
+      permitido: false,
+      codigo: "sem-saldo",
+      motivo:
+        `Este vídeo tem ${duracaoEmTexto(descontoS)} e restam ${duracaoEmTexto(Math.max(0, restanteS))} no seu plano este mês: ` +
+        `faltam ${duracaoEmTexto(descontoS - Math.max(0, restanteS))}. O saldo renova em ${new Date(uso.renovaEm).toLocaleDateString("pt-BR", {timeZone: "America/Sao_Paulo"})}.`,
+      comMarca: false,
+      descontoS,
+      exportacoesDoProjeto,
+      uso,
+      restanteDepois: restanteS,
+    };
+  }
+  return {permitido: true, comMarca: false, descontoS, exportacoesDoProjeto, uso, restanteDepois: restanteS - descontoS};
+};
