@@ -48,17 +48,28 @@ export type AnaliseDaAnimacao = {
   // Trechos (relativos à fala) em que a palavra volta a ficar abaixo de 70% depois
   // de já ter passado (piscada).
   apagaDepoisMs: [number, number][];
+  // Opacidade no quadro em que a palavra é falada (pior e melhor fase) e a menor
+  // opacidade de lá até o fim da entrada.
+  naFala: [number, number];
+  menorDepoisDaFala: number;
 };
 
-const analisarAnimacao = (nome: string, anim: EntranceAnimation, fps: number, usadaEm: string[]): AnaliseDaAnimacao => {
-  const antes = antecipacaoDaEntradaMs(anim);
+const analisarAnimacao = (nome: string, anim: EntranceAnimation, fps: number, usadaEm: string[], precisa: boolean): AnaliseDaAnimacao => {
+  const antes = antecipacaoDaEntradaMs(anim, precisa);
   const quadroMs = 1000 / fps;
   // Para cada fase (fala em qualquer ponto entre dois quadros), o primeiro quadro
   // em que a palavra já está 70% visível.
   const primeiros: number[] = [];
+  const naFala: number[] = [];
+  let menorDepoisDaFala = 1;
   for (let fase = 0; fase < quadroMs; fase += 1) {
     const fala = 1000 + fase;
     const inicio = fala - antes;
+    const quadroDaFala = Math.floor(fala / quadroMs);
+    naFala.push(opacidade(anim, quadroDaFala * quadroMs - inicio));
+    for (let k = quadroDaFala; k * quadroMs < inicio + anim.durationMs + quadroMs; k++) {
+      menorDepoisDaFala = Math.min(menorDepoisDaFala, opacidade(anim, k * quadroMs - inicio));
+    }
     for (let k = Math.ceil(inicio / quadroMs); k * quadroMs < inicio + anim.durationMs + 100; k++) {
       if (opacidade(anim, k * quadroMs - inicio) >= VISIVEL) {
         primeiros.push(k * quadroMs - fala);
@@ -90,6 +101,8 @@ const analisarAnimacao = (nome: string, anim: EntranceAnimation, fps: number, us
     setentaPorCentoMs: [Math.round(Math.min(...primeiros)), Math.round(Math.max(...primeiros))],
     terminaMs: Math.round(anim.durationMs - antes),
     apagaDepoisMs: apaga,
+    naFala: [Math.min(...naFala), Math.max(...naFala)],
+    menorDepoisDaFala,
   };
 };
 
@@ -134,6 +147,8 @@ export type AnaliseDaLinhaDoTempo = {
   ultimaNaTelaMedianaMs: number;
   ultimaNaTelaMenorMs: number;
   ultimaNaTelaMenosDe200: number;
+  // Palavras abaixo de 70% no quadro da fala, com a opacidade.
+  invisiveis: string[];
 };
 
 const mediana = (v: number[]) => {
@@ -170,7 +185,9 @@ export const analisarMotor = async (
     linearPair?.forEach((anim, i) => marcar(anim, `par ${i + 1}`));
   }
   const animacoes = [...usos.entries()]
-    .map(([chave, {anim, onde}]) => analisarAnimacao(nomes.has(chave) ? `${nomes.get(chave)})` : [...onde][0], anim, fps, [...onde]))
+    .map(([chave, {anim, onde}]) =>
+      analisarAnimacao(nomes.has(chave) ? `${nomes.get(chave)})` : [...onde][0], anim, fps, [...onde], Boolean(precisa)),
+    )
     .sort((a, b) => b.comecaAntesMs - a.comecaAntesMs);
 
   // Linha do tempo: as palavras agrupadas como numa transcrição nova, em cada pacote.
@@ -236,13 +253,20 @@ const analisarLinhaDoTempo = (
   const saiAntes: {ms: number; texto: string}[] = [];
   const ultimaNaTela: number[] = [];
   const trocas: TrocaDoBloco[] = [];
+  const invisiveis: string[] = [];
   blocos.forEach((bloco, i) => {
     const atraso = tempos[i].showMs - naTela[i].startMs;
     if (atraso > 0) {
       blocosAtrasados++;
       atrasoMaximoMs = Math.max(atrasoMaximoMs, atraso);
     }
-    palavrasAtrasadas += bloco.words.filter((_, k) => visivelNaFala(i, k) < VISIVEL).length;
+    bloco.words.forEach((w, k) => {
+      const v = visivelNaFala(i, k);
+      if (v < VISIVEL) {
+        palavrasAtrasadas++;
+        invisiveis.push(`${w.text} ${Math.round(v * 100)}%${k === 0 ? " (1ª do bloco)" : ""}`);
+      }
+    });
     const ultima = ref[i][bloco.words.length - 1];
     const texto = bloco.words.map((w) => w.text).join(" ");
     // Dupla: o primeiro bloco fica até o segundo sair.
@@ -280,6 +304,7 @@ const analisarLinhaDoTempo = (
       ultimaNaTelaMedianaMs: Math.round(mediana(ultimaNaTela)),
       ultimaNaTelaMenorMs: Math.round(Math.min(...ultimaNaTela)),
       ultimaNaTelaMenosDe200: ultimaNaTela.filter((ms) => ms < 200).length,
+      invisiveis,
     },
     trocas,
   };

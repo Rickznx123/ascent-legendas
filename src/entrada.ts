@@ -39,27 +39,50 @@ const opacidadeEm = (animation: EntranceAnimation, t: number, ease: (value: numb
 };
 
 const cache = new WeakMap<EntranceAnimation, number>();
+const cacheDaPrecisa = new WeakMap<EntranceAnimation, number>();
 
 // Tempo, desde o início da animação, até a palavra ficar VISIVEL_NA_FALA visível
 // (opacidade; o desfoque e o deslocamento seguem a mesma curva).
-export const antecipacaoDaEntradaMs = (animation: EntranceAnimation): number => {
-  const salvo = cache.get(animation);
+// Com a Sincronia precisa (precisa), uma animação com quadros-chave de opacidade
+// (a piscada) só conta depois do último trecho abaixo de VISIVEL_NA_FALA, quando
+// volta a 100%: a piscada inteira acontece antes da fala, a palavra está em 100%
+// no quadro em que é falada e não cai mais abaixo de VISIVEL_NA_FALA depois.
+export const antecipacaoDaEntradaMs = (animation: EntranceAnimation, precisa = false): number => {
+  const piscada = precisa && Boolean(animation.keyframes?.opacity);
+  const memoria = piscada ? cacheDaPrecisa : cache;
+  const salvo = memoria.get(animation);
   if (salvo !== undefined) {
     return salvo;
   }
   const ease = Easing.bezier(...animation.easing);
   const passos = Math.max(1, Math.round(animation.durationMs));
   let ms = animation.durationMs;
-  for (let passo = 0; passo <= passos; passo++) {
-    const t = passo / passos;
-    const progresso = animation.keyframes?.opacity ? 1 : ease(t);
-    if (opacidadeEm(animation, t, ease) >= VISIVEL_NA_FALA && progresso >= VISIVEL_NA_FALA) {
-      ms = t * animation.durationMs;
-      break;
+  if (piscada) {
+    // Último instante abaixo de VISIVEL_NA_FALA; depois dele, o primeiro em 100%.
+    let ultimoAbaixo = -1;
+    for (let passo = 0; passo <= passos; passo++) {
+      if (opacidadeEm(animation, passo / passos, ease) < VISIVEL_NA_FALA) {
+        ultimoAbaixo = passo;
+      }
+    }
+    for (let passo = ultimoAbaixo + 1; passo <= passos; passo++) {
+      if (opacidadeEm(animation, passo / passos, ease) >= 0.999) {
+        ms = (passo / passos) * animation.durationMs;
+        break;
+      }
+    }
+  } else {
+    for (let passo = 0; passo <= passos; passo++) {
+      const t = passo / passos;
+      const progresso = animation.keyframes?.opacity ? 1 : ease(t);
+      if (opacidadeEm(animation, t, ease) >= VISIVEL_NA_FALA && progresso >= VISIVEL_NA_FALA) {
+        ms = t * animation.durationMs;
+        break;
+      }
     }
   }
   ms += MARGEM_DE_QUADRO_MS;
-  cache.set(animation, ms);
+  memoria.set(animation, ms);
   return ms;
 };
 
@@ -78,11 +101,23 @@ export const entradaAjustada = (
   if (faladaMs === undefined) {
     return animation;
   }
-  const antecipacao = antecipacaoDaEntradaMs(animation);
+  const antecipacao = antecipacaoDaEntradaMs(animation, true);
   const disponivel = faladaMs - startMs;
   // Folga de 1 ms para o arredondamento do início.
   if (disponivel >= antecipacao - 1) {
     return animation;
+  }
+  if (animation.keyframes?.opacity) {
+    // A piscada não cabe antes da fala: vira um aparecer simples, rápido o bastante
+    // para estar VISIVEL_NA_FALA visível no quadro da fala (no mínimo um quadro),
+    // em vez de piscar depois de falada.
+    return {
+      ...animation,
+      keyframes: undefined,
+      easing: [0, 0, 1, 1],
+      fromOpacity: 0,
+      durationMs: Math.max(1000 / 30, (disponivel - MARGEM_DE_QUADRO_MS) / VISIVEL_NA_FALA),
+    };
   }
   const escala = Math.max(
     ESCALA_MINIMA_DA_ENTRADA,
@@ -148,7 +183,7 @@ export const blocosNaTela = (
   (precisa?.voz ? encaixarBlocos(blocks, precisa.voz) : blocks).map((block) => {
     const template = templates[block.template];
     const words = block.words.map((word, indice) => {
-      const antecipacao = template ? antecipacaoDaEntradaMs(animacaoDaPalavra(block, template, indice)) : 0;
+      const antecipacao = template ? antecipacaoDaEntradaMs(animacaoDaPalavra(block, template, indice), Boolean(precisa)) : 0;
       return {
         ...word,
         startMs: Math.max(0, Math.round(word.startMs - antecipacao + sincroniaMs)),

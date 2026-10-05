@@ -176,7 +176,7 @@ const principal = async () => {
   console.log(`  Animações de entrada, Sincronia precisa ${modo} (tempos relativos à fala; negativo = antes):`);
   for (const a of m.animacoes) {
     console.log(
-      `    ${a.nome.padEnd(18)} ${String(a.duracaoMs).padStart(4)} ms · começa ${a.comecaAntesMs} ms antes · 70% visível de ${a.setentaPorCentoMs[0]} a ${a.setentaPorCentoMs[1]} ms · inteira em ${a.terminaMs > 0 ? "+" : ""}${a.terminaMs} ms${a.apagaDepoisMs.length ? ` · APAGA (abaixo de 70%) em ${a.apagaDepoisMs.map(([de, ate]) => `${de > 0 ? "+" : ""}${de}…${ate > 0 ? "+" : ""}${ate} ms`).join(", ")}` : ""}`,
+      `    ${a.nome.padEnd(18)} ${String(a.duracaoMs).padStart(4)} ms · começa ${a.comecaAntesMs} ms antes · 70% visível de ${a.setentaPorCentoMs[0]} a ${a.setentaPorCentoMs[1]} ms · inteira em ${a.terminaMs > 0 ? "+" : ""}${a.terminaMs} ms · na fala ${Math.round(a.naFala[0] * 100)}–${Math.round(a.naFala[1] * 100)}%, depois nunca abaixo de ${Math.round(a.menorDepoisDaFala * 100)}%${a.apagaDepoisMs.length ? ` · APAGA (abaixo de 70%) em ${a.apagaDepoisMs.map(([de, ate]) => `${de > 0 ? "+" : ""}${de}…${ate > 0 ? "+" : ""}${ate} ms`).join(", ")}` : ""}`,
     );
   }
   }
@@ -184,7 +184,8 @@ const principal = async () => {
   console.log(`  Linha do tempo, Sincronia precisa ${modo} (um bloco por vez):`);
   for (const l of m.linhaDoTempo) {
     console.log(
-      `    pacote ${l.pacote.padEnd(5)} ${String(l.blocos).padStart(3)} blocos · atrasados ${l.blocosAtrasados} (máx ${l.atrasoMaximoMs} ms, ${l.palavrasAtrasadas} palavras não visíveis na fala) · saem antes do fim da última palavra: ${l.saiAntesDoFim} (mediana ${l.saiAntesMedianaMs} ms, máx ${l.saiAntesMaximoMs} ms) · última palavra na tela: mediana ${l.ultimaNaTelaMedianaMs} ms, menor ${l.ultimaNaTelaMenorMs} ms, ${l.ultimaNaTelaMenosDe200} com menos de 200 ms`,
+      `    pacote ${l.pacote.padEnd(5)} ${String(l.blocos).padStart(3)} blocos · atrasados ${l.blocosAtrasados} (máx ${l.atrasoMaximoMs} ms, ${l.palavrasAtrasadas} palavras não visíveis na fala) · saem antes do fim da última palavra: ${l.saiAntesDoFim} (mediana ${l.saiAntesMedianaMs} ms, máx ${l.saiAntesMaximoMs} ms) · última palavra na tela: mediana ${l.ultimaNaTelaMedianaMs} ms, menor ${l.ultimaNaTelaMenorMs} ms, ${l.ultimaNaTelaMenosDe200} com menos de 200 ms${l.invisiveis.length ? `
+        abaixo de 70% na fala: ${l.invisiveis.join(" · ")}` : ""}`,
     );
   }
   }
