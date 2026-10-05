@@ -35,14 +35,15 @@ export const montarProps = async (
   // A mesma Sincronia precisa do render local: a voz do áudio vai junto nas props.
   // Projeto sem a voz salva (transcrito antes da detecção): detecta agora.
   const voz = saved.voz ?? (saved.sincroniaPrecisa ? await detectarVozDoVideo(inputPath) : undefined);
-  const precisa = precisaoDoProjeto({...saved, voz});
+  const video = await getVideoMetadata(inputPath);
+  const precisa = precisaoDoProjeto({...saved, voz}, video.fps);
   const cortesMs = cortesDosExcluidos(saved.excluidos, style.templates, sincroniaMs, precisa);
   return {
     blocks,
     templates: style.templates,
     palette: style.palette,
     palettes: style.paletas,
-    video: await getVideoMetadata(inputPath),
+    video,
     efeitos: planejarEfeitos(blocks, style.templates, await listarSons(RAIZ), efeitos, semente, sincroniaMs, cortesMs, precisa),
     volumeEfeitos: efeitos.volume,
     sincroniaMs,

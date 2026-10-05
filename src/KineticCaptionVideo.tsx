@@ -215,9 +215,9 @@ const AnimatedWord: React.FC<{
   // Filtro fixo somado ao desfoque da animação.
   filter?: string;
 }> = ({text, startMs, faladaMs, animation: original, style, filter}) => {
-  const animation = entradaAjustada(original, startMs, faladaMs);
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
+  const animation = entradaAjustada(original, startMs, faladaMs, 1000 / fps);
   const elapsedMs = (frame / fps) * 1000 - startMs;
   const linear = Math.min(1, Math.max(0, elapsedMs / animation.durationMs));
   const ease = Easing.bezier(...animation.easing);
@@ -585,7 +585,7 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
     () => blocosNaTela(blocosDaFala, templates, sincroniaMs, precisa),
     [blocosDaFala, templates, sincroniaMs, precisa],
   );
-  const timeline = useMemo(() => computeTimeline(blocks, cortesMs), [blocks, cortesMs]);
+  const timeline = useMemo(() => computeTimeline(blocks, cortesMs, fps), [blocks, cortesMs, fps]);
   const active = findActiveBlocks(blocks, timeline, (frame / fps) * 1000);
   const activeBlock = active?.block;
   const template = activeBlock ? templates[activeBlock.template] : undefined;

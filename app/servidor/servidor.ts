@@ -331,7 +331,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
         const blocks = projeto.blocks as AssignedCaptionBlock[];
         const efeitos = configDosEfeitos(projeto.efeitos);
         const sincroniaMs = sincroniaDoProjeto(projeto.sincroniaMs, projeto.sincroniaPrecisa);
-        const precisa = precisaoDoProjeto(projeto);
+        const precisa = precisaoDoProjeto(projeto, video.fps);
         const cortesMs = cortesDosExcluidos(projeto.excluidos, style.templates, sincroniaMs, precisa);
         const sons = await listarSons(root);
         // No log do servidor: o que entra no render (pasta vazia = nenhum efeito).

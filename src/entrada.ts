@@ -93,10 +93,19 @@ export const antecipacaoDaEntradaMs = (animation: EntranceAnimation, precisa = f
 // ESCALA_MINIMA_DA_ENTRADA da duração original.
 const ESCALA_MINIMA_DA_ENTRADA = 0.15;
 
+// Corte seco: com menos de um quadro antes da fala (a troca de blocos na colisão,
+// veja src/tempos.ts), não há tempo para entrar. A palavra aparece já 100% visível,
+// sem opacidade, deslocamento nem desfoque; só a escala assenta de leve (no máximo
+// ASSENTAMENTO_DO_CORTE), se a animação original mexia na escala.
+const ASSENTAMENTO_DO_CORTE = 0.04;
+const DURACAO_DO_ASSENTAMENTO_MS = 200;
+
 export const entradaAjustada = (
   animation: EntranceAnimation,
   startMs: number,
   faladaMs: number | undefined,
+  // Duração de um quadro do vídeo.
+  quadroMs = 1000 / 30,
 ): EntranceAnimation => {
   if (faladaMs === undefined) {
     return animation;
@@ -107,6 +116,32 @@ export const entradaAjustada = (
   if (disponivel >= antecipacao - 1) {
     return animation;
   }
+  const ajustada = acelerada(animation, disponivel, antecipacao, quadroMs);
+  // No pior caso, o quadro da fala começa um quadro antes dela: se a entrada
+  // acelerada ainda não chegou a VISIVEL_NA_FALA ali, corte seco.
+  const pior = Math.max(0, disponivel - quadroMs) / ajustada.durationMs;
+  if (disponivel < quadroMs || opacidadeEm(ajustada, Math.min(1, pior), Easing.bezier(...ajustada.easing)) < VISIVEL_NA_FALA) {
+    const escala = animation.fromScale - 1;
+    return {
+      durationMs: DURACAO_DO_ASSENTAMENTO_MS,
+      easing: [0.2, 0.8, 0.2, 1],
+      fromOpacity: 1,
+      fromTranslateYEm: 0,
+      fromTranslateXEm: 0,
+      fromBlurEm: 0,
+      fromScale: 1 + Math.sign(escala) * Math.min(Math.abs(escala), ASSENTAMENTO_DO_CORTE),
+    };
+  }
+  return ajustada;
+};
+
+// A entrada acelerada para caber em disponivel ms antes da fala.
+const acelerada = (
+  animation: EntranceAnimation,
+  disponivel: number,
+  antecipacao: number,
+  quadroMs: number,
+): EntranceAnimation => {
   if (animation.keyframes?.opacity) {
     // A piscada não cabe antes da fala: vira um aparecer simples, rápido o bastante
     // para estar VISIVEL_NA_FALA visível no quadro da fala (no mínimo um quadro),
@@ -116,7 +151,7 @@ export const entradaAjustada = (
       keyframes: undefined,
       easing: [0, 0, 1, 1],
       fromOpacity: 0,
-      durationMs: Math.max(1000 / 30, (disponivel - MARGEM_DE_QUADRO_MS) / VISIVEL_NA_FALA),
+      durationMs: Math.max(quadroMs, (disponivel - quadroMs) / VISIVEL_NA_FALA),
     };
   }
   const escala = Math.max(
@@ -154,11 +189,12 @@ export const cortesDosExcluidos = (
 export const sincroniaDoProjeto = (salva: number | undefined, precisa = false): number =>
   salva ?? (precisa ? 0 : AGRUPAMENTO_CONFIG.sincroniaMs);
 
-// Sincronia precisa do projeto (vazio: desligada), com a voz do áudio salva nele.
-export const precisaoDoProjeto = (projeto: {
-  sincroniaPrecisa?: boolean;
-  voz?: VozDoAudio;
-} | undefined): SincroniaPrecisa | undefined => (projeto?.sincroniaPrecisa ? {voz: projeto.voz} : undefined);
+// Sincronia precisa do projeto (vazio: desligada), com a voz do áudio salva nele e
+// o fps do vídeo (a troca de blocos acontece no início de um quadro).
+export const precisaoDoProjeto = (
+  projeto: {sincroniaPrecisa?: boolean; voz?: VozDoAudio} | undefined,
+  fps?: number,
+): SincroniaPrecisa | undefined => (projeto?.sincroniaPrecisa ? {voz: projeto.voz, fps} : undefined);
 
 // Palavras de todos os blocos encaixadas juntas na voz (o encaixe olha as vizinhas,
 // mesmo de outro bloco), devolvidas a cada bloco.

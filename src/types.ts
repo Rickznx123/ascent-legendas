@@ -20,6 +20,9 @@ export type VozDoAudio = {
 // houver a voz do áudio) e a troca de blocos segue as regras de src/tempos.ts.
 export type SincroniaPrecisa = {
   voz?: VozDoAudio;
+  // Quadros por segundo do vídeo: a troca de blocos acontece no início do quadro
+  // da fala (sem valor: 30).
+  fps?: number;
 };
 
 export type CaptionBlock = {

@@ -168,7 +168,7 @@ export const planejarEfeitos = (
   const random = createRandom((semente ^ SAL_DA_SEMENTE) >>> 0);
   // Tempos de tela, os mesmos das legendas (veja src/entrada.ts).
   const blocks = blocosNaTela(blocosDaFala, templates, sincroniaMs, precisa);
-  const timeline = computeTimeline(blocks, cortesMs);
+  const timeline = computeTimeline(blocks, cortesMs, precisa?.fps);
   const daCategoria = (categoria: string) => sons.filter((som) => som.categoria === categoria);
   const manual = (block: AssignedCaptionBlock): ArquivoSom | undefined =>
     daCategoria(categoriaDoBloco(block)).find((som) => som.arquivo === block.som);

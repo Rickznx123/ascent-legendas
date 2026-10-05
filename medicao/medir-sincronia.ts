@@ -170,7 +170,7 @@ const principal = async () => {
   // encaixadas no áudio (onde não encaixam, o da transcrição).
   const palavrasDoMotor = transcricoes[0].palavras;
   const motor = await analisarMotor(RAIZ, palavrasDoMotor, fps, {voz: vozDoAudio});
-  const motorPreciso = await analisarMotor(RAIZ, palavrasDoMotor, fps, {voz: vozDoAudio, precisa: {voz: vozDoAudio}});
+  const motorPreciso = await analisarMotor(RAIZ, palavrasDoMotor, fps, {voz: vozDoAudio, precisa: {voz: vozDoAudio, fps}});
   console.log(`  Quadro: ${(1000 / fps).toFixed(1)} ms · sincronia global padrão: ${sincroniaPadraoMs} ms (cada projeto pode ter a sua)`);
   for (const [modo, m] of [["desligada", motor], ["ligada", motorPreciso]] as const) {
   console.log(`  Animações de entrada, Sincronia precisa ${modo} (tempos relativos à fala; negativo = antes):`);
@@ -190,20 +190,36 @@ const principal = async () => {
   }
   }
 
-  // As trocas de bloco do pacote A em que a última palavra fica menos de 200 ms na
-  // tela ou a primeira do seguinte não está visível na fala, nos dois modos.
-  const trocas = await compararTrocas(RAIZ, palavrasDoMotor, fps, vozDoAudio, "a");
-  const ruim = (t: TrocaDoBloco) => t.saiDepoisMs < Math.min(200, t.ultimaDuracaoMs) || (t.seguinteVisivelNaFala ?? 1) < 0.7;
-  const casos = trocas.desligada.map((_, i) => i).filter((i) => ruim(trocas.desligada[i]) || ruim(trocas.ligada[i]));
+  // Trocas de bloco em que a última palavra fica menos de 200 ms na tela, sai antes
+  // do fim, ou a primeira do seguinte não está visível na fala, nos dois modos.
+  // Colisão: última palavra com menos de 200 ms emendada na seguinte (menos de 2
+  // quadros entre as duas), sem silêncio.
   const pct = (v?: number) => (v === undefined ? "—" : `${Math.round(v * 100)}%`);
   const sinal = (v?: number) => (v === undefined ? "—" : `${v > 0 ? "+" : ""}${v} ms`);
-  console.log(`
-  Trocas de bloco do pacote A (${casos.length} casos). "fica": quanto a última palavra fica na tela depois de começar a ser falada; "seguinte": quando o bloco seguinte entra em relação à primeira palavra dele e quanto ela está visível no quadro da fala.`);
-  for (const i of casos) {
-    const [d, l] = [trocas.desligada[i], trocas.ligada[i]];
-    console.log(`    "${d.texto}" → última "${d.ultima}" (${d.ultimaDuracaoMs} ms falada, silêncio até o seguinte ${sinal(d.silencioAteSeguinteMs)})`);
-    console.log(`      desligada: fica ${sinal(d.saiDepoisMs)} · seguinte entra ${sinal(d.seguinteEntraMs)}, ${pct(d.seguinteVisivelNaFala)} visível na fala, ${pct(d.seguinteVisivelUmQuadroDepois)} um quadro depois`);
-    console.log(`      ligada:    fica ${sinal(l.saiDepoisMs)} · seguinte entra ${sinal(l.seguinteEntraMs)}, ${pct(l.seguinteVisivelNaFala)} visível na fala, ${pct(l.seguinteVisivelUmQuadroDepois)} um quadro depois`);
+  const ruim = (t: TrocaDoBloco) =>
+    t.saiDepoisMs < Math.min(200, t.ultimaDuracaoMs) || (t.seguinteVisivelNaFala ?? 1) < 0.7 || (t.seguinteEntraMs !== undefined && t.saiAntesDoFimMs > 0 && t.ultimaDuracaoMs < 200);
+  const colisao = (t: TrocaDoBloco) =>
+    t.ultimaDuracaoMs < 200 && t.silencioAteSeguinteMs !== undefined && t.silencioAteSeguinteMs < 2000 / 30;
+  const trocasPorPacote: Record<string, unknown> = {};
+  for (const pacote of ["a", "d", "e"]) {
+    const trocas = await compararTrocas(RAIZ, palavrasDoMotor, fps, vozDoAudio, pacote);
+    trocasPorPacote[pacote] = trocas;
+    const casos = trocas.desligada.map((_, i) => i).filter((i) => ruim(trocas.desligada[i]) || ruim(trocas.ligada[i]));
+    console.log(`\n  Trocas de bloco do pacote ${pacote.toUpperCase()} (${casos.length} casos). "fica": quanto a última palavra fica na tela depois de começar a ser falada; "antes do fim": quanto ela sai antes de terminar; "seguinte": quando o bloco seguinte entra em relação à primeira palavra dele e quanto ela está visível no quadro da fala.`);
+    for (const i of casos) {
+      const [d, l] = [trocas.desligada[i], trocas.ligada[i]];
+      console.log(`    "${d.texto}" → última "${d.ultima}" (${d.ultimaDuracaoMs} ms falada, silêncio até o seguinte ${sinal(d.silencioAteSeguinteMs)})${colisao(l) ? " · COLISÃO" : ""}`);
+      for (const [modo, t] of [["desligada", d], ["ligada   ", l]] as const) {
+        console.log(`      ${modo}: fica ${sinal(t.saiDepoisMs)}, antes do fim ${sinal(Math.max(0, t.saiAntesDoFimMs))} · seguinte entra ${sinal(t.seguinteEntraMs)}, ${pct(t.seguinteVisivelNaFala)} visível na fala`);
+      }
+    }
+    // Resumo do modo ligado: colisões, primeiras palavras abaixo de 100% e últimas
+    // curtas que saem antes do fim.
+    const comSeguinte = trocas.ligada.filter((t) => t.seguinteEntraMs !== undefined);
+    const colisoes = comSeguinte.filter(colisao);
+    console.log(
+      `    resumo ligada: ${comSeguinte.length} trocas · ${colisoes.length} colisões, primeira do seguinte abaixo de 100% na fala em ${colisoes.filter((t) => (t.seguinteVisivelNaFala ?? 1) < 0.999).length}, última saindo antes do fim em ${colisoes.filter((t) => t.saiAntesDoFimMs > 0).length} (máx ${Math.max(0, ...colisoes.map((t) => t.saiAntesDoFimMs))} ms) · fora das colisões: primeira abaixo de 70% em ${comSeguinte.filter((t) => !colisao(t) && (t.seguinteVisivelNaFala ?? 1) < 0.7).length}, última curta saindo antes do fim em ${comSeguinte.filter((t) => !colisao(t) && t.ultimaDuracaoMs < 200 && t.saiAntesDoFimMs > 0).length}`,
+    );
   }
   // Sincronia salva nos projetos (anda todas as legendas).
   for (const arquivo of [path.join(RAIZ, "transcricao.json")]) {
@@ -236,7 +252,7 @@ const principal = async () => {
   const arquivoPagina = path.join(SAIDA, `${base}.sincronia.html`);
   const arquivoJson = path.join(SAIDA, `${base}.sincronia.json`);
   writeFileSync(arquivoPagina, pagina);
-  writeFileSync(arquivoJson, JSON.stringify({video: path.basename(video), fps, voz: {...voz, trechos: voz.trechos.length}, transcricoes: resumo, motor, motorPreciso, trocasPacoteA: trocas}, null, 2));
+  writeFileSync(arquivoJson, JSON.stringify({video: path.basename(video), fps, voz: {...voz, trechos: voz.trechos.length}, transcricoes: resumo, motor, motorPreciso, trocas: trocasPorPacote}, null, 2));
   console.log(`\nPágina de conferência: ${arquivoPagina}`);
   console.log(`Números: ${arquivoJson}`);
 };

@@ -207,6 +207,9 @@ export type TrocaDoBloco = {
   // Tempos relativos ao início falado da última palavra.
   ultimaDuracaoMs: number;
   saiDepoisMs: number;
+  // Quanto a última palavra sai antes do fim dela (positivo = antes; só conta se o
+  // bloco seguinte entrou, não o fim da permanência).
+  saiAntesDoFimMs: number;
   // O bloco seguinte: quando entra em relação à primeira palavra dele (negativo =
   // antes) e quanto ela está visível no quadro em que é falada.
   seguinteEntraMs?: number;
@@ -227,7 +230,7 @@ const analisarLinhaDoTempo = (
   precisa: SincroniaPrecisa | undefined,
 ): {resumo: AnaliseDaLinhaDoTempo; trocas: TrocaDoBloco[]} => {
   const naTela = blocosNaTela(blocos, templates, 0, precisa);
-  const tempos = computeTimeline(naTela);
+  const tempos = computeTimeline(naTela, [], fps);
   const quadroMs = 1000 / fps;
   // Instante falado de cada palavra, na régua comum.
   let cursor = 0;
@@ -236,14 +239,15 @@ const analisarLinhaDoTempo = (
   // Opacidade da palavra k do bloco i no quadro em que ela é falada.
   // quadros: 0 = o quadro na tela no instante da fala; 1 = o seguinte.
   const visivelNaFala = (i: number, k: number, quadros = 0): number => {
-    const t = (Math.floor(ref[i][k].startMs / quadroMs) + quadros) * quadroMs;
+    // O início do quadro, na mesma conta do render (quadro / fps * 1000).
+    const t = ((Math.floor((ref[i][k].startMs * fps) / 1000 + 1e-6) + quadros) / fps) * 1000;
     const ativo = findActiveBlockIndex(tempos, t);
     const dono = ativo === i || (ativo === i - 1 && blocos[i].dupla === "segundo");
     if (!dono) return 0;
     const palavra = naTela[i].words[k];
     const inicio = Math.max(palavra.startMs, tempos[i].showMs);
     const template = templates[blocos[i].template];
-    const anim = entradaAjustada(animacaoDaPalavra(naTela[i], template, k), inicio, palavra.faladaMs);
+    const anim = entradaAjustada(animacaoDaPalavra(naTela[i], template, k), inicio, palavra.faladaMs, quadroMs);
     return opacidade(anim, t - inicio);
   };
 
@@ -283,6 +287,7 @@ const analisarLinhaDoTempo = (
       ultima: ultima.text,
       ultimaDuracaoMs: Math.round(ultima.endMs - ultima.startMs),
       saiDepoisMs: Math.round(tempos[i].hideMs - ultima.startMs),
+      saiAntesDoFimMs: Math.round(ultima.endMs - tempos[i].hideMs),
       seguinteEntraMs: seguinte ? Math.round(tempos[i + 1].showMs - ref[i + 1][0].startMs) : undefined,
       seguinteVisivelNaFala: seguinte ? visivelNaFala(i + 1, 0) : undefined,
       seguinteVisivelUmQuadroDepois: seguinte ? visivelNaFala(i + 1, 0, 1) : undefined,
@@ -324,7 +329,7 @@ export const compararTrocas = async (
   const referencia = encaixarNoAudio(palavras, voz).palavras;
   return {
     desligada: analisarLinhaDoTempo(pacote, blocos, estilo.templates, fps, referencia, undefined).trocas,
-    ligada: analisarLinhaDoTempo(pacote, blocos, estilo.templates, fps, referencia, {voz}).trocas,
+    ligada: analisarLinhaDoTempo(pacote, blocos, estilo.templates, fps, referencia, {voz, fps}).trocas,
   };
 };
 

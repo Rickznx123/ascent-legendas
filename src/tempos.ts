@@ -49,6 +49,10 @@ const ULTIMA_PALAVRA_NA_TELA_MS = 200;
 // palavra dele (2 quadros a 30 fps), com a entrada acelerada (entradaAjustada).
 const ANTECEDENCIA_REDUZIDA_MS = 2000 / 30;
 
+// Início (ms) do quadro do vídeo em que cai o instante ms, na mesma conta do render
+// (quadro / fps * 1000), para a troca cair exatamente num quadro.
+const inicioDoQuadro = (ms: number, fps: number): number => (Math.floor((ms * fps) / 1000 + 1e-6) / fps) * 1000;
+
 // Troca de blocos da Sincronia precisa, em ordem de prioridade:
 // 1. nenhuma palavra sai da tela antes de ser falada;
 // 2. a última palavra fica ULTIMA_PALAVRA_NA_TELA_MS depois de começar a ser falada
@@ -56,10 +60,17 @@ const ANTECEDENCIA_REDUZIDA_MS = 2000 / 30;
 // 3. com silêncio entre os blocos (o seguinte, com a antecedência normal, só entra
 //    depois do fim da voz), o atual fica até ele entrar;
 // 4. sem silêncio, o seguinte entra com antecedência reduzida, depois do mínimo do 2.
+// Colisão: a última palavra é curta (menos de ULTIMA_PALAVRA_NA_TELA_MS) e emenda
+// na primeira do seguinte (menos de ANTECEDENCIA_REDUZIDA_MS entre as duas). O atual
+// fica até o fim dela e o seguinte entra em corte seco no início do quadro em que a
+// primeira palavra dele é falada (100% visível nesse quadro, veja entradaAjustada).
+// Se as duas caem no mesmo quadro, esse quadro é do seguinte; a última palavra
+// fica pelo menos no quadro em que ela é falada.
 // Devolve até quando o bloco fica e quando o seguinte entra.
 const trocaPrecisa = (
   block: AssignedCaptionBlock,
   next: AssignedCaptionBlock | undefined,
+  fps: number,
 ): {hideMs: number; nextShowMs: number; minHideMs: number} => {
   const last = block.words[block.words.length - 1];
   const lastSpokenMs = last.faladaMs ?? last.startMs;
@@ -68,12 +79,32 @@ const trocaPrecisa = (
     return {hideMs: Math.max(minHideMs, last.endMs + AGRUPAMENTO_CONFIG.tempos.permanenciaMaximaMs), nextShowMs: Infinity, minHideMs};
   }
   const nextSpokenMs = next.words[0].faladaMs ?? next.words[0].startMs;
-  const nextShowMs =
+  // O quadro da fala da primeira palavra do seguinte, e o primeiro quadro depois do
+  // quadro em que a última palavra começa a ser falada.
+  const quadroDaFalaMs = inicioDoQuadro(nextSpokenMs, fps);
+  const depoisDaUltimaMs = inicioDoQuadro(lastSpokenMs, fps) + 1000 / fps;
+  const colisao =
+    next.startMs < last.endMs &&
+    last.endMs - lastSpokenMs < ULTIMA_PALAVRA_NA_TELA_MS &&
+    nextSpokenMs - last.endMs < ANTECEDENCIA_REDUZIDA_MS;
+  let nextShowMs =
     next.startMs >= last.endMs
       ? next.startMs
-      : Math.max(minHideMs, next.startMs, nextSpokenMs - ANTECEDENCIA_REDUZIDA_MS);
+      : colisao
+        ? quadroDaFalaMs
+        : Math.max(minHideMs, next.startMs, nextSpokenMs - ANTECEDENCIA_REDUZIDA_MS);
+  // Sem silêncio, o seguinte nunca entra depois do quadro da fala dele (a diferença
+  // é menor que um quadro), mas a última palavra fica pelo menos no quadro dela.
+  if (next.startMs < last.endMs && nextShowMs > quadroDaFalaMs) {
+    nextShowMs = Math.max(quadroDaFalaMs, depoisDaUltimaMs);
+  }
+  if (colisao) {
+    nextShowMs = Math.max(nextShowMs, depoisDaUltimaMs);
+    return {hideMs: nextShowMs, nextShowMs, minHideMs};
+  }
   return {
-    hideMs: Math.max(minHideMs, Math.min(nextShowMs, last.endMs + AGRUPAMENTO_CONFIG.tempos.permanenciaMaximaMs)),
+    // Nunca depois da entrada do seguinte (um bloco por vez).
+    hideMs: Math.min(nextShowMs, last.endMs + AGRUPAMENTO_CONFIG.tempos.permanenciaMaximaMs),
     nextShowMs,
     minHideMs,
   };
@@ -91,7 +122,8 @@ export const shortBlockIndexes = (blocks: AssignedCaptionBlock[]): number[] =>
 // ficar visível chaveVisivelMinimaMs.
 // cortesMs: instantes em que começavam blocos excluídos. O bloco antes de um corte
 // sai no corte (não estica para cobrir o tempo do bloco que foi excluído).
-export const computeTimeline = (blocks: AssignedCaptionBlock[], cortesMs: number[] = []): BlockTiming[] => {
+// fps: quadros por segundo do vídeo (só a Sincronia precisa usa).
+export const computeTimeline = (blocks: AssignedCaptionBlock[], cortesMs: number[] = [], fps = 30): BlockTiming[] => {
   const {tempoMinimoDeTelaMs, chaveVisivelMinimaMs} = AGRUPAMENTO_CONFIG.tempos;
   const timeline: BlockTiming[] = [];
   let showMs = blocks[0]?.startMs ?? 0;
@@ -102,15 +134,17 @@ export const computeTimeline = (blocks: AssignedCaptionBlock[], cortesMs: number
   blocks.forEach((block, index) => {
     showMs = Math.max(showMs, block.startMs);
     if (precisa) {
-      const troca = trocaPrecisa(block, blocks[index + 1]);
+      const troca = trocaPrecisa(block, blocks[index + 1], fps);
       let {hideMs, nextShowMs} = troca;
       // Bloco excluído no meio: este sai no corte, mas nunca antes da regra 2.
       const corte = cortesMs.find((c) => c > block.startMs && c < hideMs);
       if (corte !== undefined) {
-        hideMs = Math.max(troca.minHideMs, corte);
+        hideMs = Math.min(nextShowMs, Math.max(troca.minHideMs, corte));
       }
-      if (hideMs < showMs + MIN_BLOCK_VISIBLE_MS) {
-        hideMs = showMs + MIN_BLOCK_VISIBLE_MS;
+      // Um bloco empurrado pelo anterior aparece pelo menos um quadro (as regras 1
+      // e 2 já protegem a última palavra; o mínimo de 200 ms atrasaria o seguinte).
+      if (hideMs < showMs + 1000 / fps) {
+        hideMs = showMs + 1000 / fps;
         nextShowMs = Math.max(nextShowMs, hideMs);
       }
       timeline.push({showMs, hideMs});

@@ -134,7 +134,8 @@ export const useEditor = () => {
   const sincroniaPrecisa = Boolean(projetoDoVideo?.sincroniaPrecisa);
   const sincroniaMs = sincroniaDoProjeto(projetoDoVideo?.sincroniaMs, sincroniaPrecisa);
   const voz = projetoDoVideo?.voz;
-  const precisa = useMemo(() => precisaoDoProjeto({sincroniaPrecisa, voz}), [sincroniaPrecisa, voz]);
+  const fps = videoInfo?.fps;
+  const precisa = useMemo(() => precisaoDoProjeto({sincroniaPrecisa, voz}, fps), [sincroniaPrecisa, voz, fps]);
   // Tempos de tela (entrada antes da fala + sincronia), os mesmos do render.
   const blocosNaTelaAtual = useMemo(
     () => (estilo ? blocosNaTela(blocos, estilo.templates, sincroniaMs, precisa) : blocos),
@@ -146,7 +147,10 @@ export const useEditor = () => {
     () => (estilo ? cortesDosExcluidos(excluidos, estilo.templates, sincroniaMs, precisa) : []),
     [excluidos, estilo, sincroniaMs, precisa],
   );
-  const timeline = useMemo(() => computeTimeline(blocosNaTelaAtual, cortesMs), [blocosNaTelaAtual, cortesMs]);
+  const timeline = useMemo(
+    () => computeTimeline(blocosNaTelaAtual, cortesMs, precisa?.fps),
+    [blocosNaTelaAtual, cortesMs, precisa],
+  );
   const configEfeitos = useMemo(() => configDosEfeitos(projetoDoVideo?.efeitos), [projetoDoVideo?.efeitos]);
   // Os mesmos efeitos que o render vai usar (mesma semente, mesmos arquivos).
   const efeitos = useMemo(
