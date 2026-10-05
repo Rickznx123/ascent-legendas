@@ -20,7 +20,8 @@
     "app/**/*.ts",
     "app/**/*.tsx",
     "nuvem/**/*.ts",
-    "medicao/**/*.ts"
+    "medicao/**/*.ts",
+    "scripts/**/*.ts"
   ],
   "exclude": [
     "app/web/dist"
