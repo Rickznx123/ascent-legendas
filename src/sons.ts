@@ -116,13 +116,16 @@ export const blocoPodeTerSom = (block: AssignedCaptionBlock, template: CaptionTe
 const nomeDoArquivo = (arquivo: string): string => arquivo.split("/").pop() ?? arquivo;
 
 // Instante (de tela) em que a palavra-chave começa a entrar, como em KineticCaptionVideo:
-// a fala dela, ou a entrada do bloco se ele entrou atrasado.
+// a fala dela, ou a entrada do bloco se ele entrou atrasado. Com a Sincronia precisa
+// (a palavra traz faladaMs), o instante em que ela é falada: o som acompanha a fala,
+// não a entrada visual (que pode começar bem antes, como na piscada).
 const entradaDaChaveMs = (block: AssignedCaptionBlock, template: CaptionTemplate, showMs: number): number => {
   let indice = findKeywordIndex(block.words, block.keyword);
   if (template.structure === "bloco") {
     indice = findProtectedSpans(block.words.map((word) => word.text)).spans[0]?.[0] ?? 0;
   }
-  return Math.max(block.words[indice]?.startMs ?? block.startMs, showMs);
+  const palavra = block.words[indice];
+  return Math.max(palavra?.faladaMs ?? palavra?.startMs ?? block.startMs, showMs);
 };
 
 // Typing de um linear: o mais longo que cabe na entrada das palavras (da primeira
@@ -135,7 +138,12 @@ const typingDoLinear = (
 ): ArquivoSom | undefined => {
   const porDuracao = [...opcoes].sort((a, b) => a.duracaoMs - b.duracaoMs || a.arquivo.localeCompare(b.arquivo));
   const ultima = block.words[block.words.length - 1];
-  const entradaDasPalavrasMs = Math.max(ultima.startMs, entradaMs) + template.animations.word.durationMs - entradaMs;
+  // Com a Sincronia precisa, o typing acompanha a fala: da primeira palavra até o
+  // fim da fala da última.
+  const entradaDasPalavrasMs =
+    ultima.faladaMs !== undefined
+      ? ultima.endMs - entradaMs
+      : Math.max(ultima.startMs, entradaMs) + template.animations.word.durationMs - entradaMs;
   const cabem = porDuracao.filter((som) => som.duracaoMs <= entradaDasPalavrasMs);
   return block.words.length === 2 || cabem.length === 0 ? porDuracao[0] : cabem[cabem.length - 1];
 };
@@ -149,6 +157,9 @@ const typingDoLinear = (
 //   seguidas, alinhado à entrada da palavra-chave (menos a antecipação do arquivo).
 // - Linear: typing de sons/linear/ na entrada da primeira palavra, cortado com
 //   fade se passar do fim do bloco.
+// Com a Sincronia precisa, "entrada" é a fala: o destaque na fala da palavra-chave
+// (o ápice cai nela, com a antecipação do arquivo) e o typing da fala da primeira
+// palavra até o fim da fala da última.
 export const planejarEfeitos = (
   blocosDaFala: AssignedCaptionBlock[],
   templates: Record<string, CaptionTemplate>,
@@ -224,7 +235,8 @@ export const planejarEfeitos = (
       destaqueAnterior = som.arquivo;
       return;
     }
-    const entradaMs = Math.max(block.words[0].startMs, showMs);
+    // Com a Sincronia precisa, a fala da primeira palavra (não a entrada visual).
+    const entradaMs = Math.max(block.words[0].faladaMs ?? block.words[0].startMs, showMs);
     const som = manual(block) ?? typingDoLinear(block, template, entradaMs, daCategoria("linear"));
     if (!som) {
       return;
