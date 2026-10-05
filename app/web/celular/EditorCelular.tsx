@@ -12,6 +12,8 @@ import {api} from "../api";
 import {tempoDoBloco} from "../quadro";
 import type {Editor} from "../useEditor";
 import {Andamento} from "./Andamento";
+import {AvisoDesfazer} from "./AvisoDesfazer";
+import type {AvisoComDesfazer} from "./AvisoDesfazer";
 import {AjustesDoBlocoCelular} from "./AjustesDoBlocoCelular";
 import {FaixaDeTempo} from "./FaixaDeTempo";
 import {Folha} from "./Folha";
@@ -57,6 +59,18 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
   const abrirBloco = (b: number) => {
     e.irParaBloco(b);
     onAbrirFolha();
+  };
+
+  // Excluir uma palavra (a última leva o bloco junto; tudo entra no desfazer) e
+  // avisar com "Desfazer". Na folha, se o bloco saiu, a folha fecha.
+  const [avisoDesfazer, setAvisoDesfazer] = useState<AvisoComDesfazer>();
+  const excluirPalavra = (b: number, p: number, naFolha = false) => {
+    const ultima = blocos[b]?.words.length === 1;
+    blocoAcoes.excluirPalavra(b, p);
+    setAvisoDesfazer({id: Date.now(), texto: ultima ? "Palavra e bloco excluídos" : "Palavra excluída"});
+    if (ultima && naFolha) {
+      onFecharFolha();
+    }
   };
 
   // Com a folha aberta, arrastar a legenda move só aquele bloco; senão, com
@@ -161,6 +175,7 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
                   onIrPara={e.irParaBloco}
                   onAjustes={abrirBloco}
                   onTexto={blocoAcoes.texto}
+                  onExcluirPalavra={excluirPalavra}
                 />
               </>
             ) : (
@@ -273,7 +288,9 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
 
         {folhaVisivel && bloco && estilo && projetoDoVideo ? (
           <Folha
-            ignorarFora=".previa"
+            // A prévia (arrastar a legenda), a barra acima do teclado e o aviso com
+            // Desfazer ficam fora da folha, mas tocar neles não a fecha.
+            ignorarFora=".previa, .cel-barra-teclado, .cel-aviso-desfazer"
             onFechar={onFecharFolha}
             titulo={
               <span className="cab">
@@ -299,7 +316,7 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
               onSoEsteBloco={() => undefined}
               onTexto={blocoAcoes.texto}
               onPalavraChave={blocoAcoes.palavraChave}
-              onExcluirPalavra={blocoAcoes.excluirPalavra}
+              onExcluirPalavra={(b, p) => excluirPalavra(b, p, true)}
               onDividir={blocoAcoes.dividir}
               onLayout={blocoAcoes.layout}
               onCor={blocoAcoes.cor}
@@ -318,6 +335,12 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
           </Folha>
         ) : null}
       </div>
+      <AvisoDesfazer
+        aviso={avisoDesfazer}
+        blocos={blocos}
+        onDesfazer={e.desfazer}
+        onFechar={() => setAvisoDesfazer(undefined)}
+      />
     </div>
   );
 };

@@ -16,13 +16,23 @@ type Props = {
   onIrPara: (bloco: number) => void;
   onAjustes: (bloco: number) => void;
   onTexto: (bloco: number, palavra: number, texto: string) => void;
+  onExcluirPalavra: (bloco: number, palavra: number) => void;
 };
 
 // Uma palavra sendo editada nesta lista: a rolagem automática não pode tirá-la da vista.
 const editandoNaLista = (lista: HTMLElement | null) =>
   document.activeElement instanceof HTMLInputElement && Boolean(lista?.contains(document.activeElement));
 
-export const ListaCelular: React.FC<Props> = ({blocos, timeline, blocoAtivo, blocoSelecionado, onIrPara, onAjustes, onTexto}) => {
+export const ListaCelular: React.FC<Props> = ({
+  blocos,
+  timeline,
+  blocoAtivo,
+  blocoSelecionado,
+  onIrPara,
+  onAjustes,
+  onTexto,
+  onExcluirPalavra,
+}) => {
   const lista = useRef<HTMLDivElement>(null);
   const ativoRef = useRef<HTMLElement>(null);
   const selecionadoRef = useRef<HTMLElement>(null);
@@ -79,6 +89,7 @@ export const ListaCelular: React.FC<Props> = ({blocos, timeline, blocoAtivo, blo
                     chave={posicao === chave}
                     rotulo={`Palavra ${posicao + 1} do bloco ${indice + 1}`}
                     onEditar={(texto) => onTexto(indice, posicao, texto)}
+                    onExcluir={() => onExcluirPalavra(indice, posicao)}
                   />
                 ))}
               </div>

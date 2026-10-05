@@ -454,6 +454,75 @@
   display: none;
 }
 
+/* Rótulo do arrasto na prévia ("Só este bloco · 50% × 68%"): sempre numa linha,
+   com reticências se faltar espaço; com o teclado aberto (prévia encolhida), sai. */
+.cel .arrasto-legenda {
+  max-width: calc(100% - 2 * var(--esp-3));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cel-teclado .arrasto-legenda {
+  display: none;
+}
+
+/* Barra logo acima do teclado enquanto uma palavra está em edição (PalavraCelular).
+   O fundo do .cel fica no topo do teclado; as listas ganham folga para não ficar
+   nada escondido atrás da barra. */
+.cel-barra-teclado {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 12px;
+  background: var(--painel);
+  border-top: 1px solid var(--linha);
+}
+
+.cel-barra-teclado .bt {
+  min-height: 44px;
+  padding: 0 16px;
+  touch-action: manipulation;
+}
+
+.cel-teclado .cel-conteudo,
+.cel-teclado .cel-folha-conteudo {
+  padding-bottom: 72px;
+}
+
+/* Aviso com "Desfazer" (AvisoDesfazer), acima das abas. */
+.cel-aviso-desfazer {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(70px + env(safe-area-inset-bottom));
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 52px;
+  padding: 4px 4px 4px 16px;
+  border: 1px solid var(--linha);
+  border-radius: 12px;
+  background: var(--painel-2);
+  box-shadow: var(--sombra);
+  animation: cel-subir 0.18s ease-out;
+}
+
+.cel-aviso-acao {
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 8px;
+  color: var(--acento);
+  font-weight: 700;
+  touch-action: manipulation;
+}
+
 .cel .dividir {
   min-width: 44px;
   min-height: 44px;
