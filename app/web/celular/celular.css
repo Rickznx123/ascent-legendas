@@ -1100,3 +1100,137 @@
   color: var(--suave);
   touch-action: manipulation;
 }
+
+/* ---------- abas Cores e Sons (CoresCelular, SonsCelular) ---------- */
+/* O desenho da aba Templates da referência: chips em cima, cartões quase quadrados
+   em três colunas embaixo. */
+.cel-contexto {
+  margin: 0 0 8px;
+  color: var(--suave);
+  font-size: 12px;
+}
+
+.cel-contexto b {
+  color: var(--texto);
+}
+
+.cel-cartoes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.cel-opcao {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1 / 1.05;
+  display: grid;
+  place-items: center;
+  padding: 6px;
+  border-radius: 9px;
+  border: 1px solid var(--linha);
+  background: var(--tela);
+  color: var(--texto);
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.cel-opcao[aria-pressed="true"] {
+  border-color: var(--acento);
+  box-shadow: 0 0 0 1px var(--acento);
+}
+
+.cel-opcao:disabled {
+  opacity: 0.5;
+}
+
+.cel-opcao-amostra {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  text-transform: lowercase;
+}
+
+.cel-opcao-pintada {
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.cel-opcao-padrao {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--suave);
+}
+
+.cel-opcao-icone {
+  font-size: 26px;
+  font-weight: 400;
+  color: var(--suave);
+}
+
+.cel-opcao[aria-pressed="true"] .cel-opcao-icone {
+  color: var(--acento);
+}
+
+.cel-opcao-nome {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--suave);
+}
+
+.cel-opcao-selo {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--painel-2);
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--suave);
+}
+
+/* Segurando: o cartão enche de baixo para cima em 500 ms; aplicado: pulsa. */
+.cel-opcao::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--acento-fraco);
+  transform: scaleY(0);
+  transform-origin: bottom;
+  pointer-events: none;
+}
+
+.cel-opcao-segurando::after {
+  animation: cel-encher-cartao 0.5s linear forwards;
+}
+
+@keyframes cel-encher-cartao {
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.cel-opcao-aplicado {
+  animation: cel-pulso 0.6s ease-out;
+}
+
+.cel-acao-rodape {
+  margin-top: 12px;
+}

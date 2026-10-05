@@ -4,7 +4,6 @@ import {useEffect, useState} from "react";
 import {PREDEFINICOES, posicaoArrastada} from "../../../src/posicao";
 import {abaGuardada, guardarAba} from "../Abas";
 import {SelosDoBloco} from "../ListaDeBlocos";
-import {Cores, Sons} from "../PainelEsquerdo";
 import {PainelGeral} from "../PainelGeral";
 import {Previa} from "../Previa";
 import {api} from "../api";
@@ -12,6 +11,7 @@ import {tempoDoBloco} from "../quadro";
 import type {Editor} from "../useEditor";
 import {Andamento} from "./Andamento";
 import {AvisoDesfazer} from "./AvisoDesfazer";
+import {CoresCelular} from "./CoresCelular";
 import type {AvisoComDesfazer} from "./AvisoDesfazer";
 import {AjustesDoBlocoCelular} from "./AjustesDoBlocoCelular";
 import {ArrastoCelular} from "./ArrastoCelular";
@@ -20,6 +20,7 @@ import {FaixaDeTempo} from "./FaixaDeTempo";
 import {Folha} from "./Folha";
 import {GaleriaCelular} from "./GaleriaCelular";
 import {ListaCelular} from "./ListaCelular";
+import {SonsCelular} from "./SonsCelular";
 
 const ABAS = [
   {valor: "legendas", nome: "Legendas", icone: "≡"},
@@ -224,26 +225,9 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
             )
           ) : null}
           {aba === "templates" ? <GaleriaCelular e={e} /> : null}
-          {aba === "cores" ? (
-            <Cores
-              paletas={e.catalogo.paletas}
-              paleta={estilo?.paleta ?? ""}
-              coresDasPaletas={estilo?.paletas ?? {}}
-              blocosComCor={blocos.filter((b) => b.paleta).length}
-              ocupado={e.ocupado}
-              onPaleta={e.trocarPaleta}
-              onLimparCores={e.limparCores}
-            />
-          ) : null}
+          {aba === "cores" ? <CoresCelular e={e} /> : null}
           {aba === "sons" ? (
-            <Sons
-              sons={e.sons}
-              efeitos={e.configEfeitos}
-              ocupado={e.ocupado}
-              temProjeto={e.podeExportar}
-              onEfeitos={e.mudarEfeitos}
-              onOuvir={e.ouvirSom}
-            />
+            <SonsCelular e={e} onAviso={(texto) => setAvisoDesfazer({id: Date.now(), texto})} />
           ) : null}
           {aba === "ajustes" ? (
             <>
