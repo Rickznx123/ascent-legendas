@@ -449,7 +449,7 @@ export const useEditor = () => {
     setAviso(undefined);
     setTarefa({nome, etapa: "Começando..."});
     try {
-      const {projeto: novo} = await executarTarefa<{projeto: Projeto}>(
+      const {projeto: novo, avisos} = await executarTarefa<{projeto: Projeto; avisos?: string[]}>(
         "/api/transcrever",
         {video, pacote: estilo?.pacote, paleta: estilo?.paleta, manterAjustes: recomecar},
         (andamento) => setTarefa({nome, ...andamento}),
@@ -459,9 +459,11 @@ export const useEditor = () => {
       setBlocoSelecionado(-1);
       setEstilo(await api.estilo(novo.pacote, novo.paleta));
       setAviso(
-        recomecar
+        (recomecar
           ? `Recomeçado do zero: transcrição nova com ${novo.blocks.length} blocos.`
-          : `Transcrição pronta: ${novo.blocks.length} blocos.`,
+          : `Transcrição pronta: ${novo.blocks.length} blocos.`) +
+          // Reserva usada (WhisperX indisponível): a tela avisa qual foi.
+          (avisos?.length ? ` Atenção: ${avisos.join(" ")}` : ""),
       );
     } catch (error) {
       mostrarErro(error);

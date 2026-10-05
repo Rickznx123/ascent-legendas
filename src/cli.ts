@@ -6,15 +6,18 @@ import {exportBlockFrames} from "./motor/conferencia";
 import {listarSons} from "./motor/pasta-sons";
 import {renderVideo} from "./motor/exportar";
 import {getVideoMetadata} from "./motor/ferramentas";
-import {loadStyle, outputPathFor, readProject, saveProject, transcriptionPath, WHISPER_MODEL} from "./motor/projeto";
+import {carregarEnv} from "./motor/env";
+import {loadStyle, outputPathFor, readProject, saveProject, transcriptionPath} from "./motor/projeto";
 import type {Projeto} from "./motor/projeto";
-import {transcribeVideo} from "./motor/transcrever";
+import {transcrever} from "./motor/transcricao";
 import {detectarVozDoVideo} from "./motor/voz";
 import {configDosEfeitos, planejarEfeitos} from "./sons";
 import {cortesDosExcluidos, precisaoDoProjeto, sincroniaDoProjeto} from "./entrada";
 import type {CaptionBlock, VozDoAudio, Word} from "./types";
 
 const projectRoot = process.cwd();
+// Chaves do Replicate e da Groq (transcrição).
+carregarEnv(projectRoot);
 
 type CommandOptions = {
   inputPath: string;
@@ -26,6 +29,8 @@ type CommandOptions = {
   reuseTranscription: boolean;
   regroup: boolean;
   exportReviewFrames: boolean;
+  // Transcrever com o Whisper local (sem internet), em vez do WhisperX.
+  local: boolean;
 };
 
 const parseCommandOptions = (argumentsList: string[]): CommandOptions => {
@@ -36,6 +41,7 @@ const parseCommandOptions = (argumentsList: string[]): CommandOptions => {
   let reuseTranscription = false;
   let regroup = false;
   let exportReviewFrames = false;
+  let local = false;
   const readValue = (index: number, option: string): string => {
     const value = argumentsList[index + 1];
     if (!value || value.startsWith("--")) {
@@ -61,6 +67,8 @@ const parseCommandOptions = (argumentsList: string[]): CommandOptions => {
       regroup = true;
     } else if (argument === "--conferir") {
       exportReviewFrames = true;
+    } else if (argument === "--local") {
+      local = true;
     } else if (argument.startsWith("--")) {
       throw new Error(`Opção desconhecida: ${argument}`);
     } else {
@@ -71,7 +79,7 @@ const parseCommandOptions = (argumentsList: string[]): CommandOptions => {
   const [inputArgument, outputArgument] = positionalArguments;
   if (!inputArgument) {
     throw new Error(
-      "Uso: npm run gerar -- <video-entrada.mp4> [arquivo-de-saida.mp4] [--pacote nome] [--paleta nome] [--template nome|alternar] [--usar-transcricao] [--reagrupar] [--conferir]",
+      "Uso: npm run gerar -- <video-entrada.mp4> [arquivo-de-saida.mp4] [--pacote nome] [--paleta nome] [--template nome|alternar] [--usar-transcricao] [--reagrupar] [--conferir] [--local]",
     );
   }
 
@@ -84,6 +92,7 @@ const parseCommandOptions = (argumentsList: string[]): CommandOptions => {
     reuseTranscription,
     regroup,
     exportReviewFrames,
+    local,
   };
 };
 
@@ -123,6 +132,7 @@ const main = async () => {
   let words: Word[];
   let blocks: CaptionBlock[];
   let voz: VozDoAudio | undefined = saved?.voz;
+  let model = saved?.model ?? "";
   if (saved) {
     words = saved.words;
     // Os blocos salvos são usados como estão (inclusive junções e divisões feitas
@@ -138,10 +148,12 @@ const main = async () => {
         : "Reutilizando transcricao.json editado...",
     );
   } else {
-    [words, voz] = await Promise.all([
-      transcribeVideo(projectRoot, inputPath, (etapa) => console.log(etapa)),
-      detectarVozDoVideo(inputPath),
-    ]);
+    // WhisperX, com a Groq e o Whisper local de reserva (src/motor/transcricao.ts).
+    const transcricao = await transcrever(projectRoot, inputPath, {
+      onProgress: (etapa) => console.log(etapa),
+      ...(options.local ? {local: true} : {}),
+    });
+    ({words, voz, model} = transcricao);
     blocks = groupWords(words);
   }
 
@@ -165,7 +177,7 @@ const main = async () => {
   saveProject(projectRoot, {
     source: path.basename(inputPath),
     language: "pt",
-    model: WHISPER_MODEL,
+    model,
     pacote: style.pacote,
     paleta: style.paleta,
     semente,

@@ -19,10 +19,10 @@ import {
   readProject,
   saveProject,
   transcriptionPath,
-  WHISPER_MODEL,
 } from "../../src/motor/projeto";
 import type {Projeto} from "../../src/motor/projeto";
-import {transcribeVideo} from "../../src/motor/transcrever";
+import {carregarEnv} from "../../src/motor/env";
+import {transcrever} from "../../src/motor/transcricao";
 import {detectarVozDoVideo} from "../../src/motor/voz";
 import {reloadModules} from "../../src/template-loader";
 import {configDosEfeitos, planejarEfeitos} from "../../src/sons";
@@ -72,6 +72,8 @@ const destinoLivre = (pasta: string, nome: string): string => {
 
 export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}: OpcoesServidor): Promise<Server> => {
   const root = path.resolve(pastaProjeto);
+  // Chaves do Replicate e da Groq (transcrição) do .env da pasta do projeto.
+  carregarEnv(root);
   const app = express();
   app.use(express.json({limit: "20mb"}));
 
@@ -238,11 +240,12 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
       await streamTask(response, async (progress) => {
         const anterior = readProject(root);
         const ajustes = manterAjustes && anterior?.source === video ? anterior : undefined;
-        // A voz do áudio (Sincronia precisa) é detectada junto com a transcrição.
-        const [words, voz] = await Promise.all([
-          transcribeVideo(root, videoPath(video), progress),
-          detectarVozDoVideo(videoPath(video)),
-        ]);
+        // WhisperX, com a Groq e o Whisper local de reserva; a voz do áudio
+        // (Sincronia precisa) é detectada junto (veja src/motor/transcricao.ts).
+        const {words, voz, model, avisos} = await transcrever(root, videoPath(video), {
+          onProgress: progress,
+          log: (texto) => console.log(`[${video}] ${texto}`),
+        });
         progress("Escolhendo os layouts...");
         const style = await loadStyle(root, {pacote, paleta});
         const semente = novaSemente();
@@ -250,7 +253,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
         const projeto: Projeto = {
           source: video,
           language: "pt",
-          model: WHISPER_MODEL,
+          model,
           pacote: style.pacote,
           paleta: style.paleta,
           semente,
@@ -262,7 +265,8 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
           blocks,
         };
         saveProject(root, projeto);
-        return {projeto};
+        // A tela mostra qual reserva foi usada, se não foi o WhisperX.
+        return {projeto, avisos};
       });
     } finally {
       tarefaAtual = undefined;
