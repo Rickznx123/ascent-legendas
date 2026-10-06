@@ -235,7 +235,7 @@ tempo de processamento no Replicate, que variou entre 6 e 11 s com o mesmo arqui
 Os 3 s a mais da extração são o download do vídeo daqui (Brasil) até us-east-2; no
 Render, perto da AWS, devem cair para menos de 1 s.
 
-**Bloco 6 — Exportar no Lambda** — código em 06/10/2026; falta o teste no seu celular.
+**Bloco 6 — Exportar no Lambda** ✅ concluído em 06/10/2026 (commit `43266a9`), testado no iPhone.
 
 Decisões (06/10/2026): sai a cópia dos vídeos no disco (lista, duração, voz e "remover vídeo" pelo S3; os antigos, só no disco, exportam com o render local); função de 2048 MB, 60 quadros por Lambda até 90 s e 200 acima; saída limitada a 1080 x 1920 (deitado, 1920 x 1080), mantendo a proporção; vídeo pronto direto em `exportados/<conta>/`. O site do Lambda tem o nome da versão do código (`legendas-<hash>`) e é publicado por script (`npm run nuvem:site`): montar o site levou 10,6 s com pico de 776 MB de memória, acima dos 512 MB do Render; sem o site da versão, a exportação avisa. **Rodar `npm run nuvem:site` depois de mudar `src/`, `fontes/` ou `sons/`, antes de publicar o app.**
 
@@ -253,6 +253,7 @@ Teste no Lambda (06/10/2026, vídeo do iPhone de 27 s): 80 s do pedido ao vídeo
 2. [VOCÊ] Adicionar à Tela de Início no seu iPhone ou Android e entrar com o e-mail e a senha.
 
 **Bloco 9 — Publicar**
+0. [VOCÊ/EU] **Obrigatório antes de cada publicação que mude `src/`, `fontes/` ou `sons/`: rodar `npm run nuvem:site`** (publica o site do Lambda da versão do código; sem ele, a exportação recusa com aviso).
 1. [VOCÊ] Criar a conta no Render, conectar o repositório e colar as variáveis de ambiente (eu entrego a lista).
 2. [VOCÊ] No painel de DNS da Hostinger, criar o registro de `legendas.ascentstudio.com.br` apontando para o Render (eu digo qual).
 3. [VOCÊ] No Supabase, colocar `https://legendas.ascentstudio.com.br` em Site URL e Redirect URLs.
