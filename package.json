@@ -13,7 +13,8 @@
     "app:producao": "tsx app/servidor/index.ts --producao",
     "medir-sincronia": "tsx medicao/medir-sincronia.ts",
     "link-login": "tsx scripts/link-login.ts",
-    "plano": "tsx scripts/plano.ts"
+    "plano": "tsx scripts/plano.ts",
+    "app:publico": "tsx app/servidor/index.ts --producao"
   },
   "dependencies": {
     "@remotion/bundler": "4.0.532",

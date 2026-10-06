@@ -1,0 +1,24 @@
+# Fora da imagem do servidor: segredos, vídeos, saídas, dados de usuários,
+# ferramentas só do computador e resultados de medição.
+.env
+.env.*
+!.env.example
+.git
+node_modules
+app/web/dist
+whisper.cpp
+.remotion
+usuarios
+saidas
+removidos
+conferencia
+medicao/resultados
+nuvem/resultados
+transcricao.json
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.aac
+*.log
+*.tmp

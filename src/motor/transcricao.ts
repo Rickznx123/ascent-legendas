@@ -41,9 +41,17 @@ export const transcrever = async (
   inputPath: string,
   {
     local = process.env.TRANSCRICAO?.trim().toLowerCase() === "local",
+    semWhisperLocal = false,
     onProgress = () => undefined,
     log = (texto: string) => console.log(texto),
-  }: {local?: boolean; onProgress?: Progresso; log?: (texto: string) => void} = {},
+  }: {
+    local?: boolean;
+    // Servidor na internet: o Whisper local não existe nele. Sem WhisperX e Groq,
+    // erro claro em vez da reserva local (e TRANSCRICAO=local não vale).
+    semWhisperLocal?: boolean;
+    onProgress?: Progresso;
+    log?: (texto: string) => void;
+  } = {},
 ): Promise<Transcricao> => {
   const avisos: string[] = [];
   const avisar = (texto: string) => {
@@ -65,7 +73,7 @@ export const transcrever = async (
     return {...resto, voz, avisos, transcricaoS, vozS};
   };
 
-  if (!local) {
+  if (!local || semWhisperLocal) {
     if (process.env.REPLICATE_API_TOKEN?.trim()) {
       try {
         const {words, semTempo, execucao} = await transcreverWhisperX(inputPath, {prazoMs: PRAZO_DO_WHISPERX_MS, onProgress});
@@ -88,9 +96,16 @@ export const transcrever = async (
         const {words} = await transcreverGroq(inputPath);
         return await pronta({words, motor: "groq", model: `groq/${MODELO_GROQ}`});
       } catch (erro) {
+        if (semWhisperLocal) {
+          log(`Transcrição: a Groq também falhou (${mensagem(erro)}).`);
+          throw new Error("Não deu para transcrever agora: os serviços de transcrição não responderam. Tente de novo em alguns minutos.");
+        }
         avisar(`a Groq também falhou (${mensagem(erro)}); usando o Whisper local.`);
       }
     } else {
+      if (semWhisperLocal) {
+        throw new Error("Não deu para transcrever: falta configurar o WhisperX ou a Groq no servidor.");
+      }
       avisar("sem GROQ_API_KEY no .env; usando o Whisper local.");
     }
   }

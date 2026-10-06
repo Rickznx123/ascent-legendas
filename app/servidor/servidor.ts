@@ -41,6 +41,9 @@ export type OpcoesServidor = {
   modo: "dev" | "producao";
   // Aceita aparelhos da mesma rede (npm run app:rede). Sem isso, só a própria máquina.
   rede?: boolean;
+  // Servidor na internet (SERVIDOR_PUBLICO=1, veja configuracao.ts): exige login,
+  // ouve em 0.0.0.0 atrás do proxy, sem o que só faz sentido no computador.
+  publico?: boolean;
 };
 
 // Envia uma tarefa longa como linhas JSON: progresso, depois fim ou erro.
@@ -110,15 +113,28 @@ const pedidoLocal = (request: Request): boolean => {
   return !encaminhado && (endereco === "127.0.0.1" || endereco === "::1" || endereco === "::ffff:127.0.0.1");
 };
 
-export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}: OpcoesServidor): Promise<Server> => {
+export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, publico = false}: OpcoesServidor): Promise<Server> => {
   const root = path.resolve(pastaProjeto);
   // Chaves do Replicate, da Groq e do Supabase do .env da pasta do projeto.
   carregarEnv(root);
   // Sem as variáveis do Supabase, o modo local de sempre, sem login.
   const contas = contasDoAmbiente();
   console.log(contas ? "Login pelo Supabase: ligado." : "Login: desligado (sem as variáveis do Supabase no .env), modo local.");
+  // Na internet, nunca sem login (o modo local daria acesso a qualquer um).
+  if (publico && !contas) {
+    throw new Error("SERVIDOR_PUBLICO=1 exige SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY e SUPABASE_SECRET_KEY.");
+  }
   const app = express();
+  // Atrás do proxy do Render: o endereço e o https verdadeiros vêm dos cabeçalhos.
+  if (publico) {
+    app.set("trust proxy", 1);
+  }
   app.use(express.json({limit: "20mb"}));
+
+  // Saúde, para o Render saber que o servidor subiu (sem login, sem dados).
+  app.get("/saude", (_request, response) => {
+    response.json({ok: true});
+  });
 
   // Só uma tarefa longa (transcrever ou exportar) por vez nesta máquina.
   let tarefaAtual: string | undefined;
@@ -317,6 +333,10 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
   app.post(
     "/api/abrir-saidas",
     handle(async (_request, response) => {
+      // Abre o Explorer da máquina do servidor: só no computador.
+      if (publico) {
+        throw new Error("Indisponível no app publicado: baixe o vídeo exportado.");
+      }
       const pasta = path.join(espacoDe(response).pasta, "saidas");
       await mkdir(pasta, {recursive: true});
       const comando =
@@ -347,6 +367,8 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
         // WhisperX, com a Groq e o Whisper local de reserva; a voz do áudio
         // (Sincronia precisa) é detectada junto (veja src/motor/transcricao.ts).
         const {words, voz, model, avisos} = await transcrever(root, videoPath(espaco, video), {
+          // Na internet, sem o Whisper local (não fica no servidor).
+          ...(publico ? {semWhisperLocal: true} : {}),
           onProgress: progress,
           log: (texto) => console.log(`[${video}] ${texto}`),
         });
@@ -514,6 +536,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
     const projetoValido = projeto && videos.includes(projeto.source) ? projeto : undefined;
     const disponivel =
       Boolean(contas && espaco.usuario) &&
+      !publico &&
       pedidoLocal(request) &&
       !existsSync(marcaDaImportacao) &&
       videos.length > 0 &&
@@ -580,7 +603,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false}:
   }
 
   return new Promise((resolve) => {
-    const server = app.listen(porta, rede ? "0.0.0.0" : "127.0.0.1", () => resolve(server));
+    const server = app.listen(porta, rede || publico ? "0.0.0.0" : "127.0.0.1", () => resolve(server));
   });
 };
 
