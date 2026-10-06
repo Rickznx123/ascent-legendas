@@ -54,7 +54,8 @@ export class ErroDaTarefa extends Error {
 export type Andamento = {etapa: string; fracao?: number};
 
 // Tarefas no servidor, soltas da página (veja app/web/tarefas-soltas.ts).
-export type Exportacao = TarefaSolta & {caminho?: string; descontoS?: number};
+// url e download: endereços assinados do vídeo pronto no S3 (exportação no Lambda).
+export type Exportacao = TarefaSolta & {caminho?: string; descontoS?: number; url?: string; download?: string};
 export type TranscricaoNoServidor = TarefaSolta & {projeto?: Projeto; avisos?: string[]};
 
 const lerJson = async <T>(response: Response): Promise<T> => {
@@ -147,7 +148,7 @@ export const api = {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({nome}),
-    }).then((r) => lerJson<{movidoPara: string; apagouTranscricao: boolean}>(r)),
+    }).then((r) => lerJson<{movidoPara?: string; apagouTranscricao: boolean}>(r)),
 
   sons: () => pedir("/api/sons").then((r) => lerJson<ArquivoSom[]>(r)),
 

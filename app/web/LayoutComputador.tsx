@@ -98,7 +98,7 @@ export const LayoutComputador: React.FC<{e: Editor}> = ({e}) => {
         // Com plano: primeiro o aviso do que vai descontar (AvisoDoPlano, abaixo).
         onExportar={e.comPlano ? () => void e.prepararExportacao() : e.exportar}
         exportado={e.exportado?.nome}
-        onBaixar={() => e.exportado && plataforma.baixarExportado(e.exportado.nome)}
+        onBaixar={() => e.exportado && plataforma.baixarExportado(e.exportado.nome, e.exportado.download)}
         onAbrirPasta={() => plataforma.abrirPastaDeSaidas().catch(e.mostrarErro)}
         onFecharExportado={() => e.setExportado(undefined)}
         esqAberto={esqAberto}

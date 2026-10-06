@@ -32,6 +32,10 @@ import {PASTAS_NO_BUCKET, configuracaoDoAmbiente} from "./configuracao";
 import {contasDoAmbiente} from "./contas";
 import {rotasDeEnvio} from "./envio";
 import {previasLeves, tirarCapa} from "./previa-leve";
+import {videosDasContas} from "./videos";
+import {rendersNoLambda} from "./renders";
+import type {ExportacaoMontada} from "./renders";
+import type {AwsRegion} from "@remotion/lambda/client";
 import {tituloDoVideo} from "./titulo";
 import {tarefasSoltas} from "./tarefas-soltas";
 import {s3DoAmbiente} from "./s3";
@@ -82,19 +86,6 @@ class ErroDoPlano extends Error {
   }
 }
 
-// Vídeos tirados da lista por "Remover vídeo" (o arquivo não é apagado).
-const PASTA_DE_REMOVIDOS = "removidos";
-
-// Caminho em pasta para nome, sem sobrescrever: "video (2).mp4" se já existir.
-const destinoLivre = (pasta: string, nome: string): string => {
-  const {name, ext} = path.parse(nome);
-  let destino = path.join(pasta, nome);
-  for (let n = 2; existsSync(destino); n++) {
-    destino = path.join(pasta, `${name} (${n})${ext}`);
-  }
-  return destino;
-};
-
 // Espaço (vídeos e projetos) de quem fez o pedido, preenchido pela autenticação.
 const espacoDe = (response: Response): Espaco => response.locals.espaco as Espaco;
 
@@ -134,6 +125,19 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // passa pelo servidor e vai para o disco, como sempre.
   const armazenamento = contas ? s3DoAmbiente(configuracaoDoAmbiente()) : undefined;
   const previas = armazenamento ? previasLeves(armazenamento) : undefined;
+  // Exportação no Lambda (com login e S3; veja renders.ts). O site do Lambda é
+  // publicado por script (npm run nuvem:site): montar o site não cabe na memória do
+  // servidor na nuvem. Sem o site desta versão, a exportação avisa.
+  const lambda =
+    contas && armazenamento
+      ? rendersNoLambda({raiz: root, regiao: configuracaoDoAmbiente().regiaoAws as AwsRegion, contas, armazenamento})
+      : undefined;
+  if (lambda) {
+    lambda
+      .prontoParaExportar()
+      .then(({site, funcao}) => console.log(`Exportação: no Lambda (${funcao}, site ${site.nome}).`))
+      .catch((erro: unknown) => console.log(`Exportação: ${erro instanceof Error ? erro.message : String(erro)}`));
+  }
   console.log(armazenamento ? `Envio de vídeos: direto para o S3 (${armazenamento.bucket}).` : "Envio de vídeos: pelo servidor, para o disco.");
   const app = express();
   // Atrás do proxy do Render: o endereço e o https verdadeiros vêm dos cabeçalhos.
@@ -171,11 +175,15 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     return true;
   };
 
-  const videoPath = (espaco: Espaco, nome: string): string => {
-    if (!espaco.videos().includes(nome)) {
-      throw new Error(`Vídeo não encontrado: ${nome}`);
+  // Os vídeos de cada conta: os enviados no S3, os antigos no disco (veja videos.ts).
+  const videos = videosDasContas(armazenamento);
+  // Caminho de um vídeo que está no disco (o antigo, ou o modo local); erro se não está.
+  const noDisco = async (espaco: Espaco, nome: string): Promise<string> => {
+    const fonte = await videos.fonte(espaco, nome);
+    if (fonte.onde !== "disco") {
+      throw new Error(`Vídeo não encontrado no disco: ${nome}`);
     }
-    return path.join(espaco.pasta, nome);
+    return fonte.caminho;
   };
 
   const handle =
@@ -223,7 +231,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
 
   // Envio direto do navegador para o S3, em partes (veja envio.ts).
   if (contas && armazenamento && previas) {
-    app.use("/api/envio", rotasDeEnvio({contas, armazenamento, previas, espacoDe}));
+    app.use("/api/envio", rotasDeEnvio({contas, armazenamento, previas, videos, espacoDe}));
   }
 
   // Prévia leve e capa do vídeo (veja previa-leve.ts). Sem S3, ou vídeo só no disco:
@@ -233,13 +241,13 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     handle(async (request, response) => {
       const espaco = espacoDe(response);
       const nome = String(request.query.nome ?? "");
-      const origemLocal = videoPath(espaco, nome);
+      const fonte = await videos.fonte(espaco, nome);
       // Vídeo só no disco: a capa em JPG também, feita aqui (GET /capa).
       const capaLocal = `/capa/${encodeURIComponent(nome)}`;
-      if (!previas || !espaco.usuario) {
+      if (fonte.onde === "disco" || !previas || !espaco.usuario) {
         return {estado: "local", capa: capaLocal};
       }
-      const estado = await previas.estado(espaco.usuario.id, nome, origemLocal, request.query.tentar === "1");
+      const estado = await previas.estado(espaco.usuario.id, nome, undefined, request.query.tentar === "1");
       return estado.estado === "local" ? {...estado, capa: capaLocal} : estado;
     }),
   );
@@ -262,7 +270,8 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     return tituloDoVideo(video, quando);
   };
   const catalogo = async (espaco: Espaco) => {
-    const lido = loadCatalog(root, espaco.pasta);
+    // Pacotes e paletas do disco; os vídeos, do S3 e do disco.
+    const lido = {...loadCatalog(root, espaco.pasta), videos: await videos.listar(espaco)};
     const [projetos, titulos] = await Promise.all([
       espaco.projetos(),
       Promise.all(lido.videos.map(async (video) => [video, await tituloDe(espaco, video)] as const)),
@@ -327,7 +336,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       const espaco = espacoDe(response);
       const projeto = request.body as Projeto;
       // Só projetos de vídeos do próprio espaço.
-      videoPath(espaco, projeto.source);
+      await videos.fonte(espaco, projeto.source);
       // A lista de palavras acompanha sempre as palavras dos blocos editados.
       await espaco.salvarProjeto({...projeto, words: wordsOfBlocks(projeto.blocks)});
       return {ok: true};
@@ -346,12 +355,12 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // antes de existir a detecção (a transcrição nova já salva a voz).
   app.get(
     "/api/voz",
-    handle((request, response) => detectarVozDoVideo(videoPath(espacoDe(response), String(request.query.nome ?? "")))),
+    handle(async (request, response) => detectarVozDoVideo(await videos.entrada(espacoDe(response), String(request.query.nome ?? "")))),
   );
 
   app.get(
     "/api/video-info",
-    handle((request, response) => getVideoMetadata(videoPath(espacoDe(response), String(request.query.nome ?? "")))),
+    handle(async (request, response) => getVideoMetadata(await videos.entrada(espacoDe(response), String(request.query.nome ?? "")))),
   );
 
   // Capa em JPG de um vídeo que só existe no disco (a do S3 vem com a prévia leve).
@@ -362,7 +371,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   app.get("/capa/:nome", async (request, response) => {
     try {
       const espaco = espacoDe(response);
-      const video = videoPath(espaco, request.params.nome);
+      const video = await noDisco(espaco, request.params.nome);
       const pasta = path.join(os.tmpdir(), "legendas-capas", espaco.usuario?.id ?? "local");
       const capa = path.join(pasta, `${request.params.nome}.jpg`);
       const atualizada = async () => {
@@ -389,9 +398,10 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     }
   });
 
-  app.get("/media/:nome", (request, response) => {
+  // Vídeo do disco para a prévia (os do S3 tocam pela prévia leve, veja /api/previa).
+  app.get("/media/:nome", async (request, response) => {
     try {
-      response.sendFile(videoPath(espacoDe(response), request.params.nome));
+      response.sendFile(await noDisco(espacoDe(response), request.params.nome));
     } catch (error) {
       response.status(404).send(error instanceof Error ? error.message : String(error));
     }
@@ -466,16 +476,6 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // (efeitos sonoros e sincronia) continuam. A transcrição antiga só é trocada
   // quando a nova fica pronta: se o whisper falhar, ela continua como estava.
   const transcricoes = tarefasSoltas();
-  const origemDoVideo = async (espaco: Espaco, video: string): Promise<string> => {
-    const noDisco = videoPath(espaco, video);
-    if (armazenamento && espaco.usuario) {
-      const chave = `${PASTAS_NO_BUCKET.videos.prefixo}${espaco.usuario.id}/${video}`;
-      if (await armazenamento.existe(chave)) {
-        return armazenamento.enderecoDeLeitura(chave, 3600);
-      }
-    }
-    return noDisco;
-  };
 
   app.post(
     "/api/transcrever",
@@ -487,7 +487,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
         paleta?: string;
         manterAjustes?: boolean;
       };
-      videoPath(espaco, video);
+      await videos.fonte(espaco, video);
       const chave = chaveDaTarefa(espaco, video);
       const atual = transcricoes.emAndamento(chave);
       if (atual) {
@@ -509,7 +509,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
         async (progress) => {
           const anterior = await espaco.lerProjeto(video);
           const ajustes = manterAjustes && anterior?.source === video ? anterior : undefined;
-          const origem = await origemDoVideo(espaco, video);
+          const origem = await videos.entrada(espaco, video);
           console.log(`[${video}] Transcrição: lendo o vídeo ${origem.startsWith("http") ? "do S3" : "do disco"}.`);
           // WhisperX, com a Groq e o Whisper local de reserva; a voz do áudio
           // (Sincronia precisa) é detectada junto (veja src/motor/transcricao.ts).
@@ -563,8 +563,8 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     handle((request, response) => transcricoes.ler(chaveDaTarefa(espacoDe(response), String(request.query.video ?? ""))) ?? {estado: "nenhuma"}),
   );
 
-  // Remover vídeo: o arquivo sai da lista indo para removidos/ (não é apagado) e a
-  // transcrição dele é apagada. saidas/ não é tocada.
+  // Remover vídeo: sai da lista e a transcrição dele é apagada. O enviado ao S3 é
+  // apagado (com a prévia leve e a capa); o antigo, do disco, vai para removidos/.
   app.post("/api/remover-video", async (request, response) => {
     if (!reservar("remoção de vídeo", response)) {
       return;
@@ -572,25 +572,9 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     try {
       const espaco = espacoDe(response);
       const nome = String((request.body as {nome?: string}).nome ?? "");
-      const origem = videoPath(espaco, nome);
-      const pasta = path.join(espaco.pasta, PASTA_DE_REMOVIDOS);
-      await mkdir(pasta, {recursive: true});
-      const destino = destinoLivre(pasta, nome);
-      // No Windows o arquivo pode ficar preso por instantes (a prévia acabou de soltar).
-      for (let tentativa = 1; ; tentativa++) {
-        try {
-          await rename(origem, destino);
-          break;
-        } catch (error) {
-          const codigo = (error as NodeJS.ErrnoException).code;
-          if (tentativa >= 10 || (codigo !== "EBUSY" && codigo !== "EPERM")) {
-            throw error;
-          }
-          await new Promise((resolve) => setTimeout(resolve, 300));
-        }
-      }
+      const movidoPara = await videos.remover(espaco, nome);
       const apagouTranscricao = await espaco.apagarProjeto(nome);
-      response.json({movidoPara: path.relative(espaco.pasta, destino), apagouTranscricao});
+      response.json({movidoPara, apagouTranscricao});
     } catch (error) {
       response.status(400).json({mensagem: error instanceof Error ? error.message : String(error)});
     } finally {
@@ -608,7 +592,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
         return {semLimite: true};
       }
       const video = String(request.query.video ?? "");
-      const metadados = await getVideoMetadata(videoPath(espaco, video));
+      const metadados = await getVideoMetadata(await videos.entrada(espaco, video));
       return espaco.cota.decidir(video, metadados.durationInFrames / metadados.fps);
     }),
   );
@@ -619,17 +603,18 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   const exportacoes = tarefasSoltas();
   const chaveDaTarefa = (espaco: Espaco, video: string) => `${espaco.usuario?.id ?? "local"}:${video}`;
 
-  const renderizarProjeto = async (espaco: Espaco, projeto: Projeto, progress: (etapa: string, fracao?: number) => void) => {
-    const inputPath = videoPath(espaco, projeto.source);
+  // O que vai para o render (local ou no Lambda): estilo, efeitos, sincronia e a
+  // decisão do plano, com a duração medida no servidor. entrada: o vídeo (caminho no
+  // disco ou endereço assinado do S3).
+  const montarExportacao = async (espaco: Espaco, projeto: Projeto, entrada: string): Promise<ExportacaoMontada> => {
     const style = await loadStyle(root, {pacote: projeto.pacote, paleta: projeto.paleta}, projeto);
-    const outputPath = outputPathFor(espaco.pasta, projeto.source, style.pacote, style.paleta);
     const missing = projeto.blocks.findIndex((block) => !style.templates[block.template]);
     if (missing >= 0) {
       throw new Error(
         `O bloco ${missing + 1} usa o layout '${projeto.blocks[missing].template}', que não existe no pacote ${style.pacote}.`,
       );
     }
-    const video = await getVideoMetadata(inputPath);
+    const video = await getVideoMetadata(entrada);
     // O plano decide aqui, com a duração do arquivo medida no servidor: se não
     // cabe, o render nem começa; a marca d'água vem do plano, nunca do pedido.
     const duracaoS = video.durationInFrames / video.fps;
@@ -649,11 +634,8 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     console.log(
       `Exportar: ${sons.length} sons em sons/, ${plano.length} efeitos (destaque ${efeitos.destaque}, linear ${efeitos.linear}, volume ${efeitos.volume}%), sincronia ${sincroniaMs} ms${precisa ? " (precisa)" : ""}.`,
     );
-    await renderVideo(
-      {
-        root,
-        inputPath,
-        outputPath,
+    return {
+      props: {
         blocks,
         templates: style.templates,
         palette: style.palette,
@@ -667,8 +649,19 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
         cortesMs,
         marcaDagua: decisao?.comMarca ?? false,
       },
-      progress,
-    );
+      decisao,
+      duracaoS,
+      pacote: style.pacote,
+      paleta: style.paleta,
+    };
+  };
+
+  // Render neste computador: o modo local e os vídeos antigos, só no disco.
+  const renderizarProjeto = async (espaco: Espaco, projeto: Projeto, progress: (etapa: string, fracao?: number) => void) => {
+    const inputPath = await noDisco(espaco, projeto.source);
+    const {props, decisao, duracaoS, pacote, paleta} = await montarExportacao(espaco, projeto, inputPath);
+    const outputPath = outputPathFor(espaco.pasta, projeto.source, pacote, paleta);
+    await renderVideo({root, inputPath, outputPath, ...props}, progress);
     // Só o que terminou desconta: o registro vem depois do render.
     if (decisao) {
       await espaco.cota!.registrar(projeto.source, duracaoS, decisao);
@@ -685,6 +678,11 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       const projeto = await espaco.lerProjeto(pedido);
       if (!projeto || (pedido && projeto.source !== pedido)) {
         throw new Error("Não há projeto para exportar.");
+      }
+      // Vídeo enviado ao S3 (com login): no Lambda. Antigo, só no disco: aqui.
+      const fonte = await videos.fonte(espaco, projeto.source);
+      if (lambda && espaco.usuario && fonte.onde === "s3") {
+        return lambda.exportar(espaco, projeto, fonte.chave, (entrada) => montarExportacao(espaco, projeto, entrada));
       }
       const chave = chaveDaTarefa(espaco, projeto.source);
       const atual = exportacoes.emAndamento(chave);
@@ -709,7 +707,14 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // Andamento (ou resultado) da última exportação deste vídeo.
   app.get(
     "/api/exportacao",
-    handle((request, response) => exportacoes.ler(chaveDaTarefa(espacoDe(response), String(request.query.video ?? ""))) ?? {estado: "nenhuma"}),
+    handle(async (request, response) => {
+      const espaco = espacoDe(response);
+      const video = String(request.query.video ?? "");
+      const local = exportacoes.ler(chaveDaTarefa(espaco, video));
+      // No Lambda (vídeo do S3): a última exportação registrada no Supabase.
+      const doLambda = lambda && espaco.usuario && !local ? await lambda.estado(espaco, video) : undefined;
+      return local ?? doLambda ?? {estado: "nenhuma"};
+    }),
   );
 
   // "Importar projetos deste computador": no primeiro login, traz para a conta os
@@ -718,18 +723,18 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // rede) e uma vez só: a primeira conta que importa fica registrada.
   const marcaDaImportacao = path.join(root, "usuarios", ".importacao-local.json");
   const importacaoLocal = async (request: Request, espaco: Espaco) => {
-    const videos = listarVideos(root);
+    const daMaquina = listarVideos(root);
     const projeto = readProject(root);
-    const projetoValido = projeto && videos.includes(projeto.source) ? projeto : undefined;
+    const projetoValido = projeto && daMaquina.includes(projeto.source) ? projeto : undefined;
     const disponivel =
       Boolean(contas && espaco.usuario) &&
       !publico &&
       pedidoLocal(request) &&
       !existsSync(marcaDaImportacao) &&
-      videos.length > 0 &&
-      espaco.videos().length === 0 &&
+      daMaquina.length > 0 &&
+      (await videos.listar(espaco)).length === 0 &&
       (await espaco.projetos()).length === 0;
-    return {disponivel, videos, projeto: projetoValido};
+    return {disponivel, videos: daMaquina, projeto: projetoValido};
   };
 
   app.get(

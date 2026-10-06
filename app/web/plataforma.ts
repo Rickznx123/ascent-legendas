@@ -21,7 +21,8 @@ export type Plataforma = {
   // Transforma um arquivo arrastado para a janela num vídeo escolhido.
   videoArrastado: (arquivo: File) => VideoEscolhido | undefined;
   // Salva o vídeo exportado no computador do usuário.
-  baixarExportado: (nomeDoArquivo: string) => void;
+  // endereco: o do S3 (exportação no Lambda); sem ele, saidas/ do servidor.
+  baixarExportado: (nomeDoArquivo: string, endereco?: string) => void;
   // Abre a pasta saidas/ no explorador de arquivos.
   abrirPastaDeSaidas: () => Promise<void>;
 };
@@ -93,9 +94,10 @@ const navegador: Plataforma = {
       input.click();
     }),
   videoArrastado: videoDoArquivo,
-  baixarExportado: (nomeDoArquivo) => {
+  baixarExportado: (nomeDoArquivo, endereco) => {
     const link = document.createElement("a");
-    link.href = `/saidas/${encodeURIComponent(nomeDoArquivo)}`;
+    // No S3, o endereço assinado já pede para baixar (Content-Disposition).
+    link.href = endereco ?? `/saidas/${encodeURIComponent(nomeDoArquivo)}`;
     link.download = nomeDoArquivo;
     link.click();
   },

@@ -8,7 +8,8 @@ import {plataforma} from "../plataforma";
 import type {Editor} from "../useEditor";
 import {resumoDoUso} from "./plano";
 
-const urlDoExportado = (nome: string) => `/saidas/${encodeURIComponent(nome)}`;
+// O vídeo pronto: no S3 (exportação no Lambda) ou em saidas/ do servidor.
+const urlDoExportado = (pronto: {nome: string; url?: string}) => pronto.url ?? `/saidas/${encodeURIComponent(pronto.nome)}`;
 
 // O navegador compartilha arquivos de vídeo (só em HTTPS ou no próprio computador).
 const podeCompartilharVideo = (): boolean => {
@@ -45,7 +46,7 @@ export const TelaExportar: React.FC<{e: Editor; onVoltar: () => void}> = ({e, on
     }
     setCompartilhando(true);
     try {
-      const resposta = await fetch(urlDoExportado(pronto.nome));
+      const resposta = await fetch(urlDoExportado(pronto));
       const arquivo = new File([await resposta.blob()], pronto.nome, {type: "video/mp4"});
       await navigator.share({files: [arquivo], title: pronto.nome});
     } catch (error) {
@@ -69,12 +70,12 @@ export const TelaExportar: React.FC<{e: Editor; onVoltar: () => void}> = ({e, on
       <div className="cel-centro">
         {pronto ? (
           <>
-            <video className="cel-pronto" src={urlDoExportado(pronto.nome)} controls playsInline preload="metadata" />
+            <video className="cel-pronto" src={urlDoExportado(pronto)} controls playsInline preload="metadata" />
             <h2>Vídeo pronto</h2>
             <p>{pronto.nome}</p>
             {conta?.uso ? <p className="suave">Seu plano: {resumoDoUso(conta.uso).titulo}.</p> : null}
             <div className="cel-pilha">
-              <button type="button" className="bt primario cel-cheio" onClick={() => plataforma.baixarExportado(pronto.nome)}>
+              <button type="button" className="bt primario cel-cheio" onClick={() => plataforma.baixarExportado(pronto.nome, pronto.download)}>
                 Salvar na galeria
               </button>
               {podeCompartilharVideo() ? (
@@ -96,7 +97,7 @@ export const TelaExportar: React.FC<{e: Editor; onVoltar: () => void}> = ({e, on
               {e.tarefa?.etapa}
               {e.tarefa?.fracao !== undefined ? ` ${Math.round(e.tarefa.fracao * 100)}%` : ""}
             </p>
-            <p className="suave">Pode sair do app ou bloquear a tela: a exportação continua e aparece aqui quando você voltar.</p>
+            <p className="suave">O vídeo é gerado na nuvem. Pode sair do app ou bloquear a tela: a exportação continua e aparece aqui quando você voltar.</p>
           </>
         ) : e.previaExportacao && !e.erro ? (
           <>

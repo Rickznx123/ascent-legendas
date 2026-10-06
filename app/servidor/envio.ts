@@ -9,19 +9,14 @@
 // Limites do plano (LIMITES.envio): tamanho conferido ao abrir e depois de fechar;
 // duração conferida ao abrir (a que o navegador mediu) e, valendo, pelo ffprobe no
 // arquivo do S3. Fora do limite, o arquivo é apagado.
-// Até a prévia, a transcrição e a exportação lerem do S3 (blocos 4 a 6), o vídeo
-// enviado também é copiado para a pasta do usuário no disco.
-import {createWriteStream} from "node:fs";
-import {mkdir, rename, rm} from "node:fs/promises";
+// O vídeo enviado fica só no S3 (desde o bloco 6): a lista, a prévia, a
+// transcrição e a exportação leem de lá.
 import path from "node:path";
-import {Readable} from "node:stream";
-import {pipeline} from "node:stream/promises";
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
-  GetObjectCommand,
   HeadObjectCommand,
   ListPartsCommand,
   UploadPartCommand,
@@ -35,6 +30,7 @@ import type {Contas} from "./contas";
 import {LIMITES, duracaoEmTexto} from "./cota";
 import type {Espaco} from "./espaco";
 import type {PreviasLeves} from "./previa-leve";
+import type {VideosDasContas} from "./videos";
 import {tituloDoVideo} from "./titulo";
 import type {ArmazenamentoS3} from "./s3";
 
@@ -75,11 +71,13 @@ export const rotasDeEnvio = ({
   contas,
   armazenamento,
   previas,
+  videos,
   espacoDe,
 }: {
   contas: Contas;
   armazenamento: ArmazenamentoS3;
   previas: PreviasLeves;
+  videos: VideosDasContas;
   espacoDe: (response: Response) => Espaco;
 }): express.Router => {
   const {s3, bucket: Bucket} = armazenamento;
@@ -160,7 +158,7 @@ export const rotasDeEnvio = ({
           413,
         );
       }
-      if (espaco.videos().includes(nome) && !substituir) {
+      if ((await videos.listar(espaco)).includes(nome) && !substituir) {
         throw new ErroDoEnvio(`Já existe um vídeo chamado ${nome}.`, 409);
       }
       const chave = `${prefixoDe(espaco.usuario.id)}${nome}`;
@@ -257,21 +255,8 @@ export const rotasDeEnvio = ({
         throw new ErroDoEnvio(`Este vídeo tem ${duracaoEmTexto(duracaoS)}; o limite ${textoDoPlano(limite.plano)} é ${duracaoEmTexto(limite.segundos)} por vídeo.`, 413);
       }
 
-      // Provisório (até os blocos 4 a 6): cópia na pasta do usuário no disco, que a
-      // prévia, a transcrição e a exportação ainda usam.
-      await mkdir(espaco.pasta, {recursive: true});
-      const destino = path.join(espaco.pasta, nome);
-      const temporario = `${destino}.baixando`;
-      try {
-        const objeto = await s3.send(new GetObjectCommand({Bucket, Key: chave}));
-        await pipeline(objeto.Body as Readable, createWriteStream(temporario));
-        await rename(temporario, destino);
-      } catch (erro) {
-        await rm(temporario, {force: true});
-        throw erro;
-      }
       // Capa e prévia leve, sem esperar (a tela pergunta o estado em /api/previa).
-      previas.gerar(espaco.usuario.id, nome, destino);
+      previas.gerar(espaco.usuario.id, nome);
       return {nome, duracaoS, bytes: ContentLength};
     }),
   );

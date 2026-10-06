@@ -47,7 +47,8 @@ import type {VideoEscolhido} from "./plataforma";
 
 export type Tarefa = {nome: string} & Andamento;
 
-export type Exportado = {nome: string; caminho: string};
+// url e download: o vídeo pronto no S3 (exportação no Lambda); sem eles, em saidas/.
+export type Exportado = {nome: string; caminho: string; url?: string; download?: string};
 
 const nomeDoArquivo = (caminho: string): string => caminho.split(/[\\/]/u).pop() ?? caminho;
 
@@ -567,8 +568,8 @@ export const useEditor = () => {
       !nome ||
       !window.confirm(
         `Remover "${nome}" da lista?\n\n` +
-          "O arquivo vai para a pasta removidos/ (não é apagado) e a transcrição dele, com todas as edições, é apagada. " +
-          "Os vídeos em saidas/ continuam.",
+          "O vídeo é apagado (os antigos, só no computador, vão para a pasta removidos/) e a transcrição dele, com todas as edições, também. " +
+          "Os vídeos já exportados continuam.",
       )
     ) {
       return false;
@@ -585,7 +586,7 @@ export const useEditor = () => {
       if (apagouTranscricao) {
         setProjeto(null);
       }
-      setAviso(`"${nome}" saiu da lista (arquivo em ${movidoPara})${apagouTranscricao ? " e a transcrição dele foi apagada" : ""}.`);
+      setAviso(`"${nome}" saiu da lista${movidoPara ? ` (arquivo em ${movidoPara})` : ""}${apagouTranscricao ? " e a transcrição dele foi apagada" : ""}.`);
       return true;
     } catch (error) {
       setVideo(nome);
@@ -666,7 +667,7 @@ export const useEditor = () => {
       );
       marcarTarefaMostrada(fim.id);
       if (fim.estado === "pronta" && fim.caminho) {
-        setExportado({nome: nomeDoArquivo(fim.caminho), caminho: fim.caminho});
+        setExportado({nome: nomeDoArquivo(fim.caminho), caminho: fim.caminho, url: fim.url, download: fim.download});
         setPreviaExportacao(undefined);
         // O uso do plano mudou (quadro do Início, menu da conta).
         atualizarConta();

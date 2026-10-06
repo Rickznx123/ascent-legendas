@@ -13,6 +13,7 @@
     "app:producao": "tsx app/servidor/index.ts --producao",
     "medir-sincronia": "tsx medicao/medir-sincronia.ts",
     "link-login": "tsx scripts/link-login.ts",
+    "nuvem:site": "tsx nuvem/site.ts",
     "plano": "tsx scripts/plano.ts",
     "app:publico": "tsx app/servidor/index.ts --producao"
   },
