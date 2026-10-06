@@ -181,7 +181,7 @@ Legenda: **[VOCÊ]** contas, consoles, domínio e decisões; **[EU]** código, s
 1. [EU] Script que cria o bucket privado em us-east-2, com CORS e as regras de expiração. [VOCÊ] Aprovar no console a política de permissão do usuário IAM: ler e escrever só nesse bucket, mais o Lambda que já existe.
 2. [EU] Teste: enviar e ler um arquivo por endereço assinado.
 
-**Bloco 3 — Envio direto do celular** — código ✅ em 06/10/2026 (partes de 5 MB, 3 ao mesmo tempo, retomada guardada no aparelho; cópia provisória no disco até o Bloco 6). Falta o teste no seu celular.
+**Bloco 3 — Envio direto do celular** ✅ concluído em 06/10/2026 (commit `fe0ff6c`; partes de 5 MB, 3 ao mesmo tempo, retomada guardada no aparelho; cópia provisória no disco até o Bloco 6). Testado no iPhone pelo túnel com um vídeo 4K de 9 s (IMG_2750), com os registros de diagnóstico (`3e11654`) e a correção da rotação (`1b50d5d`).
 1. [EU] Rotas do envio em partes, Uppy na tela, limites do plano e ffprobe no fim.
 2. [EU] Teste: enviar pelo túnel no 4G, derrubar a conexão no meio e retomar.
 3. [VOCÊ] Teste no seu celular: enviar um vídeo de verdade.
