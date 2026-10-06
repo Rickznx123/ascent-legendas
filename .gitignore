@@ -14,6 +14,8 @@ removidos/
 # Vídeos e saídas de cada conta (com login), até a Etapa 3 (S3)
 usuarios/
 saida.mp4
+# Projeto do modo local: conteúdo de cliente (transcrição), fica só no disco
+transcricao.json
 
 # Vídeos de entrada (grandes demais para o git)
 *.mp4
