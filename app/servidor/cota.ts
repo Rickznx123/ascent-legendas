@@ -7,7 +7,7 @@
 // reexportações seguintes do mesmo projeto não descontam; da sexta em diante, cada
 // uma desconta de novo. Só desconta o que terminou: o registro é gravado depois do
 // render (e o que foi descontado fica gravado em descontado_s).
-// Transcrições (Etapa 3, bloco 5): grátis, 3 por dia; assinante, 30. O dia vira à
+// Transcrições (Etapa 3, bloco 5): grátis, 3 por dia; assinante, 10. O dia vira à
 // meia-noite de Brasília. Só contam as que terminaram ("Recomeçar do zero" conta;
 // a detecção de voz sozinha, não).
 import type {Plano} from "./contas";
@@ -16,7 +16,7 @@ export const LIMITES = {
   videosNoGratis: 1,
   segundosPorMesNoAssinante: 30 * 60,
   reexportacoesSemDesconto: 5,
-  transcricoesPorDia: {gratis: 3, assinante: 30} satisfies Record<Plano, number>,
+  transcricoesPorDia: {gratis: 3, assinante: 10} satisfies Record<Plano, number>,
   // Envio de vídeo (Etapa 3): tamanho e duração máximos de cada arquivo.
   envio: {
     gratis: {bytes: 300 * 1024 * 1024, segundos: 2 * 60},

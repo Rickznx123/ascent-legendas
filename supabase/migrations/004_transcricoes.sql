@@ -1,5 +1,5 @@
 -- Etapa 3, bloco 5: cada transcrição que terminou, para o limite diário do plano
--- (grátis: 3 por dia; assinante: 30; o dia vira à meia-noite de Brasília).
+-- (grátis: 3 por dia; assinante: 10; o dia vira à meia-noite de Brasília).
 -- "Recomeçar do zero" também é gravado aqui; a detecção de voz sozinha (Sincronia
 -- precisa em projeto antigo) e as transcrições que falharam, não.
 -- Só o servidor insere (com a chave secreta); o usuário apenas lê as suas.

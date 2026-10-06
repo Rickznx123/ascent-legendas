@@ -1,6 +1,6 @@
 // Tela inicial do celular: importar um vídeo e a lista de vídeos em cartões.
 import {useEffect, useRef, useState} from "react";
-import {api} from "../api";
+import {api, tituloDoVideo} from "../api";
 import {usePreviaLeve} from "../previa-leve";
 import {relogio} from "../quadro";
 import type {Editor} from "../useEditor";
@@ -27,8 +27,9 @@ const QuadroDoPlano: React.FC<{uso: UsoDoPlano}> = ({uso}) => {
 
 // Um vídeo da lista: a capa e a duração só carregam quando o cartão aparece na tela.
 // Com a capa em JPG ainda sendo feita, o cartão diz "Preparando…" e troca sozinho.
-const Cartao: React.FC<{nome: string; situacao: string; atual: boolean; ocupado: boolean; onAbrir: () => void}> = ({
+const Cartao: React.FC<{nome: string; titulo: string; situacao: string; atual: boolean; ocupado: boolean; onAbrir: () => void}> = ({
   nome,
+  titulo,
   situacao,
   atual,
   ocupado,
@@ -88,7 +89,7 @@ const Cartao: React.FC<{nome: string; situacao: string; atual: boolean; ocupado:
         {duracaoMs !== undefined ? <em>{relogio(duracaoMs)}</em> : null}
       </span>
       <span className="cel-cartao-texto">
-        <b>{nome.replace(/\.[^.]+$/u, "")}</b>
+        <b>{titulo}</b>
         <small>{situacao}</small>
       </span>
     </button>
@@ -207,6 +208,7 @@ export const Inicio: React.FC<{e: Editor; onAbrir: (nome: string) => void}> = ({
             <Cartao
               key={nome}
               nome={nome}
+              titulo={tituloDoVideo(e.catalogo, nome)}
               situacao={situacao(nome)}
               atual={nome === e.video}
               ocupado={e.ocupado}

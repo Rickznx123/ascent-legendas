@@ -14,7 +14,7 @@ Levantado em 05/10/2026, olhando o código atual e a conta da AWS.
 | Hospedagem | **Render** |
 | Domínio | `ascentstudio.com.br`, já registrado na Hostinger (decidido em 06/10/2026). O app fica em **`legendas.ascentstudio.com.br`** e o e-mail do login sai desse domínio. Até o Bloco 9, o endereço provisório do Render; o endereço do app fica numa única configuração (`ENDERECO_DO_APP`). |
 | Envio | Grátis: 300 MB e 2 min. Assinante: 1 GB e 10 min. |
-| Transcrições por dia | Grátis: 3. Assinante: 30. |
+| Transcrições por dia | Grátis: 3. Assinante: **10** (era 30; reduzido em 06/10/2026, por custo). |
 | Guarda dos vídeos | Enviados: 30 dias. Exportados: 7 dias. Com aviso na tela. |
 | Alertas de orçamento na AWS | US$ 20 e US$ 50 |
 | Login | Código de 6 dígitos no e-mail, mantendo o link |
@@ -102,7 +102,7 @@ O resto (S3, Lambda) fica na AWS de qualquer jeito; o servidor no Render fala co
 **Quem pode disparar o quê**
 - Transcrição e render só com login (token validado em toda rota, como já é).
 - **Render:** já decidido no servidor pelo plano (Etapa 2b).
-- **Transcrição:** hoje não tem limite, e cada WhisperX custa US$ 0,01–0,02. Proposta: grátis, 3 transcrições por dia; assinante, 30 por dia. "Recomeçar do zero" conta como transcrição.
+- **Transcrição:** hoje não tem limite, e cada WhisperX custa US$ 0,01–0,02. Decidido: grátis, 3 transcrições por dia; assinante, 10 por dia (era 30 até 06/10/2026). "Recomeçar do zero" conta como transcrição.
 - O envio respeita o tamanho e a duração do plano (item 2). O servidor só aceita chaves do S3 dentro de `usuarios/<id do próprio usuário>/`.
 
 **Limite de pedidos por usuário**
@@ -285,7 +285,7 @@ Todas tomadas em 05/10/2026 (veja "Decisões tomadas", no começo). O domínio s
 
 1. **Hospedagem:** Render (recomendado, US$ 7–25/mês, fora dos créditos) ou Lightsail (US$ 10–25/mês, dentro dos créditos).
 2. **Limites de envio por plano:** tamanho e duração (sugestão na seção 2).
-3. **Limite de transcrições por dia:** sugestão de 3 no grátis e 30 no assinante.
+3. **Limite de transcrições por dia:** 3 no grátis e 10 no assinante (06/10/2026; antes, 30).
 4. **Por quantos dias guardar** os vídeos enviados (30) e os exportados (7).
 5. **Valor do alerta de orçamento** na AWS (sugestão de US$ 50/mês) e crédito inicial no Replicate (US$ 20–25).
 6. **Login no iPhone pela Tela de Início:** acrescentar o código de 6 dígitos ao e-mail.

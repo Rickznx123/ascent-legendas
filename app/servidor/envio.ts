@@ -35,6 +35,7 @@ import type {Contas} from "./contas";
 import {LIMITES, duracaoEmTexto} from "./cota";
 import type {Espaco} from "./espaco";
 import type {PreviasLeves} from "./previa-leve";
+import {tituloDoVideo} from "./titulo";
 import type {ArmazenamentoS3} from "./s3";
 
 // Cada parte tem 5 MB (o mínimo do S3; a última, o que sobrar): numa interrupção,
@@ -163,7 +164,10 @@ export const rotasDeEnvio = ({
         throw new ErroDoEnvio(`Já existe um vídeo chamado ${nome}.`, 409);
       }
       const chave = `${prefixoDe(espaco.usuario.id)}${nome}`;
-      const {UploadId} = await s3.send(new CreateMultipartUploadCommand({Bucket, Key: chave, ContentType: tipoDoVideo(nome)}));
+      // O nome com que o arquivo chegou e o título da tela ficam guardados no próprio
+      // arquivo do S3 (metadados só aceitam ASCII: vão codificados). Veja titulo.ts.
+      const Metadata = {"nome-original": encodeURIComponent(String(pedido)), titulo: encodeURIComponent(tituloDoVideo(nome, new Date()))};
+      const {UploadId} = await s3.send(new CreateMultipartUploadCommand({Bucket, Key: chave, ContentType: tipoDoVideo(nome), Metadata}));
       return {chave, envio: UploadId, tamanhoDaParte: TAMANHO_DA_PARTE, partes: Math.ceil(bytes / TAMANHO_DA_PARTE)};
     }),
   );

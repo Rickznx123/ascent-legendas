@@ -1,6 +1,6 @@
 import {spawn} from "node:child_process";
 import {createWriteStream, existsSync, writeFileSync} from "node:fs";
-import {copyFile, mkdir, rename, rm} from "node:fs/promises";
+import {copyFile, mkdir, rename, rm, stat} from "node:fs/promises";
 import type {Server} from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -31,7 +31,8 @@ import type {AssignedCaptionBlock} from "../../src/types";
 import {PASTAS_NO_BUCKET, configuracaoDoAmbiente} from "./configuracao";
 import {contasDoAmbiente} from "./contas";
 import {rotasDeEnvio} from "./envio";
-import {previasLeves} from "./previa-leve";
+import {previasLeves, tirarCapa} from "./previa-leve";
+import {tituloDoVideo} from "./titulo";
 import {tarefasSoltas} from "./tarefas-soltas";
 import {s3DoAmbiente} from "./s3";
 import type {ConfigDoLogin} from "./contas";
@@ -199,7 +200,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
 
   // Todas as outras rotas: com login, o token do usuário é validado e o pedido
   // passa a usar o espaço dele; sem login, o espaço local.
-  app.use(["/api", "/media", "/saidas", "/sons"], async (request: Request, response: Response, next: NextFunction) => {
+  app.use(["/api", "/media", "/capa", "/saidas", "/sons"], async (request: Request, response: Response, next: NextFunction) => {
     if (!contas) {
       response.locals.espaco = espacoLocal(root);
       next();
@@ -233,15 +234,41 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       const espaco = espacoDe(response);
       const nome = String(request.query.nome ?? "");
       const origemLocal = videoPath(espaco, nome);
+      // Vídeo só no disco: a capa em JPG também, feita aqui (GET /capa).
+      const capaLocal = `/capa/${encodeURIComponent(nome)}`;
       if (!previas || !espaco.usuario) {
-        return {estado: "local"};
+        return {estado: "local", capa: capaLocal};
       }
-      return previas.estado(espaco.usuario.id, nome, origemLocal, request.query.tentar === "1");
+      const estado = await previas.estado(espaco.usuario.id, nome, origemLocal, request.query.tentar === "1");
+      return estado.estado === "local" ? {...estado, capa: capaLocal} : estado;
     }),
   );
 
   // Vídeos do espaço e os que já têm projeto (para a lista do Início).
-  const catalogo = async (espaco: Espaco) => ({...loadCatalog(root, espaco.pasta), projetos: await espaco.projetos()});
+  // Título de cada vídeo na tela (veja titulo.ts): o guardado no envio ao S3; sem
+  // ele (enviado antes, ou só no disco), o nome do arquivo, ou "Vídeo de DD/MM,
+  // HH:MM" com a hora do envio (do S3) ou do arquivo no disco.
+  const tituloDe = async (espaco: Espaco, video: string): Promise<string> => {
+    if (armazenamento && espaco.usuario) {
+      const sobre = await armazenamento.sobre(`${PASTAS_NO_BUCKET.videos.prefixo}${espaco.usuario.id}/${video}`).catch(() => undefined);
+      if (sobre) {
+        return sobre.titulo ?? tituloDoVideo(video, sobre.enviadoEm);
+      }
+    }
+    const quando = await stat(path.join(espaco.pasta, video)).then(
+      (info) => info.mtime,
+      () => new Date(),
+    );
+    return tituloDoVideo(video, quando);
+  };
+  const catalogo = async (espaco: Espaco) => {
+    const lido = loadCatalog(root, espaco.pasta);
+    const [projetos, titulos] = await Promise.all([
+      espaco.projetos(),
+      Promise.all(lido.videos.map(async (video) => [video, await tituloDe(espaco, video)] as const)),
+    ]);
+    return {...lido, projetos, titulos: Object.fromEntries(titulos)};
+  };
 
   app.get("/api/catalogo", handle((_request, response) => catalogo(espacoDe(response))));
 
@@ -326,6 +353,41 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     "/api/video-info",
     handle((request, response) => getVideoMetadata(videoPath(espacoDe(response), String(request.query.nome ?? "")))),
   );
+
+  // Capa em JPG de um vídeo que só existe no disco (a do S3 vem com a prévia leve).
+  // Feita na primeira vez e guardada na pasta temporária (refeita se o vídeo mudar).
+  // O navegador não precisa abrir o vídeo inteiro para mostrar um quadro (no iPhone,
+  // o <video> muitas vezes nem desenha o quadro).
+  const capasSendoFeitas = new Map<string, Promise<void>>();
+  app.get("/capa/:nome", async (request, response) => {
+    try {
+      const espaco = espacoDe(response);
+      const video = videoPath(espaco, request.params.nome);
+      const pasta = path.join(os.tmpdir(), "legendas-capas", espaco.usuario?.id ?? "local");
+      const capa = path.join(pasta, `${request.params.nome}.jpg`);
+      const atualizada = async () => {
+        try {
+          return (await stat(capa)).mtimeMs >= (await stat(video)).mtimeMs;
+        } catch {
+          return false;
+        }
+      };
+      if (!(await atualizada())) {
+        let feita = capasSendoFeitas.get(capa);
+        if (!feita) {
+          feita = mkdir(pasta, {recursive: true})
+            .then(() => tirarCapa(video, capa))
+            .finally(() => capasSendoFeitas.delete(capa));
+          capasSendoFeitas.set(capa, feita);
+        }
+        await feita;
+      }
+      response.setHeader("Cache-Control", "private, max-age=3600");
+      response.sendFile(capa);
+    } catch (error) {
+      response.status(404).send(error instanceof Error ? error.message : String(error));
+    }
+  });
 
   app.get("/media/:nome", (request, response) => {
     try {

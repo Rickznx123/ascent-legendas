@@ -6,7 +6,7 @@ import {abaGuardada, guardarAba} from "../Abas";
 import {SelosDoBloco} from "../ListaDeBlocos";
 import {PainelGeral} from "../PainelGeral";
 import {Previa} from "../Previa";
-import {api} from "../api";
+import {api, tituloDoVideo} from "../api";
 import {tempoDoBloco} from "../quadro";
 import type {Editor} from "../useEditor";
 import {Andamento} from "./Andamento";
@@ -112,7 +112,7 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
           ‹
         </button>
         <span className="cel-nome">
-          {video.replace(/\.[^.]+$/u, "") || "Nenhum vídeo"}
+          {video ? tituloDoVideo(e.catalogo, video) : "Nenhum vídeo"}
           {projetoDoVideo && e.salvamento !== "salvo" ? (
             <small className={e.salvamento === "erro" ? "projeto-erro" : undefined}>
               {e.salvamento === "erro" ? " · erro ao salvar" : " · salvando…"}

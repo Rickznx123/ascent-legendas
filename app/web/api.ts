@@ -19,7 +19,18 @@ export const pedir = async (url: string, init: RequestInit = {}): Promise<Respon
 };
 
 // projetos: os vídeos que já têm projeto (com login, os do usuário).
-export type Catalogo = {pacotes: string[]; paletas: string[]; videos: string[]; projetos?: {video: string; blocos: number}[]};
+// titulos: o nome de cada vídeo na tela (veja app/servidor/titulo.ts).
+export type Catalogo = {
+  pacotes: string[];
+  paletas: string[];
+  videos: string[];
+  projetos?: {video: string; blocos: number}[];
+  titulos?: Record<string, string>;
+};
+
+// Título do vídeo na tela; sem o do servidor, o nome do arquivo sem a extensão.
+export const tituloDoVideo = (catalogo: Catalogo, video: string): string =>
+  catalogo.titulos?.[video] ?? video.replace(/\.[^.]+$/u, "");
 
 export type Plano = "gratis" | "assinante";
 // Uso do plano e decisão de exportar: os mesmos tipos do servidor (só tipos; quem

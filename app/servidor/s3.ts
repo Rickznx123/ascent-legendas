@@ -12,6 +12,8 @@ export type ArmazenamentoS3 = {
   enderecoDeLeitura: (chave: string, segundos?: number) => Promise<string>;
   // O arquivo está no bucket? (Vídeos enviados antes do S3 só existem no disco.)
   existe: (chave: string) => Promise<boolean>;
+  // Quando o arquivo chegou e o título guardado no envio (sem o arquivo: undefined).
+  sobre: (chave: string) => Promise<{enviadoEm: Date; titulo?: string} | undefined>;
 };
 
 export const s3DoAmbiente = (configuracao: Configuracao): ArmazenamentoS3 | undefined => {
@@ -49,6 +51,17 @@ export const s3DoAmbiente = (configuracao: Configuracao): ArmazenamentoS3 | unde
     s3,
     bucket,
     enderecoDeLeitura: (chave, segundos = 3600) => getSignedUrl(s3, new GetObjectCommand({Bucket: bucket, Key: chave}), {expiresIn: segundos}),
+    sobre: (chave) =>
+      s3.send(new HeadObjectCommand({Bucket: bucket, Key: chave})).then(
+        ({LastModified, Metadata}) => ({
+          enviadoEm: LastModified ?? new Date(),
+          titulo: Metadata?.titulo ? decodeURIComponent(Metadata.titulo) : undefined,
+        }),
+        (erro: {name?: string; $metadata?: {httpStatusCode?: number}}) => {
+          if (erro.name === "NotFound" || erro.$metadata?.httpStatusCode === 404) return undefined;
+          throw erro;
+        },
+      ),
     existe: (chave) =>
       s3.send(new HeadObjectCommand({Bucket: bucket, Key: chave})).then(
         () => true,

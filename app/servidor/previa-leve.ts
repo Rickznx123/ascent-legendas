@@ -22,7 +22,8 @@ import type {ArmazenamentoS3} from "./s3";
 
 export type EstadoDaPrevia =
   // Vídeo só no disco (ou sem S3): a tela usa o endereço de sempre (/media).
-  | {estado: "local"}
+  // capa: JPG feito pelo servidor a partir do arquivo no disco (GET /capa/<nome>).
+  | {estado: "local"; capa?: string}
   | {estado: "preparando"; capa?: string}
   | {estado: "falhou"; mensagem: string; capa?: string}
   | {estado: "pronta"; video: string; capa?: string};
@@ -36,6 +37,18 @@ const VALIDADE_S = 3 * 3600;
 // Lado menor em LADO_MENOR (sem aumentar vídeo menor), o outro proporcional e par.
 const ESCALA =
   `scale=w='if(gt(iw,ih),-2,trunc(min(${LADO_MENOR},iw)/2)*2)'` + `:h='if(gt(iw,ih),trunc(min(${LADO_MENOR},ih)/2)*2,-2)'`;
+
+// Capa: um quadro perto do começo (vídeo curtinho: o primeiro), já em pé, com o
+// lado menor em 540 px. Também usada para os vídeos que só existem no disco.
+export const tirarCapa = async (entrada: string, saida: string) => {
+  for (const segundo of ["0.5", "0"]) {
+    await execFileAsync(ffmpegPath(), ["-hide_banner", "-loglevel", "error", "-y", "-ss", segundo, "-i", entrada, "-frames:v", "1", "-vf", ESCALA, "-q:v", "4", saida]).catch(
+      () => undefined,
+    );
+    if (existsSync(saida)) return;
+  }
+  throw new Error("o ffmpeg não tirou a capa");
+};
 
 const horario = () => new Date().toLocaleTimeString("pt-BR", {hour12: false});
 
@@ -81,17 +94,8 @@ export const previasLeves = (armazenamento: ArmazenamentoS3) => {
     const pasta = await mkdtemp(path.join(os.tmpdir(), "previa-"));
     const inicio = Date.now();
     try {
-      // Capa: um quadro perto do começo (vídeo curtinho: o primeiro).
       const arquivoDaCapa = path.join(pasta, "capa.jpg");
-      for (const segundo of ["0.5", "0"]) {
-        await execFileAsync(ffmpegPath(), ["-hide_banner", "-loglevel", "error", "-y", "-ss", segundo, "-i", entrada, "-frames:v", "1", "-vf", ESCALA, "-q:v", "4", arquivoDaCapa]).catch(
-          () => undefined,
-        );
-        if (existsSync(arquivoDaCapa)) break;
-      }
-      if (!existsSync(arquivoDaCapa)) {
-        throw new Error("o ffmpeg não tirou a capa");
-      }
+      await tirarCapa(entrada, arquivoDaCapa);
       await enviar(arquivoDaCapa, capa, "image/jpeg");
       const msCapa = Date.now() - inicio;
 
