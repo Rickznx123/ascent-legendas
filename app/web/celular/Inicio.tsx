@@ -6,6 +6,7 @@ import {relogio} from "../quadro";
 import type {Editor} from "../useEditor";
 import {Andamento} from "./Andamento";
 import {useConta} from "../conta";
+import {JanelaTrocarSenha} from "../Senha";
 import type {UsoDoPlano} from "../api";
 import {CONFIG_CELULAR, nomeDoPlano, resumoDasTranscricoes, resumoDoUso} from "./plano";
 
@@ -100,6 +101,7 @@ const Cartao: React.FC<{nome: string; titulo: string; situacao: string; atual: b
 const Menu: React.FC<{ocupado: boolean; onImportar: () => void}> = ({ocupado, onImportar}) => {
   const {conta, sair} = useConta();
   const [aberto, setAberto] = useState(false);
+  const [trocandoSenha, setTrocandoSenha] = useState(false);
   const raiz = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!aberto) {
@@ -154,6 +156,16 @@ const Menu: React.FC<{ocupado: boolean; onImportar: () => void}> = ({ocupado, on
               <button
                 type="button"
                 role="menuitem"
+                onClick={() => {
+                  setAberto(false);
+                  setTrocandoSenha(true);
+                }}
+              >
+                Trocar senha
+              </button>
+              <button
+                type="button"
+                role="menuitem"
                 disabled={ocupado}
                 onClick={() => {
                   setAberto(false);
@@ -171,6 +183,7 @@ const Menu: React.FC<{ocupado: boolean; onImportar: () => void}> = ({ocupado, on
           )}
         </div>
       ) : null}
+      {trocandoSenha && conta ? <JanelaTrocarSenha email={conta.email} onFechar={() => setTrocandoSenha(false)} /> : null}
     </div>
   );
 };

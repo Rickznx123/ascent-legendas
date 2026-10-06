@@ -1,4 +1,4 @@
-// Sessão do usuário no navegador, pelo Supabase (só a chave publicável vem do
+// Sessão do usuário no navegador, pelo Supabase, com e-mail e senha (só a chave publicável vem do
 // servidor; a secreta nunca chega aqui). A sessão fica no localStorage do
 // navegador e continua ao recarregar; o Supabase renova o token sozinho.
 // Sem login no servidor (sem Supabase no .env), nada disto é usado.
@@ -11,6 +11,8 @@ let cliente: SupabaseClient | undefined;
 let tokenAtual: string | undefined;
 let usuarioAtual: string | undefined;
 let envioDiretoLigado = false;
+// O endereço veio do link de redefinição de senha (a tela pede a senha nova).
+let veioDaRedefinicao = false;
 
 // O cookie leva o token nos pedidos que o navegador faz sozinho (o vídeo da
 // prévia, os sons, o download): eles não mandam o cabeçalho Authorization.
@@ -72,22 +74,88 @@ const iniciar = async (config: ConfigDoLogin): Promise<Session | null> => {
   guardarToken(data.session);
   // O token do cabeçalho e do cookie acompanha cada renovação.
   cliente.auth.onAuthStateChange((_evento, sessao) => guardarToken(sessao));
-  // O link do e-mail traz a sessão no endereço: tira do endereço depois de lida.
+  // O link do e-mail (confirmação do cadastro ou redefinição de senha) traz a sessão
+  // no endereço: tira do endereço depois de lida.
   if (location.hash.includes("access_token") || location.search.includes("code=")) {
+    veioDaRedefinicao = location.hash.includes("type=recovery");
     history.replaceState(null, "", location.pathname);
   }
   return data.session;
 };
 
-// Link mágico: o Supabase manda um e-mail; o link volta para este endereço.
-export const enviarLinkMagico = async (email: string): Promise<void> => {
-  const {error} = await cliente!.auth.signInWithOtp({
-    email,
-    options: {emailRedirectTo: `${location.origin}/`, shouldCreateUser: true},
-  });
-  if (error) {
-    throw new Error(error.message);
+// A sessão aberta agora veio do link "Esqueci minha senha": falta a senha nova.
+// Lido uma vez só (depois de definida, o app segue normal).
+export const pedeSenhaNova = (): boolean => {
+  const pede = veioDaRedefinicao;
+  veioDaRedefinicao = false;
+  return pede;
+};
+
+// Erros do Supabase em português claro (pelo código; sem código, pela mensagem).
+export const SENHA_MINIMA = 8;
+const traduzir = (erro: {code?: string; status?: number; message?: string}): Error => {
+  const codigo = erro.code ?? "";
+  const texto = (erro.message ?? "").toLowerCase();
+  if (codigo === "invalid_credentials" || texto.includes("invalid login credentials")) {
+    return new Error(
+      "E-mail ou senha incorretos. Se a sua conta foi criada pelo link do e-mail e ainda não tem senha, use \"Esqueci minha senha\" para criar uma.",
+    );
   }
+  if (codigo === "email_not_confirmed" || texto.includes("email not confirmed")) {
+    return new Error("Confirme o seu e-mail antes de entrar: toque no link que enviamos. Não chegou? Crie a conta de novo para reenviar.");
+  }
+  if (codigo === "user_already_exists" || codigo === "email_exists" || texto.includes("already registered")) {
+    return new Error("Este e-mail já tem conta. Entre com a sua senha ou use \"Esqueci minha senha\".");
+  }
+  if (erro.status === 429 || codigo.startsWith("over_") || texto.includes("rate limit")) {
+    return new Error("Muitas tentativas seguidas. Espere alguns minutos e tente de novo.");
+  }
+  if (codigo === "weak_password" || texto.includes("password should be")) {
+    return new Error(`Senha fraca: use pelo menos ${SENHA_MINIMA} caracteres.`);
+  }
+  if (codigo === "same_password") {
+    return new Error("A senha nova precisa ser diferente da atual.");
+  }
+  if (codigo === "validation_failed" || texto.includes("invalid format")) {
+    return new Error("Confira o e-mail: ele parece incompleto.");
+  }
+  return new Error(`Não deu certo agora (${erro.message ?? "erro desconhecido"}). Tente de novo.`);
+};
+
+// Para onde os links do e-mail (confirmação e redefinição) voltam.
+const voltaDoEmail = () => `${location.origin}/`;
+
+export const entrar = async (email: string, senha: string): Promise<void> => {
+  const {error} = await cliente!.auth.signInWithPassword({email, password: senha});
+  if (error) throw traduzir(error);
+};
+
+// Cria a conta; o Supabase manda o link de confirmação (uma vez só por conta).
+export const criarConta = async (email: string, senha: string): Promise<void> => {
+  const {data, error} = await cliente!.auth.signUp({email, password: senha, options: {emailRedirectTo: voltaDoEmail()}});
+  if (error) throw traduzir(error);
+  // E-mail que já tem conta confirmada: o Supabase não dá erro (para não revelar
+  // quem tem conta), mas devolve o usuário sem identidades.
+  if (data.user && (data.user.identities ?? []).length === 0) {
+    throw traduzir({code: "user_already_exists"});
+  }
+};
+
+export const reenviarConfirmacao = async (email: string): Promise<void> => {
+  const {error} = await cliente!.auth.resend({type: "signup", email, options: {emailRedirectTo: voltaDoEmail()}});
+  if (error) throw traduzir(error);
+};
+
+// "Esqueci minha senha" (vale também para contas antigas, criadas pelo link, sem senha).
+export const pedirRedefinicao = async (email: string): Promise<void> => {
+  const {error} = await cliente!.auth.resetPasswordForEmail(email, {redirectTo: voltaDoEmail()});
+  if (error) throw traduzir(error);
+};
+
+// Senha nova da conta que está entrada (redefinição ou "Trocar senha").
+export const definirSenha = async (senha: string): Promise<void> => {
+  const {error} = await cliente!.auth.updateUser({password: senha});
+  if (error) throw traduzir(error);
 };
 
 export const entrarComGoogle = async (): Promise<void> => {

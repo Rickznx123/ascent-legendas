@@ -1,12 +1,14 @@
-// Conta no topo do computador: e-mail, plano e Sair (o equivalente ao menu ☰ do
+// Conta no topo do computador: e-mail, plano, Trocar senha e Sair (o equivalente ao menu ☰ do
 // celular). Sem login (modo local), não aparece.
 import {useEffect, useRef, useState} from "react";
 import {nomeDoPlano, resumoDasTranscricoes, resumoDoUso} from "./celular/plano";
 import {useConta} from "./conta";
+import {JanelaTrocarSenha} from "./Senha";
 
 export const MenuDaConta: React.FC<{ocupado: boolean}> = ({ocupado}) => {
   const {conta, sair} = useConta();
   const [aberto, setAberto] = useState(false);
+  const [trocandoSenha, setTrocandoSenha] = useState(false);
   const raiz = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!aberto) {
@@ -63,6 +65,17 @@ export const MenuDaConta: React.FC<{ocupado: boolean}> = ({ocupado}) => {
             type="button"
             role="menuitem"
             className="bt"
+            onClick={() => {
+              setAberto(false);
+              setTrocandoSenha(true);
+            }}
+          >
+            Trocar senha
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="bt"
             disabled={ocupado}
             onClick={() => {
               setAberto(false);
@@ -73,6 +86,7 @@ export const MenuDaConta: React.FC<{ocupado: boolean}> = ({ocupado}) => {
           </button>
         </div>
       ) : null}
+      {trocandoSenha ? <JanelaTrocarSenha email={conta.email} onFechar={() => setTrocandoSenha(false)} /> : null}
     </div>
   );
 };

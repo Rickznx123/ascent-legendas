@@ -8,7 +8,8 @@ import {EVENTO_SESSAO_EXPIRADA, api, executarTarefa} from "./api";
 import type {Andamento, Conta} from "./api";
 import {ContaContexto} from "./conta";
 import {TelaDeLogin} from "./Login";
-import {iniciarSessao, lerConfig, ouvirSessao, sair} from "./sessao";
+import {FormularioDeSenhaNova} from "./Senha";
+import {iniciarSessao, lerConfig, ouvirSessao, pedeSenhaNova, sair} from "./sessao";
 import type {ConfigDoLogin} from "./sessao";
 
 type Estado =
@@ -16,6 +17,8 @@ type Estado =
   | {tela: "erro"; mensagem: string}
   | {tela: "local"}
   | {tela: "login"; aviso?: string}
+  // Veio do link "Esqueci minha senha": a sessão está aberta, falta a senha nova.
+  | {tela: "senha-nova"; sessao: Session}
   | {tela: "importar"; conta: Conta; usuario: string; videos: string[]; projeto: string | null}
   | {tela: "editor"; conta: Conta; usuario: string};
 
@@ -142,7 +145,9 @@ export const Entrada: React.FC = () => {
         deixarDeOuvir();
         return;
       }
-      if (sessao) {
+      if (sessao && pedeSenhaNova()) {
+        setEstado({tela: "senha-nova", sessao});
+      } else if (sessao) {
         await abrirConta(sessao);
       } else {
         setEstado({tela: "login"});
@@ -197,6 +202,27 @@ export const Entrada: React.FC = () => {
       return <App />;
     case "login":
       return <TelaDeLogin google={Boolean(config?.google)} aviso={estado.aviso} />;
+    case "senha-nova":
+      return (
+        <main className="login">
+          <div className="login-caixa">
+            <div className="marca login-marca">
+              <i aria-hidden="true" />
+              Ascent Legendas
+            </div>
+            <h1>Definir senha nova</h1>
+            <p className="suave">{estado.sessao.user.email}</p>
+            <FormularioDeSenhaNova
+              email={estado.sessao.user.email}
+              textoDoBotao="Salvar e entrar"
+              onPronto={() => {
+                setEstado({tela: "carregando"});
+                void abrirConta(estado.sessao);
+              }}
+            />
+          </div>
+        </main>
+      );
     case "importar":
       return (
         <TelaImportarLocal

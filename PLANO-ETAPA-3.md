@@ -17,7 +17,7 @@ Levantado em 05/10/2026, olhando o código atual e a conta da AWS.
 | Transcrições por dia | Grátis: 3. Assinante: **10** (era 30; reduzido em 06/10/2026, por custo). |
 | Guarda dos vídeos | Enviados: 30 dias. Exportados: 7 dias. Com aviso na tela. |
 | Alertas de orçamento na AWS | US$ 20 e US$ 50 |
-| Login | Código de 6 dígitos no e-mail, mantendo o link |
+| Login | **E-mail e senha** (Supabase Auth), decidido em 06/10/2026, no lugar do link e do código de 6 dígitos. Confirmação do e-mail uma vez, no cadastro; "Esqueci minha senha" por e-mail (também para as contas antigas, criadas pelo link, que ainda não têm senha); "Trocar senha" no menu da conta. O `npm run link-login` continua, só para desenvolvimento. |
 | Ícone | Provisório, gerado a partir da marca |
 | Testadores | Entram como grátis |
 | Medição pedida | No bloco da prévia leve (Bloco 4): tempo e memória para converter um vídeo HEVC de iPhone de 1 min, para saber se o plano mais barato do Render aguenta. |
@@ -156,9 +156,7 @@ Hoje o app só tem a tag `viewport`. Falta:
 5. **Um service worker mínimo**, que guarda só a "casca" da tela para abrir rápido. Ele nunca guarda vídeos nem respostas da API.
 6. **O desenho do ícone**: eu gero a partir do quadrado roxo da marca, a menos que você tenha um ícone.
 
-**Atenção ao login no iPhone.** Um app instalado na Tela de Início do iPhone guarda a sessão separada do Safari. O link mágico do e-mail abre no Safari, e a pessoa entra no Safari, não no app instalado.
-
-Solução recomendada: o e-mail passa a trazer também um **código de 6 dígitos**, que a pessoa digita no app instalado. O Supabase já oferece isso: é só incluir o código no modelo do e-mail e criar um campo na tela de login. O link continua funcionando para quem usa o navegador.
+**Login no iPhone.** Um app instalado na Tela de Início do iPhone guarda a sessão separada do Safari. Com o login por e-mail e senha (06/10/2026), a pessoa entra direto no app instalado, e o iPhone oferece salvar e preencher a senha. Só os links do e-mail (confirmar o cadastro e redefinir a senha) abrem no Safari: depois deles, basta entrar com a senha no app instalado.
 
 ---
 
@@ -247,8 +245,8 @@ Render, perto da AWS, devem cair para menos de 1 s.
 2. [EU] Teste: dez exportações ao mesmo tempo com contas de teste.
 
 **Bloco 8 — PWA**
-1. [EU] Manifesto, ícones, tags da Apple, service worker mínimo e código de 6 dígitos no login.
-2. [VOCÊ] Adicionar à Tela de Início no seu iPhone ou Android e entrar pelo código.
+1. [EU] Manifesto, ícones, tags da Apple e service worker mínimo.
+2. [VOCÊ] Adicionar à Tela de Início no seu iPhone ou Android e entrar com o e-mail e a senha.
 
 **Bloco 9 — Publicar**
 1. [VOCÊ] Criar a conta no Render, conectar o repositório e colar as variáveis de ambiente (eu entrego a lista).
@@ -262,7 +260,7 @@ Render, perto da AWS, devem cair para menos de 1 s.
 
 ## 8. Pronto antes de abrir para testadores
 
-- **E-mail próprio para o login:** o e-mail grátis do Supabase tem limite baixo e só envia para a equipe do projeto. Criar conta no Resend (plano grátis: 3.000 e-mails por mês, 100 por dia), verificar o domínio `ascentstudio.com.br` (registros DNS na Hostinger; o login sai, por exemplo, de `login@ascentstudio.com.br`) e colar o SMTP no Supabase (Authentication → Emails → SMTP Settings). Ajustar o modelo do e-mail em português, com o código de 6 dígitos.
+- **E-mail próprio para o login:** o e-mail grátis do Supabase tem limite baixo e só envia para a equipe do projeto. Criar conta no Resend (plano grátis: 3.000 e-mails por mês, 100 por dia), verificar o domínio `ascentstudio.com.br` (registros DNS na Hostinger; o login sai, por exemplo, de `login@ascentstudio.com.br`) e colar o SMTP no Supabase (Authentication → Emails → SMTP Settings). Ajustar em português os modelos de e-mail de confirmação do cadastro e de redefinição de senha.
 - **Crédito no Replicate:** abaixo de US$ 5, a conta fica limitada a 6 pedidos por minuto, um por vez. Sugestão: **US$ 20–25** (dá ~1.000–2.000 transcrições de 1 minuto).
 - **Domínio** com HTTPS (`legendas.ascentstudio.com.br`): necessário para o PWA, o e-mail próprio e um endereço fixo para o login.
 - **Orçamento e alertas** na AWS ativos (item 4).
@@ -288,7 +286,7 @@ Todas tomadas em 05/10/2026 (veja "Decisões tomadas", no começo). O domínio s
 3. **Limite de transcrições por dia:** 3 no grátis e 10 no assinante (06/10/2026; antes, 30).
 4. **Por quantos dias guardar** os vídeos enviados (30) e os exportados (7).
 5. **Valor do alerta de orçamento** na AWS (sugestão de US$ 50/mês) e crédito inicial no Replicate (US$ 20–25).
-6. **Login no iPhone pela Tela de Início:** acrescentar o código de 6 dígitos ao e-mail.
+6. **Login:** e-mail e senha (06/10/2026; antes, código de 6 dígitos no e-mail).
 7. **Ícone do app:** usar o seu ou eu gero a partir da marca.
 8. **Testadores** entram como grátis ou assinante.
 
