@@ -17,8 +17,7 @@ import {measureText} from "@remotion/layout-utils";
 import {findKeywordIndex, findProtectedSpans, isBlockEndingFunctionWord} from "./captions";
 import {blocosNaTela, entradaAjustada} from "./entrada";
 import {MarcaDagua} from "./marca-dagua";
-import {BlocoImobiliario, quadrosDaSaida} from "./imobiliario";
-import {POSICAO_PADRAO, centroDentroDaMargem, posicaoDoBloco} from "./posicao";
+import {centroDentroDaMargem, posicaoDoBloco} from "./posicao";
 import type {Posicao} from "./posicao";
 import {waitForFonts} from "./fontes";
 import {somTocado} from "./sons";
@@ -589,39 +588,7 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
     [blocosDaFala, templates, sincroniaMs, precisa],
   );
   const timeline = useMemo(() => computeTimeline(blocks, cortesMs, fps), [blocks, cortesMs, fps]);
-  const agoraMs = (frame / fps) * 1000;
-  const active = findActiveBlocks(blocks, timeline, agoraMs);
-  const indiceAtivo = findActiveBlockIndex(timeline, agoraMs);
-  // Pacote C (estrutura "imobiliario"): o bloco que acabou continua na tela enquanto
-  // sai (sobe em cascata), junto com a entrada do seguinte.
-  const ehImobiliario = (block: AssignedCaptionBlock | undefined) => block !== undefined && templates[block.template]?.structure === "imobiliario";
-  const saindo = timeline
-    .map((tempo, indice) => ({tempo, indice}))
-    .filter(
-      ({tempo, indice}) =>
-        indice !== indiceAtivo &&
-        ehImobiliario(blocks[indice]) &&
-        agoraMs >= tempo.hideMs &&
-        agoraMs < tempo.hideMs + (quadrosDaSaida(blocks[indice].words.length) / fps) * 1000,
-    );
-  // Arrastar move o conjunto: o quanto a posição saiu do padrão.
-  const deslocamentoDe = (block: AssignedCaptionBlock) => {
-    const escolhida = posicaoDoBloco(block.posicao, posicao);
-    return {x: escolhida.x - POSICAO_PADRAO.x, y: escolhida.y - POSICAO_PADRAO.y};
-  };
-  const blocoImobiliario = (block: AssignedCaptionBlock, indice: number) => {
-    const own = paletteOf(block);
-    return (
-      <AbsoluteFill key={`c-${block.startMs}`} style={own ? paletteVariables(own) : undefined}>
-        <BlocoImobiliario
-          block={withEntry(block, timeline[indice].showMs)}
-          indiceDoBloco={indice}
-          saidaMs={timeline[indice].hideMs}
-          deslocamento={deslocamentoDe(block)}
-        />
-      </AbsoluteFill>
-    );
-  };
+  const active = findActiveBlocks(blocks, timeline, (frame / fps) * 1000);
   const activeBlock = active?.block;
   const template = activeBlock ? templates[activeBlock.template] : undefined;
   const paletteOf = (block: AssignedCaptionBlock) => (block.paleta ? palettes?.[block.paleta] : undefined);
@@ -681,10 +648,7 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
       <AbsoluteFill
         style={{containerType: "inline-size", overflow: "hidden", ...paletteVariables(palette)}}
       >
-        {fontsReady ? saindo.map(({indice}) => blocoImobiliario(blocks[indice], indice)) : null}
-        {fontsReady && activeBlock && template && template.structure === "imobiliario" ? (
-          blocoImobiliario(blocks[indiceAtivo], indiceAtivo)
-        ) : fontsReady && activeBlock && template ? (
+        {fontsReady && activeBlock && template ? (
           // Centro do bloco no ponto escolhido (o do bloco, senão o geral). Na dupla,
           // o conjunto se move junto, pela posição do primeiro bloco.
           <Posicionado key={`${activeBlock.startMs}`} posicao={posicaoDoBloco(activeBlock.posicao, posicao)}>

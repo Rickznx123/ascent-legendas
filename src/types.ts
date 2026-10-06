@@ -63,7 +63,6 @@ export type CaptionStructure =
   | "dois-rotulos" // palavras de cima nas duas pontas, palavra-chave, complemento
   | "pilha" // duas linhas antes da palavra-chave (a de baixo é a última palavra antes dela)
   | "dupla" // dois blocos seguidos na tela ao mesmo tempo (veja CaptionTemplate.pair)
-  | "imobiliario" // pacote C: grupo acima da cabeça e na altura do tronco, com motion blur (src/imobiliario.tsx)
   | "linear"; // palavras em sequência
 
 // Entrada de cada palavra, equivalente a um @keyframes do CSS.
@@ -227,10 +226,6 @@ export type PackageConfig = {
   // Texto de exemplo das miniaturas da galeria (opcional): as palavras e qual
   // delas é a palavra-chave.
   exemplo?: {texto: string; palavraChave: string};
-  // Nomes antigos de layouts que não existem mais (opcional): cada um desenha com o
-  // layout novo indicado. Projetos salvos com os nomes antigos continuam abrindo.
-  // Não aparecem na galeria.
-  aliases?: Record<string, string>;
 };
 
 export type AssignedCaptionBlock = CaptionBlock & {

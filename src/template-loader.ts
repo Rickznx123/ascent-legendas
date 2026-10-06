@@ -90,11 +90,6 @@ export const loadPackageConfig = async (
       throw new Error(`_pacote.ts do pacote '${packageName}' usa o layout '${name}', que não existe na pasta.`);
     }
   }
-  for (const [antigo, novo] of Object.entries(config.aliases ?? {})) {
-    if (!templates[novo]) {
-      throw new Error(`_pacote.ts do pacote '${packageName}' leva o nome antigo '${antigo}' para o layout '${novo}', que não existe na pasta.`);
-    }
-  }
   if (config.threeLines.length === 0 || config.highlight.length === 0) {
     throw new Error(`_pacote.ts do pacote '${packageName}' precisa de ao menos uma regra de destaque e um layout de três linhas.`);
   }

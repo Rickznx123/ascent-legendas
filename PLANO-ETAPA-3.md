@@ -293,7 +293,7 @@ Todas tomadas em 05/10/2026 (veja "Decisões tomadas", no começo). O domínio s
 ## Pendências
 
 - **Retomada da transcrição ao sair do app** (Bloco 5): falta teste no iPhone.
-- **Pacote C: refazer âncora + trilho, mais variações e templates lineares.** A primeira versão (commit `a349932`) ficou ruim e foi desfeita em 06/10/2026 (`16f22a2`); o C voltou à versão de dois grupos com motion blur (`31f6b06`).
+- **Pacote C: refazer no estilo imobiliário (dois grupos, âncora + trilho, variações e templates lineares).** As duas versões de 06/10/2026 foram desfeitas (dois grupos com motion blur, `31f6b06`; âncora e trilho, `a349932`): o C voltou ao desenho de antes (c1 a c6 e linear, Anton e Kaushan Script). A prancha de referência está em `pacote-c-referencia.html`, na raiz.
 
 ---
 
