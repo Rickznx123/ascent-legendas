@@ -1,6 +1,7 @@
 // Tela inicial do celular: importar um vídeo e a lista de vídeos em cartões.
 import {useEffect, useRef, useState} from "react";
 import {api} from "../api";
+import {usePreviaLeve} from "../previa-leve";
 import {relogio} from "../quadro";
 import type {Editor} from "../useEditor";
 import {Andamento} from "./Andamento";
@@ -23,6 +24,7 @@ const QuadroDoPlano: React.FC<{uso: UsoDoPlano}> = ({uso}) => {
 };
 
 // Um vídeo da lista: a capa e a duração só carregam quando o cartão aparece na tela.
+// Com a capa em JPG ainda sendo feita, o cartão diz "Preparando…" e troca sozinho.
 const Cartao: React.FC<{nome: string; situacao: string; atual: boolean; ocupado: boolean; onAbrir: () => void}> = ({
   nome,
   situacao,
@@ -34,6 +36,8 @@ const Cartao: React.FC<{nome: string; situacao: string; atual: boolean; ocupado:
   const [visivel, setVisivel] = useState(false);
   const [duracaoMs, setDuracaoMs] = useState<number>();
   const [semCapa, setSemCapa] = useState(false);
+  const previa = usePreviaLeve(nome, visivel);
+  const capa = previa.estado && "capa" in previa.estado ? previa.estado.capa : undefined;
 
   useEffect(() => {
     const elemento = ref.current;
@@ -62,7 +66,11 @@ const Cartao: React.FC<{nome: string; situacao: string; atual: boolean; ocupado:
   return (
     <button ref={ref} type="button" className="cel-cartao" aria-current={atual ? "true" : undefined} disabled={ocupado} onClick={onAbrir}>
       <span className="cel-capa">
-        {visivel && !semCapa ? (
+        {/* Vídeo enviado ao S3: a capa em JPG gerada com a prévia leve. Vídeo só no
+            disco (ou sem login): um quadro do próprio vídeo, como antes. */}
+        {capa ? (
+          <img src={capa} alt="" aria-hidden="true" />
+        ) : previa.estado?.estado === "local" && !semCapa ? (
           <video
             src={`${api.videoUrl(nome)}#t=0.5`}
             preload="metadata"
@@ -72,6 +80,8 @@ const Cartao: React.FC<{nome: string; situacao: string; atual: boolean; ocupado:
             aria-hidden="true"
             onError={() => setSemCapa(true)}
           />
+        ) : previa.estado?.estado === "preparando" ? (
+          <small className="cel-capa-preparando">Preparando…</small>
         ) : null}
         {duracaoMs !== undefined ? <em>{relogio(duracaoMs)}</em> : null}
       </span>

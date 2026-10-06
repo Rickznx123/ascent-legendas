@@ -186,9 +186,32 @@ Legenda: **[VOCÊ]** contas, consoles, domínio e decisões; **[EU]** código, s
 2. [EU] Teste: enviar pelo túnel no 4G, derrubar a conexão no meio e retomar.
 3. [VOCÊ] Teste no seu celular: enviar um vídeo de verdade.
 
-**Bloco 4 — Prévia e capas pelo S3**
+**Bloco 4 — Prévia e capas pelo S3** — código em 06/10/2026; falta o teste no seu celular.
 1. [EU] Endereços assinados para a prévia e as capas; prévia leve em H.264.
 2. [EU] Teste: um vídeo HEVC de iPhone tocando no Chrome do Windows.
+
+Decisões (06/10/2026): conversão no próprio servidor (Lambda só se a medição pedir);
+enquanto a prévia leve não fica pronta, a capa com "Preparando a prévia…", sem tocar
+o original; capas em JPG geradas na conversão; vídeos que só existem no disco
+continuam lidos do disco até o Bloco 6.
+
+**Achado: o iPhone converte para H.264 ao enviar pelo navegador.** Vídeos gravados em
+"Alta eficiência" (HEVC) chegaram ao S3 em H.264 1080x1920, 30 fps, já em pé (sem
+marca de rotação): o Safari converte o vídeo ao escolhê-lo no seletor de arquivos. Na
+prática, o HEVC não chega pelo iPhone; a prévia leve continua valendo para HEVC vindo
+de outros aparelhos ou do computador, e para aliviar o celular (540p).
+
+**Medição da conversão** (ffmpeg com 2 threads, neste computador, Ryzen 5 3500X):
+| Vídeo | Tempo | Pico de memória do ffmpeg | Prévia |
+|---|---|---|---|
+| iPhone, H.264 1080p, 27 s | 3,8 s | 142 MB | 3,2 MB |
+| iPhone, H.264 1080p, 44 s | 7,8 s | 119 MB | 5,6 MB |
+| IMG_2750, H.264 4K girado, 10 s | 4,8 s | 242 MB | 0,4 MB |
+
+O servidor parado usa ~140 MB. No Starter do Render (512 MB, 0,5 CPU): 1080p cabe
+(~260 MB no pico); 4K cabe com pouca folga (~390 MB). O tempo deve ficar perto de
+1 min de conversão por minuto de vídeo 1080p (estimado: um quarto do processador
+usado aqui). A capa sai em menos de 1 s, então a tela tem o que mostrar logo.
 
 **Bloco 5 — Transcrição lendo do S3**
 1. [EU] O ffmpeg lê o vídeo pelo endereço assinado e extrai o áudio; só o áudio vai para o WhisperX ou a Groq, como hoje. A detecção de voz usa o mesmo áudio.

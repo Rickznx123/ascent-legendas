@@ -18,6 +18,7 @@ import {PainelGeral} from "./PainelGeral";
 import {Previa} from "./Previa";
 import {api} from "./api";
 import {plataforma} from "./plataforma";
+import {PreparandoPrevia} from "./PreparandoPrevia";
 import type {Editor} from "./useEditor";
 
 const ABAS_DIREITA = ["legendas", "ajustes", "geral"] as const;
@@ -135,10 +136,10 @@ export const LayoutComputador: React.FC<{e: Editor}> = ({e}) => {
 
       <section className="centro" aria-label="Prévia">
         <div className="palco">
-          {video && videoInfo && estilo ? (
+          {video && videoInfo && estilo && e.videoUrlDaPrevia ? (
             <Previa
               ref={e.playerRef}
-              videoUrl={api.videoUrl(video)}
+              videoUrl={e.videoUrlDaPrevia}
               video={videoInfo}
               blocos={blocos}
               estilo={estilo}
@@ -161,6 +162,12 @@ export const LayoutComputador: React.FC<{e: Editor}> = ({e}) => {
                     }
                   : undefined
               }
+            />
+          ) : video && videoInfo && e.previaLeve.estado ? (
+            <PreparandoPrevia
+              estado={e.previaLeve.estado}
+              proporcao={videoInfo.width / videoInfo.height}
+              onTentarDeNovo={e.previaLeve.tentarDeNovo}
             />
           ) : (
             <p className="vazio">

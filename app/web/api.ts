@@ -25,6 +25,8 @@ export type Plano = "gratis" | "assinante";
 // decide é o servidor, em app/servidor/cota.ts).
 import type {DecisaoDeExportacao, UsoDoPlano} from "../servidor/cota";
 export type {DecisaoDeExportacao, UsoDoPlano};
+import type {EstadoDaPrevia} from "../servidor/previa-leve";
+export type {EstadoDaPrevia};
 export type Conta = {email: string; nome: string | null; plano: Plano; uso?: UsoDoPlano};
 
 // Erro de uma tarefa com um código do servidor (ex.: "assine", "sem-saldo").
@@ -99,6 +101,10 @@ export const api = {
     pedir(`/api/video-info?nome=${encodeURIComponent(nome)}`).then((r) => lerJson<VideoMetadata>(r)),
 
   videoUrl: (nome: string) => `/media/${encodeURIComponent(nome)}`,
+
+  // Prévia leve e capa do vídeo enviado ao S3 (veja app/servidor/previa-leve.ts).
+  previa: (nome: string, tentarDeNovo = false) =>
+    pedir(`/api/previa?nome=${encodeURIComponent(nome)}${tentarDeNovo ? "&tentar=1" : ""}`).then((r) => lerJson<EstadoDaPrevia>(r)),
 
   // Tira o vídeo da lista (vai para removidos/) e apaga a transcrição dele.
   removerVideo: (nome: string) =>

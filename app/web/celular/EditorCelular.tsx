@@ -20,6 +20,7 @@ import {FaixaDeTempo} from "./FaixaDeTempo";
 import {Folha} from "./Folha";
 import {GaleriaCelular} from "./GaleriaCelular";
 import {ListaCelular} from "./ListaCelular";
+import {PreparandoPrevia} from "../PreparandoPrevia";
 import {SonsCelular} from "./SonsCelular";
 
 const ABAS = [
@@ -131,11 +132,11 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
       <Andamento tarefa={e.tarefa} />
 
       <div className="cel-palco">
-        {video && videoInfo && estilo ? (
+        {video && videoInfo && estilo && e.videoUrlDaPrevia ? (
           <>
             <Previa
               ref={e.playerRef}
-              videoUrl={api.videoUrl(video)}
+              videoUrl={e.videoUrlDaPrevia}
               video={videoInfo}
               blocos={blocos}
               estilo={estilo}
@@ -184,6 +185,12 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
               </button>
             )}
           </>
+        ) : video && videoInfo && e.previaLeve.estado ? (
+          <PreparandoPrevia
+            estado={e.previaLeve.estado}
+            proporcao={videoInfo.width / videoInfo.height}
+            onTentarDeNovo={e.previaLeve.tentarDeNovo}
+          />
         ) : (
           <p className="vazio">{video ? "Carregando..." : ""}</p>
         )}

@@ -39,6 +39,7 @@ import type {Aviso} from "./Avisos";
 import type {Salvamento} from "./BarraTopo";
 import type {BlocoSelecionado} from "./Galeria";
 import {ErroArquivoExiste, plataforma} from "./plataforma";
+import {usePreviaLeve} from "./previa-leve";
 import type {VideoEscolhido} from "./plataforma";
 
 export type Tarefa = {nome: string} & Andamento;
@@ -788,7 +789,16 @@ export const useEditor = () => {
   };
 
   // A prévia está na tela (o Player existe).
-  const previaAtiva = Boolean(video && videoInfo && estilo);
+  // Vídeo da prévia: a prévia leve do S3 quando pronta; vídeo só no disco (ou sem
+  // login), o de sempre. Preparando ou com falha: nenhum (a tela mostra a capa).
+  const previaLeve = usePreviaLeve(video);
+  const videoUrlDaPrevia =
+    previaLeve.estado?.estado === "pronta"
+      ? previaLeve.estado.video
+      : previaLeve.estado?.estado === "local" && video
+        ? api.videoUrl(video)
+        : undefined;
+  const previaAtiva = Boolean(video && videoInfo && estilo && videoUrlDaPrevia);
   const podeExportar = Boolean(projetoDoVideo && estilo);
   const temBlocoSelecionado = blocoSelecionado >= 0 && blocoSelecionado < blocos.length;
 
@@ -874,6 +884,8 @@ export const useEditor = () => {
     restaurarPosicoes,
     refazerTodosOsLayouts,
     previaAtiva,
+    previaLeve,
+    videoUrlDaPrevia,
     podeExportar,
     temBlocoSelecionado,
     fps: videoInfo?.fps ?? 30,

@@ -31,6 +31,7 @@ import type {AssignedCaptionBlock} from "../../src/types";
 import {configuracaoDoAmbiente} from "./configuracao";
 import {contasDoAmbiente} from "./contas";
 import {rotasDeEnvio} from "./envio";
+import {previasLeves} from "./previa-leve";
 import {s3DoAmbiente} from "./s3";
 import type {ConfigDoLogin} from "./contas";
 import {espacoDoUsuario, espacoLocal} from "./espaco";
@@ -130,6 +131,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // Envio direto ao S3 (com login e com as credenciais da AWS); sem isso, o envio
   // passa pelo servidor e vai para o disco, como sempre.
   const armazenamento = contas ? s3DoAmbiente(configuracaoDoAmbiente()) : undefined;
+  const previas = armazenamento ? previasLeves(armazenamento) : undefined;
   console.log(armazenamento ? `Envio de vídeos: direto para o S3 (${armazenamento.bucket}).` : "Envio de vídeos: pelo servidor, para o disco.");
   const app = express();
   // Atrás do proxy do Render: o endereço e o https verdadeiros vêm dos cabeçalhos.
@@ -218,9 +220,24 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   });
 
   // Envio direto do navegador para o S3, em partes (veja envio.ts).
-  if (contas && armazenamento) {
-    app.use("/api/envio", rotasDeEnvio({contas, armazenamento, espacoDe}));
+  if (contas && armazenamento && previas) {
+    app.use("/api/envio", rotasDeEnvio({contas, armazenamento, previas, espacoDe}));
   }
+
+  // Prévia leve e capa do vídeo (veja previa-leve.ts). Sem S3, ou vídeo só no disco:
+  // "local", e a tela usa /media como sempre. tentar=1: tenta de novo uma que falhou.
+  app.get(
+    "/api/previa",
+    handle(async (request, response) => {
+      const espaco = espacoDe(response);
+      const nome = String(request.query.nome ?? "");
+      const origemLocal = videoPath(espaco, nome);
+      if (!previas || !espaco.usuario) {
+        return {estado: "local"};
+      }
+      return previas.estado(espaco.usuario.id, nome, origemLocal, request.query.tentar === "1");
+    }),
+  );
 
   // Vídeos do espaço e os que já têm projeto (para a lista do Início).
   const catalogo = async (espaco: Espaco) => ({...loadCatalog(root, espaco.pasta), projetos: await espaco.projetos()});

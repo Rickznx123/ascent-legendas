@@ -34,6 +34,7 @@ import {PASTAS_NO_BUCKET} from "./configuracao";
 import type {Contas} from "./contas";
 import {LIMITES, duracaoEmTexto} from "./cota";
 import type {Espaco} from "./espaco";
+import type {PreviasLeves} from "./previa-leve";
 import type {ArmazenamentoS3} from "./s3";
 
 // Cada parte tem 5 MB (o mínimo do S3; a última, o que sobrar): numa interrupção,
@@ -72,10 +73,12 @@ const nomeSeguro = (nome: unknown): string => {
 export const rotasDeEnvio = ({
   contas,
   armazenamento,
+  previas,
   espacoDe,
 }: {
   contas: Contas;
   armazenamento: ArmazenamentoS3;
+  previas: PreviasLeves;
   espacoDe: (response: Response) => Espaco;
 }): express.Router => {
   const {s3, bucket: Bucket} = armazenamento;
@@ -263,6 +266,8 @@ export const rotasDeEnvio = ({
         await rm(temporario, {force: true});
         throw erro;
       }
+      // Capa e prévia leve, sem esperar (a tela pergunta o estado em /api/previa).
+      previas.gerar(espaco.usuario.id, nome, destino);
       return {nome, duracaoS, bytes: ContentLength};
     }),
   );
