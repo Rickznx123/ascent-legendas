@@ -18,9 +18,11 @@ const valor = (opcao: string) => {
   return indice > 0 ? process.argv[indice + 1] : undefined;
 };
 const memorySizeInMb = Number(valor("--memoria") ?? 2048);
-// Cada Lambda renderiza uns 2 quadros/s deste vídeo (HEVC 1080x1920): com o
-// limite baixo de execuções simultâneas da conta, os pedaços ficam grandes e
-// 240 s não bastam. 900 s é o máximo do Lambda.
+// Cada Lambda renderiza uns 2 quadros/s deste vídeo (HEVC 1080x1920). Quando a
+// conta tinha um limite baixo de execuções simultâneas, os pedaços eram grandes
+// (576 quadros) e 240 s não bastavam; 900 s é o máximo do Lambda e só o tempo
+// usado é cobrado. Hoje o limite é 1000 (Service Quotas, us-east-2, conferido em
+// 2026-10-05) e os renders usam 60 quadros por Lambda (~30 s por pedaço).
 const timeoutInSeconds = Number(valor("--timeout") ?? 900);
 
 const {bucketName} = await getOrCreateBucket({region: REGIAO});

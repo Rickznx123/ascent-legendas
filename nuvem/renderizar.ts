@@ -139,7 +139,10 @@ const renderId =
 console.log(`Render ${renderId} ${retomado ? "retomado" : "iniciado"} (${funcao.functionName}, ${quadrosPorLambda} quadros por Lambda)`);
 
 // Cada consulta de progresso invoca a função e ocupa uma vaga de execução
-// simultânea: com o limite baixo da conta, a AWS às vezes responde 429.
+// simultânea. O limite da conta é 1000 (Service Quotas, us-east-2, conferido em
+// 2026-10-05): ~33 renders de 29 pedaços (mais a função principal de cada um) ao
+// mesmo tempo. Com o limite baixo de antes a AWS respondia 429; a nova tentativa
+// fica para quando houver muitos renders juntos.
 const progresso = async () => {
   for (;;) {
     try {
