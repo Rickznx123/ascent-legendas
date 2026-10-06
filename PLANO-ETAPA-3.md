@@ -28,8 +28,8 @@ Levantado em 05/10/2026, olhando o código atual e a conta da AWS.
 
 | Item | Hoje | O que precisa mudar |
 |---|---|---|
-| **Vídeos enviados** | Pasta do projeto (modo local) ou `usuarios/<id>/` no disco | Bucket S3 privado, chave `usuarios/<id>/videos/<arquivo>`. O servidor só guarda a chave no projeto (coluna `projetos.video`). |
-| **Vídeos exportados** (`saidas/`) | Disco, baixados por `/saidas/<nome>` | Saída do Lambda direto no S3 (`usuarios/<id>/exportados/...`), baixada por endereço assinado com validade curta. |
+| **Vídeos enviados** | Pasta do projeto (modo local) ou `usuarios/<id>/` no disco | Bucket S3 privado `ascent-legendas-videos-275060989338`, chave `videos/<id>/<arquivo>` (o tipo vem primeiro: as regras de expiração do S3 são por prefixo). O servidor só guarda a chave no projeto (coluna `projetos.video`). |
+| **Vídeos exportados** (`saidas/`) | Disco, baixados por `/saidas/<nome>` | Saída do Lambda direto no S3 (`exportados/<id>/...`), baixada por endereço assinado com validade curta. |
 | **Removidos** (`removidos/`) | Movidos para uma pasta | No S3: apagar o vídeo (ou mover para um prefixo com expiração de 7 dias, se quiser "desfazer"). |
 | **`transcricao.json`** | Projeto único do modo local | Continua só no modo local. No servidor público, só Supabase. |
 | **Sons** (`sons/`) | Lidos do disco pela prévia e pelo render local | Ficam no repositório e vão junto com o servidor (prévia) e com o site do Lambda (render), como já é feito em `nuvem/implantar.ts`. Os "sons tocados" (corte e fade) continuam gerados pelo servidor com ffmpeg e enviados ao site do Lambda. |
@@ -172,12 +172,12 @@ Legenda: **[VOCÊ]** contas, consoles, domínio e decisões; **[EU]** código, s
 3. [VOCÊ] Comprar o domínio (ex.: `ascentlegendas.com.br`).
 4. [VOCÊ] Criar o orçamento na AWS (Budgets) e ativar o Cost Anomaly Detection.
 
-**Bloco 1 — Servidor pronto para nuvem** (testável no seu computador)
+**Bloco 1 — Servidor pronto para nuvem** ✅ concluído em 05/10/2026 (a imagem Docker só é construída de verdade no Render, no Bloco 9).
 1. [EU] Modo "servidor público": tela montada, `PORT` e `0.0.0.0`, sem "abrir pasta", sem importação local, sem Whisper local.
 2. [EU] Dockerfile (Node 22 + ffmpeg) e uma rota de saúde (`/saude`).
 3. [EU] Teste: rodar a imagem localmente e entrar pelo navegador.
 
-**Bloco 2 — Bucket S3**
+**Bloco 2 — Bucket S3** ✅ concluído em 05/10/2026: bucket `ascent-legendas-videos-275060989338` criado por `nuvem/criar-bucket.ts` (rode de novo ao trocar o endereço do app). A permissão virou a política **gerenciada** `ascent-legendas-bucket-videos`, anexada ao `remotion-user`, porque as políticas em linha do usuário já estavam no limite de 2048 caracteres.
 1. [EU] Script que cria o bucket privado em us-east-2, com CORS e as regras de expiração. [VOCÊ] Aprovar no console a política de permissão do usuário IAM: ler e escrever só nesse bucket, mais o Lambda que já existe.
 2. [EU] Teste: enviar e ler um arquivo por endereço assinado.
 

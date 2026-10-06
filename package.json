@@ -17,6 +17,8 @@
     "app:publico": "tsx app/servidor/index.ts --producao"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.986.0",
+    "@aws-sdk/s3-request-presigner": "^3.986.0",
     "@remotion/bundler": "4.0.532",
     "@remotion/install-whisper-cpp": "4.0.532",
     "@remotion/layout-utils": "4.0.532",
