@@ -13,6 +13,15 @@ type ProbeStream = {
   avg_frame_rate?: string;
   r_frame_rate?: string;
   duration?: string;
+  // Rotação de exibição: a matriz do contêiner (iPhone) ou a tag antiga "rotate".
+  tags?: {rotate?: string};
+  side_data_list?: {rotation?: number}[];
+};
+
+// Graus em que o vídeo é exibido girado (0, 90, 180 ou 270).
+const rotacaoDe = (stream: ProbeStream): number => {
+  const graus = Number(stream.side_data_list?.find((dado) => dado.rotation !== undefined)?.rotation ?? stream.tags?.rotate ?? 0);
+  return Number.isFinite(graus) ? (((Math.round(graus / 90) * 90) % 360) + 360) % 360 : 0;
 };
 
 type ProbeOutput = {
@@ -105,7 +114,7 @@ export const getVideoMetadata = async (inputPath: string): Promise<VideoMetadata
     "-v",
     "error",
     "-show_entries",
-    "stream=codec_type,width,height,avg_frame_rate,r_frame_rate,duration:format=duration",
+    "stream=codec_type,width,height,avg_frame_rate,r_frame_rate,duration:stream_tags=rotate:stream_side_data=rotation:format=duration",
     "-of",
     "json",
     inputPath,
@@ -122,9 +131,13 @@ export const getVideoMetadata = async (inputPath: string): Promise<VideoMetadata
     throw new Error("Não foi possível descobrir a duração do vídeo.");
   }
 
+  // Dimensões como o vídeo é exibido: girado 90 ou 270 graus (iPhone em pé grava
+  // deitado e marca a rotação), largura e altura se trocam. O navegador e o render
+  // já desenham o vídeo girado; a composição precisa ter a mesma orientação.
+  const giradoDeLado = rotacaoDe(videoStream) % 180 === 90;
   return {
-    width: videoStream.width,
-    height: videoStream.height,
+    width: giradoDeLado ? videoStream.height : videoStream.width,
+    height: giradoDeLado ? videoStream.width : videoStream.height,
     fps,
     durationInFrames: Math.ceil(durationSeconds * fps),
   };
