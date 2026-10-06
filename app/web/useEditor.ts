@@ -31,7 +31,8 @@ import {POSICAO_PADRAO} from "../../src/posicao";
 import type {Posicao} from "../../src/posicao";
 import {computeTimeline, findActiveBlockIndex} from "../../src/tempos";
 import type {AssignedCaptionBlock, VideoMetadata} from "../../src/types";
-import {ErroDaTarefa, api, executarTarefa} from "./api";
+import {api, executarTarefa} from "./api";
+import type {Exportacao} from "./api";
 import type {Andamento, Catalogo, DecisaoDeExportacao} from "./api";
 import {useConta} from "./conta";
 import {EVENTO_ENVIO_PARADO, enviosInterrompidos} from "./envio";
@@ -612,6 +613,73 @@ export const useEditor = () => {
     }
   };
 
+  // Exportação: o servidor faz o render solto da página; aqui só se acompanha o
+  // andamento (a cada 1,5 s). Ao voltar para o app, recarregar ou abrir o projeto de
+  // novo, o acompanhamento é retomado, ou o vídeo pronto aparece (uma vez por
+  // exportação: as já mostradas ficam marcadas neste aparelho).
+  const acompanhando = useRef<string | undefined>(undefined);
+  // Muda quando uma exportação é retomada (o celular abre a tela de exportar).
+  const [exportacaoRetomada, setExportacaoRetomada] = useState(0);
+  const jaMostrada = (id: string) => {
+    try {
+      return localStorage.getItem(`exportacao-vista:${id}`) !== null;
+    } catch {
+      return false;
+    }
+  };
+  const marcarMostrada = (id: string) => {
+    try {
+      localStorage.setItem(`exportacao-vista:${id}`, "1");
+    } catch {
+      // Sem armazenamento: no pior caso, o vídeo pronto aparece de novo.
+    }
+  };
+  const acompanharExportacao = async (inicial: Exportacao) => {
+    if (acompanhando.current === inicial.id) {
+      return;
+    }
+    acompanhando.current = inicial.id;
+    let atual = inicial;
+    try {
+      while (atual.estado === "andamento") {
+        setTarefa({nome: "Exportar", etapa: atual.etapa ?? "Exportando...", fracao: atual.fracao});
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        // Página em segundo plano: espera voltar (o render segue no servidor).
+        while (document.visibilityState === "hidden") {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+        const lido = await api.exportacao(inicial.video).catch(() => atual);
+        // Outro render do mesmo vídeo (ou o servidor reiniciou): para de acompanhar.
+        if (lido.estado === "nenhuma" || lido.id !== inicial.id) {
+          throw new Error("A exportação foi interrompida no servidor. Toque em Exportar para tentar de novo.");
+        }
+        atual = lido;
+      }
+      marcarMostrada(atual.id);
+      if (atual.estado === "pronta" && atual.caminho) {
+        setExportado({nome: nomeDoArquivo(atual.caminho), caminho: atual.caminho});
+        setPreviaExportacao(undefined);
+        // O uso do plano mudou (quadro do Início, menu da conta).
+        atualizarConta();
+      } else if (atual.codigo === "assine" || atual.codigo === "sem-saldo") {
+        // O plano não deixou (o servidor recusou antes do render): mostra a decisão
+        // dele ("Assine para continuar" ou quanto falta) em vez de um erro comum.
+        await prepararExportacao();
+      } else {
+        mostrarErro(new Error(atual.mensagem ?? "Não deu para exportar."));
+      }
+    } catch (error) {
+      mostrarErro(error);
+    } finally {
+      acompanhando.current = undefined;
+      setTarefa(undefined);
+    }
+  };
+
+  // O efeito de retomada chama sempre a versão atual (com o projeto de agora).
+  const acompanharAtual = useRef(acompanharExportacao);
+  acompanharAtual.current = acompanharExportacao;
+
   const exportar = async () => {
     if (!projetoDoVideo) {
       return;
@@ -622,28 +690,39 @@ export const useEditor = () => {
     setTarefa({nome: "Exportar", etapa: "Salvando..."});
     try {
       await salvar(projetoDoVideo, true);
-      const {caminho} = await executarTarefa<{caminho: string}>(
-        "/api/exportar",
-        // Com login, o projeto deste vídeo (cada vídeo tem o seu).
-        {video: projetoDoVideo.source},
-        (andamento) => setTarefa({nome: "Exportar", ...andamento}),
-      );
-      setExportado({nome: nomeDoArquivo(caminho), caminho});
-      setPreviaExportacao(undefined);
-      // O uso do plano mudou (quadro do Início, menu da conta).
-      atualizarConta();
+      // Com uma exportação deste vídeo em curso, o servidor devolve a mesma.
+      const exportacao = await api.exportar(projetoDoVideo.source);
+      void acompanharExportacao(exportacao);
     } catch (error) {
-      // O plano não deixou (o servidor recusou antes do render): mostra a decisão
-      // dele ("Assine para continuar" ou quanto falta) em vez de um erro comum.
-      if (error instanceof ErroDaTarefa && (error.codigo === "assine" || error.codigo === "sem-saldo")) {
-        await prepararExportacao();
-      } else {
-        mostrarErro(error);
-      }
-    } finally {
+      mostrarErro(error);
       setTarefa(undefined);
     }
   };
+
+  // Retomada: ao abrir o vídeo e ao voltar para a página, pergunta ao servidor.
+  useEffect(() => {
+    if (!video) {
+      return;
+    }
+    const conferir = () => {
+      if (document.visibilityState !== "visible" || acompanhando.current) {
+        return;
+      }
+      api
+        .exportacao(video)
+        .then((exportacao) => {
+          if (exportacao.estado === "nenhuma" || jaMostrada(exportacao.id) || acompanhando.current) {
+            return;
+          }
+          setExportacaoRetomada((n) => n + 1);
+          void acompanharAtual.current(exportacao);
+        })
+        .catch(() => undefined);
+    };
+    conferir();
+    document.addEventListener("visibilitychange", conferir);
+    return () => document.removeEventListener("visibilitychange", conferir);
+  }, [video]);
 
   const mudarEfeitos = (mudanca: Partial<ConfigEfeitos>) =>
     atualizarProjeto({efeitos: {...configEfeitos, ...mudanca}});
@@ -872,6 +951,7 @@ export const useEditor = () => {
     comPlano: Boolean(conta),
     marcaDagua: conta?.uso?.comMarca ?? false,
     previaExportacao,
+    exportacaoRetomada,
     prepararExportacao,
     fecharPreviaExportacao: () => setPreviaExportacao(undefined),
     mudarEfeitos,

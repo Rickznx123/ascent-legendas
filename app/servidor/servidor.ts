@@ -1,4 +1,5 @@
 import {spawn} from "node:child_process";
+import {randomUUID} from "node:crypto";
 import {createWriteStream, existsSync, writeFileSync} from "node:fs";
 import {copyFile, mkdir, rename, rm} from "node:fs/promises";
 import type {Server} from "node:http";
@@ -500,78 +501,126 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     }),
   );
 
-  app.post("/api/exportar", async (request, response) => {
-    if (!reservar("exportação", response)) {
-      return;
+  // Exportação (render neste computador até o Bloco 6, no Lambda depois). Ela roda
+  // solta do pedido: o celular pode ir para segundo plano (e a conexão cair) sem
+  // parar o render. A tela pergunta o andamento em GET /api/exportacao e, ao voltar,
+  // retoma o acompanhamento ou mostra o vídeo pronto. Pedir de novo com uma
+  // exportação do mesmo vídeo em curso devolve a que já existe (sem outro render).
+  // Guardadas na memória do servidor (no Bloco 6, na tabela renders do Supabase).
+  type Exportacao = {
+    id: string;
+    video: string;
+    estado: "andamento" | "pronta" | "falhou";
+    etapa?: string;
+    fracao?: number;
+    caminho?: string;
+    descontoS?: number;
+    mensagem?: string;
+    codigo?: string;
+  };
+  const exportacoes = new Map<string, Exportacao>();
+  const chaveDaExportacao = (espaco: Espaco, video: string) => `${espaco.usuario?.id ?? "local"}:${video}`;
+
+  const renderizarProjeto = async (espaco: Espaco, projeto: Projeto, progress: (etapa: string, fracao?: number) => void) => {
+    const inputPath = videoPath(espaco, projeto.source);
+    const style = await loadStyle(root, {pacote: projeto.pacote, paleta: projeto.paleta}, projeto);
+    const outputPath = outputPathFor(espaco.pasta, projeto.source, style.pacote, style.paleta);
+    const missing = projeto.blocks.findIndex((block) => !style.templates[block.template]);
+    if (missing >= 0) {
+      throw new Error(
+        `O bloco ${missing + 1} usa o layout '${projeto.blocks[missing].template}', que não existe no pacote ${style.pacote}.`,
+      );
     }
-    const espaco = espacoDe(response);
-    // O vídeo do projeto a exportar (sem ele, o último editado).
-    const {video: pedido} = (request.body ?? {}) as {video?: string};
-    try {
-      await streamTask(response, async (progress) => {
-        const projeto = await espaco.lerProjeto(pedido);
-        if (!projeto || (pedido && projeto.source !== pedido)) {
-          throw new Error("Não há projeto para exportar.");
-        }
-        const inputPath = videoPath(espaco, projeto.source);
-        const style = await loadStyle(root, {pacote: projeto.pacote, paleta: projeto.paleta}, projeto);
-        const outputPath = outputPathFor(espaco.pasta, projeto.source, style.pacote, style.paleta);
-        const missing = projeto.blocks.findIndex((block) => !style.templates[block.template]);
-        if (missing >= 0) {
-          throw new Error(
-            `O bloco ${missing + 1} usa o layout '${projeto.blocks[missing].template}', que não existe no pacote ${style.pacote}.`,
-          );
-        }
-        const video = await getVideoMetadata(inputPath);
-        // O plano decide aqui, com a duração do arquivo medida no servidor: se não
-        // cabe, o render nem começa; a marca d'água vem do plano, nunca do pedido.
-        const duracaoS = video.durationInFrames / video.fps;
-        const decisao = await espaco.cota?.decidir(projeto.source, duracaoS);
-        if (decisao && !decisao.permitido) {
-          throw new ErroDoPlano(decisao.motivo ?? "O seu plano não permite esta exportação.", decisao.codigo ?? "plano");
-        }
-        // Os blocos vão como foram editados na interface.
-        const blocks = projeto.blocks as AssignedCaptionBlock[];
-        const efeitos = configDosEfeitos(projeto.efeitos);
-        const sincroniaMs = sincroniaDoProjeto(projeto.sincroniaMs, projeto.sincroniaPrecisa);
-        const precisa = precisaoDoProjeto(projeto, video.fps);
-        const cortesMs = cortesDosExcluidos(projeto.excluidos, style.templates, sincroniaMs, precisa);
-        const sons = await listarSons(root);
-        // No log do servidor: o que entra no render (pasta vazia = nenhum efeito).
-        const plano = planejarEfeitos(blocks, style.templates, sons, efeitos, projeto.semente ?? 0, sincroniaMs, cortesMs, precisa);
-        console.log(
-          `Exportar: ${sons.length} sons em sons/, ${plano.length} efeitos (destaque ${efeitos.destaque}, linear ${efeitos.linear}, volume ${efeitos.volume}%), sincronia ${sincroniaMs} ms${precisa ? " (precisa)" : ""}.`,
-        );
-        await renderVideo(
-          {
-            root,
-            inputPath,
-            outputPath,
-            blocks,
-            templates: style.templates,
-            palette: style.palette,
-            palettes: style.paletas,
-            video,
-            efeitos: plano,
-            volumeEfeitos: efeitos.volume,
-            sincroniaMs,
-            precisa,
-            posicao: projeto.posicao,
-            cortesMs,
-            marcaDagua: decisao?.comMarca ?? false,
-          },
-          progress,
-        );
-        // Só o que terminou desconta: o registro vem depois do render.
-        if (decisao) {
-          await espaco.cota!.registrar(projeto.source, duracaoS, decisao);
-        }
-        return {caminho: outputPath, descontoS: decisao?.descontoS};
-      });
-    } finally {
-      tarefaAtual = undefined;
+    const video = await getVideoMetadata(inputPath);
+    // O plano decide aqui, com a duração do arquivo medida no servidor: se não
+    // cabe, o render nem começa; a marca d'água vem do plano, nunca do pedido.
+    const duracaoS = video.durationInFrames / video.fps;
+    const decisao = await espaco.cota?.decidir(projeto.source, duracaoS);
+    if (decisao && !decisao.permitido) {
+      throw new ErroDoPlano(decisao.motivo ?? "O seu plano não permite esta exportação.", decisao.codigo ?? "plano");
     }
-  });
+    // Os blocos vão como foram editados na interface.
+    const blocks = projeto.blocks as AssignedCaptionBlock[];
+    const efeitos = configDosEfeitos(projeto.efeitos);
+    const sincroniaMs = sincroniaDoProjeto(projeto.sincroniaMs, projeto.sincroniaPrecisa);
+    const precisa = precisaoDoProjeto(projeto, video.fps);
+    const cortesMs = cortesDosExcluidos(projeto.excluidos, style.templates, sincroniaMs, precisa);
+    const sons = await listarSons(root);
+    // No log do servidor: o que entra no render (pasta vazia = nenhum efeito).
+    const plano = planejarEfeitos(blocks, style.templates, sons, efeitos, projeto.semente ?? 0, sincroniaMs, cortesMs, precisa);
+    console.log(
+      `Exportar: ${sons.length} sons em sons/, ${plano.length} efeitos (destaque ${efeitos.destaque}, linear ${efeitos.linear}, volume ${efeitos.volume}%), sincronia ${sincroniaMs} ms${precisa ? " (precisa)" : ""}.`,
+    );
+    await renderVideo(
+      {
+        root,
+        inputPath,
+        outputPath,
+        blocks,
+        templates: style.templates,
+        palette: style.palette,
+        palettes: style.paletas,
+        video,
+        efeitos: plano,
+        volumeEfeitos: efeitos.volume,
+        sincroniaMs,
+        precisa,
+        posicao: projeto.posicao,
+        cortesMs,
+        marcaDagua: decisao?.comMarca ?? false,
+      },
+      progress,
+    );
+    // Só o que terminou desconta: o registro vem depois do render.
+    if (decisao) {
+      await espaco.cota!.registrar(projeto.source, duracaoS, decisao);
+    }
+    return {caminho: outputPath, descontoS: decisao?.descontoS};
+  };
+
+  app.post(
+    "/api/exportar",
+    handle(async (request, response) => {
+      const espaco = espacoDe(response);
+      // O vídeo do projeto a exportar (sem ele, o último editado).
+      const {video: pedido} = (request.body ?? {}) as {video?: string};
+      const projeto = await espaco.lerProjeto(pedido);
+      if (!projeto || (pedido && projeto.source !== pedido)) {
+        throw new Error("Não há projeto para exportar.");
+      }
+      const chave = chaveDaExportacao(espaco, projeto.source);
+      const atual = exportacoes.get(chave);
+      if (atual?.estado === "andamento") {
+        console.log(`Exportar: ${projeto.source} já está sendo exportado; o pedido acompanha o mesmo render.`);
+        return atual;
+      }
+      if (!reservar("exportação", response)) {
+        return undefined;
+      }
+      const exportacao: Exportacao = {id: randomUUID(), video: projeto.source, estado: "andamento", etapa: "Começando..."};
+      exportacoes.set(chave, exportacao);
+      void renderizarProjeto(espaco, projeto, (etapa, fracao) => Object.assign(exportacao, {etapa, fracao}))
+        .then((resultado) => Object.assign(exportacao, {estado: "pronta", ...resultado}))
+        .catch((error: unknown) =>
+          Object.assign(exportacao, {
+            estado: "falhou",
+            mensagem: error instanceof Error ? error.message : String(error),
+            // A tela mostra uma tela própria (ex.: "assine" → Assine para continuar).
+            codigo: error instanceof ErroDoPlano ? error.codigo : undefined,
+          }),
+        )
+        .finally(() => {
+          tarefaAtual = undefined;
+        });
+      return exportacao;
+    }),
+  );
+
+  // Andamento (ou resultado) da última exportação deste vídeo.
+  app.get(
+    "/api/exportacao",
+    handle((request, response) => exportacoes.get(chaveDaExportacao(espacoDe(response), String(request.query.video ?? ""))) ?? {estado: "nenhuma"}),
+  );
 
   // "Importar projetos deste computador": no primeiro login, traz para a conta os
   // vídeos da pasta do projeto e o transcricao.json (copiados; o modo local

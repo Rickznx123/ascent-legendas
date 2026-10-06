@@ -41,6 +41,19 @@ export class ErroDaTarefa extends Error {
 
 export type Andamento = {etapa: string; fracao?: number};
 
+// Uma exportação no servidor (veja POST /api/exportar).
+export type Exportacao = {
+  id: string;
+  video: string;
+  estado: "andamento" | "pronta" | "falhou";
+  etapa?: string;
+  fracao?: number;
+  caminho?: string;
+  descontoS?: number;
+  mensagem?: string;
+  codigo?: string;
+};
+
 const lerJson = async <T>(response: Response): Promise<T> => {
   const data = (await response.json()) as T & {mensagem?: string};
   if (!response.ok) {
@@ -73,6 +86,15 @@ export const api = {
     pedir(`/api/exportar/previa?video=${encodeURIComponent(video)}`).then((r) =>
       lerJson<DecisaoDeExportacao | {semLimite: true}>(r),
     ),
+
+  // Exportação: começa (ou devolve a que já está em curso para este vídeo) e, depois,
+  // o andamento ou o resultado. Ela segue no servidor mesmo com a página fechada.
+  exportar: (video: string) =>
+    pedir("/api/exportar", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({video})}).then((r) =>
+      lerJson<Exportacao>(r),
+    ),
+  exportacao: (video: string) =>
+    pedir(`/api/exportacao?video=${encodeURIComponent(video)}`).then((r) => lerJson<Exportacao | {estado: "nenhuma"}>(r)),
 
   // "Importar projetos deste computador": se está disponível para esta conta.
   importacaoLocal: () =>

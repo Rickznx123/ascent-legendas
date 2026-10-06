@@ -30,13 +30,14 @@ export const TelaExportar: React.FC<{e: Editor; onVoltar: () => void}> = ({e, on
   // (AvisoDoPlano), e só exporta no toque. Só uma vez por abertura, mesmo com o
   // efeito rodando duas vezes no modo de desenvolvimento.
   const comecou = useRef(false);
-  const {exportar, tarefa, podeExportar, comPlano, prepararExportacao} = e;
+  const {exportar, tarefa, exportado, podeExportar, comPlano, prepararExportacao} = e;
   useEffect(() => {
-    if (!comecou.current && !tarefa && podeExportar) {
+    // Aberta por uma exportação retomada (em curso ou pronta): só acompanha.
+    if (!comecou.current && !tarefa && !exportado && podeExportar) {
       comecou.current = true;
       void (comPlano ? prepararExportacao() : exportar());
     }
-  }, [exportar, tarefa, podeExportar, comPlano, prepararExportacao]);
+  }, [exportar, tarefa, exportado, podeExportar, comPlano, prepararExportacao]);
 
   const compartilhar = async () => {
     if (!pronto) {
@@ -95,7 +96,7 @@ export const TelaExportar: React.FC<{e: Editor; onVoltar: () => void}> = ({e, on
               {e.tarefa?.etapa}
               {e.tarefa?.fracao !== undefined ? ` ${Math.round(e.tarefa.fracao * 100)}%` : ""}
             </p>
-            <p className="suave">O vídeo é gerado no computador. Pode bloquear a tela, mas não feche esta página.</p>
+            <p className="suave">Pode sair do app ou bloquear a tela: a exportação continua e aparece aqui quando você voltar.</p>
           </>
         ) : e.previaExportacao && !e.erro ? (
           <>

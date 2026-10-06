@@ -129,6 +129,15 @@ export const LayoutCelular: React.FC<{e: Editor}> = ({e}) => {
     };
   }, []);
 
+  // Exportação retomada (voltou para o app, recarregou ou abriu o projeto com uma
+  // em curso ou pronta e ainda não vista): vai para a tela de exportar.
+  useEffect(() => {
+    if (e.exportacaoRetomada > 0) {
+      setFolhaAberta(false);
+      setTela("exportar");
+    }
+  }, [e.exportacaoRetomada]);
+
   const abrirVideo = (nome: string) => {
     if (nome !== e.video) {
       e.setVideo(nome);
@@ -150,6 +159,10 @@ export const LayoutCelular: React.FC<{e: Editor}> = ({e}) => {
           onExportar={() => {
             e.playerRef.current?.pause();
             setFolhaAberta(false);
+            // Uma exportação nova (o vídeo pronto da anterior não fica na tela).
+            if (!e.ocupado) {
+              e.setExportado(undefined);
+            }
             setTela("exportar");
           }}
         />
