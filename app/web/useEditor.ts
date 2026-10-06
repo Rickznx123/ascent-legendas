@@ -34,7 +34,7 @@ import type {AssignedCaptionBlock, VideoMetadata} from "../../src/types";
 import {ErroDaTarefa, api, executarTarefa} from "./api";
 import type {Andamento, Catalogo, DecisaoDeExportacao} from "./api";
 import {useConta} from "./conta";
-import {enviosInterrompidos} from "./envio";
+import {EVENTO_ENVIO_PARADO, enviosInterrompidos} from "./envio";
 import type {Aviso} from "./Avisos";
 import type {Salvamento} from "./BarraTopo";
 import type {BlocoSelecionado} from "./Galeria";
@@ -124,6 +124,13 @@ export const useEditor = () => {
     for (const {nome, fracao} of enviosInterrompidos()) {
       setAviso(`Envio interrompido: ${nome} (${Math.round(fracao * 100)}% enviado). Importe o mesmo vídeo para continuar de onde parou.`);
     }
+  }, []);
+
+  // Diagnóstico do envio: 30 s sem andamento mostram em que etapa ele parou.
+  useEffect(() => {
+    const parado = (evento: Event) => setAviso(`O envio está parado há 30 s na etapa: ${(evento as CustomEvent<string>).detail}.`);
+    window.addEventListener(EVENTO_ENVIO_PARADO, parado);
+    return () => window.removeEventListener(EVENTO_ENVIO_PARADO, parado);
   }, []);
 
   useEffect(() => {

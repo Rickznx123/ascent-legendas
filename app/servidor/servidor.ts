@@ -143,6 +143,19 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     response.json({ok: true});
   });
 
+  // Diagnóstico do envio (provisório, envio parando no iPhone): a tela manda cada
+  // etapa e ela aparece neste terminal, com o horário e o aparelho. Sem login (o
+  // problema pode ser a própria sessão) e só fora do servidor público.
+  if (!publico) {
+    app.post("/diagnostico-envio", (request: Request, response: Response) => {
+      const {etapa, detalhe} = (request.body ?? {}) as {etapa?: unknown; detalhe?: unknown};
+      const texto = detalhe === undefined ? "" : ` ${JSON.stringify(detalhe)}`.slice(0, 1000);
+      const horario = new Date().toLocaleTimeString("pt-BR", {hour12: false});
+      console.log(`[envio ${horario}] ${String(etapa ?? "?").slice(0, 200)}${texto}  | ${request.headers["user-agent"] ?? "?"}`);
+      response.status(204).end();
+    });
+  }
+
   // Só uma tarefa longa (transcrever ou exportar) por vez nesta máquina.
   let tarefaAtual: string | undefined;
   const reservar = (nome: string, response: Response): boolean => {

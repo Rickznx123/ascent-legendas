@@ -6,6 +6,8 @@
 //   onde parou: o servidor diz quais partes já chegaram ao S3.
 // - Os limites do plano são do servidor (rotas em app/servidor/envio.ts); aqui só se
 //   mede a duração antes, para avisar sem gastar dados.
+// - Diagnóstico (provisório, envio parando no iPhone): cada etapa vai para o terminal
+//   do servidor (POST /diagnostico-envio); 30 s sem andamento avisam a tela.
 import {pedir} from "./api";
 import {usuarioDaSessao} from "./sessao";
 
@@ -17,6 +19,24 @@ export class ErroDeEnvio extends Error {
     super(mensagem);
   }
 }
+
+// A tela escuta este evento: o envio está parado há 30 s (detail: nome da etapa).
+export const EVENTO_ENVIO_PARADO = "envio-parado";
+const PARADO_MS = 30_000;
+
+// Um registro de diagnóstico no terminal do servidor. Nunca atrapalha o envio: sem
+// a rota (servidor público) ou sem conexão, é ignorado.
+const diagnosticar = (id: string, inicio: number, etapa: string, detalhe?: unknown) => {
+  fetch("/diagnostico-envio", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({etapa: `[${id} +${((Date.now() - inicio) / 1000).toFixed(1)}s] ${etapa}`, detalhe}),
+    keepalive: true,
+  }).catch(() => undefined);
+};
+
+const mensagemDo = (erro: unknown) => (erro instanceof Error ? `${erro.name}: ${erro.message}` : String(erro));
+const statusDo = (erro: unknown) => (erro instanceof ErroDeEnvio ? erro.status : undefined);
 
 type Andamento = {
   chave: string;
@@ -89,8 +109,8 @@ const postar = <T>(rota: string, corpo: unknown) =>
   pedir(`/api/envio/${rota}`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(corpo)}).then((r) => lerResposta<T>(r));
 
 // Duração pelo próprio navegador (sem enviar nada). Sem conseguir ler (alguns
-// formatos), fica para o servidor conferir no fim.
-const medirDuracao = (arquivo: File): Promise<number | undefined> =>
+// formatos), fica para o servidor conferir no fim. registrar: o resultado (ou o erro).
+const medirDuracao = (arquivo: File, registrar: (etapa: string, detalhe?: unknown) => void): Promise<number | undefined> =>
   new Promise((resolve) => {
     const video = document.createElement("video");
     const url = URL.createObjectURL(arquivo);
@@ -98,14 +118,19 @@ const medirDuracao = (arquivo: File): Promise<number | undefined> =>
       URL.revokeObjectURL(url);
       resolve(duracao !== undefined && Number.isFinite(duracao) && duracao > 0 ? duracao : undefined);
     };
-    const prazo = setTimeout(() => terminar(), 8000);
+    const prazo = setTimeout(() => {
+      registrar("duração: tempo esgotado (10 s)", {readyState: video.readyState, networkState: video.networkState});
+      terminar();
+    }, 10_000);
     video.preload = "metadata";
     video.onloadedmetadata = () => {
       clearTimeout(prazo);
+      registrar("duração: resultado", {duracao: video.duration, largura: video.videoWidth, altura: video.videoHeight});
       terminar(video.duration);
     };
     video.onerror = () => {
       clearTimeout(prazo);
+      registrar("duração: erro", {codigo: video.error?.code, mensagem: video.error?.message});
       terminar();
     };
     video.src = url;
@@ -122,11 +147,13 @@ const enviarParte = (url: string, corpo: Blob, onBytes: (bytes: number) => void)
       if (xhr.status >= 200 && xhr.status < 300 && etag) {
         resolve(etag);
       } else {
-        reject(new ErroDeEnvio(`Parte recusada pelo armazenamento (${xhr.status}).`, xhr.status));
+        // Diagnóstico: aceita pelo S3, mas sem a ETag visível (CORS) é outro problema.
+        const motivo = xhr.status >= 200 && xhr.status < 300 ? " sem ETag" : "";
+        reject(new ErroDeEnvio(`Parte recusada pelo armazenamento (${xhr.status}${motivo}).`, xhr.status));
       }
     };
-    xhr.onerror = () => reject(new ErroDeEnvio("Conexão interrompida."));
-    xhr.ontimeout = () => reject(new ErroDeEnvio("Conexão lenta demais."));
+    xhr.onerror = () => reject(new ErroDeEnvio("Conexão interrompida.", xhr.status));
+    xhr.ontimeout = () => reject(new ErroDeEnvio("Conexão lenta demais.", xhr.status));
     xhr.timeout = 10 * 60 * 1000;
     xhr.send(corpo);
   });
@@ -138,111 +165,201 @@ export const enviarDireto = async (
   substituir: boolean,
   onProgresso: (fracao: number) => void,
 ): Promise<string> => {
-  let andamento = lerAndamento(arquivo);
-  if (andamento) {
-    // Retomada: o que vale é o que já está no S3.
-    const {existe, partes} = await pedir(
-      `/api/envio/partes?chave=${encodeURIComponent(andamento.chave)}&envio=${encodeURIComponent(andamento.envio)}`,
-    ).then((r) => lerResposta<{existe: boolean; partes: {numero: number; etag: string}[]}>(r));
-    andamento = existe ? {...andamento, feitas: Object.fromEntries(partes.map((p) => [p.numero, p.etag]))} : undefined;
-    guardarAndamento(arquivo, andamento);
-  }
-  if (!andamento) {
-    const duracaoS = await medirDuracao(arquivo);
-    const aberto = await postar<{chave: string; envio: string; tamanhoDaParte: number; partes: number}>("iniciar", {
-      nome: arquivo.name,
-      tamanho: arquivo.size,
-      duracaoS,
-      substituir,
-    });
-    andamento = {...aberto, feitas: {}, quando: Date.now()};
-    guardarAndamento(arquivo, andamento);
-  }
-
-  const atual = andamento;
-  const tamanhoDa = (numero: number) => Math.min(atual.tamanhoDaParte, arquivo.size - (numero - 1) * atual.tamanhoDaParte);
-  const emAndamento = new Map<number, number>();
-  const informar = () => {
-    const prontos = Object.keys(atual.feitas).reduce((soma, n) => soma + tamanhoDa(Number(n)), 0);
-    const parciais = [...emAndamento.values()].reduce((soma, bytes) => soma + bytes, 0);
-    onProgresso(Math.min(0.999, (prontos + parciais) / arquivo.size));
+  // Diagnóstico: cada etapa vai para o terminal; a etapa atual entra na mensagem de
+  // erro e no aviso de "parado há 30 s".
+  const id = Math.random().toString(36).slice(2, 6);
+  const inicio = Date.now();
+  let etapa = "escolha do arquivo";
+  let ultimoSinal = Date.now();
+  let avisouParado = false;
+  const registrar = (texto: string, detalhe?: unknown) => {
+    ultimoSinal = Date.now();
+    avisouParado = false;
+    diagnosticar(id, inicio, texto, detalhe);
   };
-  informar();
-
-  const faltam = Array.from({length: atual.partes}, (_, i) => i + 1).filter((n) => !atual.feitas[n]);
-  const enderecos = new Map<number, string>();
-  // Assina em lotes (endereços valem 1 hora; um que vencer é pedido de novo).
-  const assinar = async (numeros: number[]) => {
-    const {enderecos: lista} = await postar<{enderecos: {numero: number; url: string}[]}>("assinar", {
-      chave: atual.chave,
-      envio: atual.envio,
-      partes: numeros,
-    });
-    for (const {numero, url} of lista) enderecos.set(numero, url);
+  const mudarEtapa = (nova: string, detalhe?: unknown) => {
+    etapa = nova;
+    registrar(`etapa: ${nova}`, detalhe);
   };
+  const vigia = setInterval(() => {
+    if (!avisouParado && Date.now() - ultimoSinal > PARADO_MS) {
+      avisouParado = true;
+      diagnosticar(id, inicio, `parado há 30 s na etapa: ${etapa}`, {online: navigator.onLine, visivel: document.visibilityState});
+      window.dispatchEvent(new CustomEvent(EVENTO_ENVIO_PARADO, {detail: etapa}));
+    }
+  }, 5000);
+  const erroSolto = (evento: ErrorEvent) => registrar("erro não tratado", {mensagem: evento.message, arquivo: evento.filename, linha: evento.lineno});
+  const rejeicaoSolta = (evento: PromiseRejectionEvent) => registrar("promessa rejeitada sem tratamento", {mensagem: mensagemDo(evento.reason)});
+  const mudancaDeVisibilidade = () => registrar("visibilidade da página", {visivel: document.visibilityState});
+  const conexao = () => registrar("conexão", {online: navigator.onLine});
+  window.addEventListener("error", erroSolto);
+  window.addEventListener("unhandledrejection", rejeicaoSolta);
+  document.addEventListener("visibilitychange", mudancaDeVisibilidade);
+  window.addEventListener("online", conexao);
+  window.addEventListener("offline", conexao);
 
-  let proxima = 0;
-  const trabalhador = async () => {
-    while (proxima < faltam.length) {
-      const numero = faltam[proxima++];
-      for (let tentativa = 1; ; tentativa++) {
-        try {
-          if (!enderecos.has(numero)) {
-            await assinar(faltam.slice(faltam.indexOf(numero), faltam.indexOf(numero) + 6).filter((n) => !enderecos.has(n) && !atual.feitas[n]));
-          }
-          const inicio = (numero - 1) * atual.tamanhoDaParte;
-          const etag = await enviarParte(enderecos.get(numero)!, arquivo.slice(inicio, inicio + tamanhoDa(numero)), (bytes) => {
-            emAndamento.set(numero, bytes);
+  registrar("arquivo escolhido", {
+    nome: arquivo.name,
+    tipo: arquivo.type || "(vazio)",
+    tamanho: arquivo.size,
+    modificado: arquivo.lastModified,
+    substituir,
+  });
+
+  try {
+    let andamento = lerAndamento(arquivo);
+    if (andamento) {
+      // Retomada: o que vale é o que já está no S3.
+      mudarEtapa("retomada (partes já enviadas)", {partes: andamento.partes, feitasNoAparelho: Object.keys(andamento.feitas).length});
+      const {existe, partes} = await pedir(
+        `/api/envio/partes?chave=${encodeURIComponent(andamento.chave)}&envio=${encodeURIComponent(andamento.envio)}`,
+      ).then((r) => {
+        registrar("retomada: resposta", {status: r.status});
+        return lerResposta<{existe: boolean; partes: {numero: number; etag: string}[]}>(r);
+      });
+      registrar("retomada: resultado", {existe, noS3: partes.length});
+      andamento = existe ? {...andamento, feitas: Object.fromEntries(partes.map((p) => [p.numero, p.etag]))} : undefined;
+      guardarAndamento(arquivo, andamento);
+    }
+    if (!andamento) {
+      mudarEtapa("leitura da duração");
+      const duracaoS = await medirDuracao(arquivo, registrar);
+      mudarEtapa("abertura do envio", {duracaoS});
+      let aberto: {chave: string; envio: string; tamanhoDaParte: number; partes: number};
+      try {
+        aberto = await postar("iniciar", {nome: arquivo.name, tamanho: arquivo.size, duracaoS, substituir});
+      } catch (erro) {
+        registrar("abertura do envio: erro", {status: statusDo(erro), mensagem: mensagemDo(erro)});
+        throw erro;
+      }
+      registrar("abertura do envio: ok", {status: 200, partes: aberto.partes, tamanhoDaParte: aberto.tamanhoDaParte});
+      andamento = {...aberto, feitas: {}, quando: Date.now()};
+      guardarAndamento(arquivo, andamento);
+    }
+
+    const atual = andamento;
+    const tamanhoDa = (numero: number) => Math.min(atual.tamanhoDaParte, arquivo.size - (numero - 1) * atual.tamanhoDaParte);
+    const emAndamento = new Map<number, number>();
+    let decimoInformado = -1;
+    const informar = () => {
+      const prontos = Object.keys(atual.feitas).reduce((soma, n) => soma + tamanhoDa(Number(n)), 0);
+      const parciais = [...emAndamento.values()].reduce((soma, bytes) => soma + bytes, 0);
+      const fracao = Math.min(0.999, (prontos + parciais) / arquivo.size);
+      onProgresso(fracao);
+      // Diagnóstico: um registro a cada 10%.
+      const decimo = Math.floor(fracao * 10);
+      if (decimo > decimoInformado) {
+        decimoInformado = decimo;
+        registrar(`andamento: ${decimo * 10}%`, {bytes: prontos + parciais, partesProntas: Object.keys(atual.feitas).length});
+      }
+    };
+    informar();
+
+    const faltam = Array.from({length: atual.partes}, (_, i) => i + 1).filter((n) => !atual.feitas[n]);
+    const enderecos = new Map<number, string>();
+    // Assina em lotes (endereços valem 1 hora; um que vencer é pedido de novo).
+    const assinar = async (numeros: number[]) => {
+      registrar("assinatura: pedido", {partes: numeros});
+      try {
+        const {enderecos: lista} = await postar<{enderecos: {numero: number; url: string}[]}>("assinar", {
+          chave: atual.chave,
+          envio: atual.envio,
+          partes: numeros,
+        });
+        for (const {numero, url} of lista) enderecos.set(numero, url);
+        registrar("assinatura: ok", {status: 200, recebidos: lista.length, host: lista[0] ? new URL(lista[0].url).host : undefined});
+      } catch (erro) {
+        registrar("assinatura: erro", {status: statusDo(erro), mensagem: mensagemDo(erro)});
+        throw erro;
+      }
+    };
+
+    mudarEtapa("envio das partes", {total: atual.partes, faltam: faltam.length, paralelo: PARALELO});
+    let proxima = 0;
+    const trabalhador = async () => {
+      while (proxima < faltam.length) {
+        const numero = faltam[proxima++];
+        for (let tentativa = 1; ; tentativa++) {
+          try {
+            if (!enderecos.has(numero)) {
+              await assinar(faltam.slice(faltam.indexOf(numero), faltam.indexOf(numero) + 6).filter((n) => !enderecos.has(n) && !atual.feitas[n]));
+            }
+            const inicioDaParte = Date.now();
+            const comeco = (numero - 1) * atual.tamanhoDaParte;
+            const etag = await enviarParte(enderecos.get(numero)!, arquivo.slice(comeco, comeco + tamanhoDa(numero)), (bytes) => {
+              ultimoSinal = Date.now();
+              avisouParado = false;
+              emAndamento.set(numero, bytes);
+              informar();
+            });
+            registrar(`parte ${numero}: ok`, {tentativa, bytes: tamanhoDa(numero), ms: Date.now() - inicioDaParte});
+            emAndamento.delete(numero);
+            atual.feitas[numero] = etag;
+            guardarAndamento(arquivo, atual);
             informar();
-          });
-          emAndamento.delete(numero);
-          atual.feitas[numero] = etag;
-          guardarAndamento(arquivo, atual);
-          informar();
-          break;
-        } catch (erro) {
-          emAndamento.delete(numero);
-          informar();
-          // Endereço vencido ou recusado: assina de novo na próxima tentativa.
-          enderecos.delete(numero);
-          // Recusa definitiva do servidor (fora o endereço vencido, 403): sem repetir.
-          if (erro instanceof ErroDeEnvio && erro.status && erro.status >= 400 && erro.status < 500 && erro.status !== 403) {
-            throw erro;
+            break;
+          } catch (erro) {
+            registrar(`parte ${numero}: erro`, {tentativa, status: statusDo(erro), mensagem: mensagemDo(erro), online: navigator.onLine});
+            emAndamento.delete(numero);
+            informar();
+            // Endereço vencido ou recusado: assina de novo na próxima tentativa.
+            enderecos.delete(numero);
+            // Recusa definitiva do servidor (fora o endereço vencido, 403): sem repetir.
+            if (erro instanceof ErroDeEnvio && erro.status && erro.status >= 400 && erro.status < 500 && erro.status !== 403) {
+              throw erro;
+            }
+            if (tentativa >= TENTATIVAS) {
+              throw new ErroDeEnvio(
+                `A conexão caiu durante o envio (${Math.round((Object.keys(atual.feitas).length / atual.partes) * 100)}% enviado). ` +
+                  "Toque em Importar e escolha o mesmo vídeo para continuar de onde parou.",
+              );
+            }
+            // Sem internet: espera ela voltar (até 30 s) antes de tentar de novo.
+            if (!navigator.onLine) {
+              await Promise.race([new Promise((resolve) => window.addEventListener("online", resolve, {once: true})), esperar(30_000)]);
+            }
+            await esperar(1000 * 2 ** (tentativa - 1));
           }
-          if (tentativa >= TENTATIVAS) {
-            throw new ErroDeEnvio(
-              `A conexão caiu durante o envio (${Math.round((Object.keys(atual.feitas).length / atual.partes) * 100)}% enviado). ` +
-                "Toque em Importar e escolha o mesmo vídeo para continuar de onde parou.",
-            );
-          }
-          // Sem internet: espera ela voltar (até 30 s) antes de tentar de novo.
-          if (!navigator.onLine) {
-            await Promise.race([new Promise((resolve) => window.addEventListener("online", resolve, {once: true})), esperar(30_000)]);
-          }
-          await esperar(1000 * 2 ** (tentativa - 1));
         }
       }
-    }
-  };
-  await Promise.all(Array.from({length: Math.min(PARALELO, faltam.length)}, trabalhador));
+    };
+    await Promise.all(Array.from({length: Math.min(PARALELO, faltam.length)}, trabalhador));
 
-  // Fecha o envio; o servidor confere o tamanho e a duração de verdade.
-  try {
-    const {nome} = await postar<{nome: string}>("concluir", {
-      chave: atual.chave,
-      envio: atual.envio,
-      partes: Object.entries(atual.feitas).map(([numero, etag]) => ({numero: Number(numero), etag})),
-    });
-    guardarAndamento(arquivo, undefined);
-    onProgresso(1);
-    return nome;
-  } catch (erro) {
-    // O servidor respondeu (recusou e apagou): não há o que retomar. Sem resposta
-    // (conexão caiu ao fechar), o andamento fica para tentar de novo.
-    if (erro instanceof ErroDeEnvio && erro.status) {
+    // Fecha o envio; o servidor confere o tamanho e a duração de verdade.
+    mudarEtapa("conclusão (aviso ao servidor)", {partes: Object.keys(atual.feitas).length});
+    try {
+      const {nome} = await postar<{nome: string}>("concluir", {
+        chave: atual.chave,
+        envio: atual.envio,
+        partes: Object.entries(atual.feitas).map(([numero, etag]) => ({numero: Number(numero), etag})),
+      });
+      registrar("conclusão: ok", {status: 200, nome});
       guardarAndamento(arquivo, undefined);
+      onProgresso(1);
+      return nome;
+    } catch (erro) {
+      registrar("conclusão: erro", {status: statusDo(erro), mensagem: mensagemDo(erro)});
+      // O servidor respondeu (recusou e apagou): não há o que retomar. Sem resposta
+      // (conexão caiu ao fechar), o andamento fica para tentar de novo.
+      if (erro instanceof ErroDeEnvio && erro.status) {
+        guardarAndamento(arquivo, undefined);
+        throw erro;
+      }
+      throw new ErroDeEnvio("A conexão caiu ao terminar o envio. Toque em Importar e escolha o mesmo vídeo para terminar.");
+    }
+  } catch (erro) {
+    registrar(`falhou na etapa: ${etapa}`, {status: statusDo(erro), mensagem: mensagemDo(erro)});
+    // "Já existe" (409) segue como está: a tela pergunta se quer substituir.
+    if (statusDo(erro) === 409) {
       throw erro;
     }
-    throw new ErroDeEnvio("A conexão caiu ao terminar o envio. Toque em Importar e escolha o mesmo vídeo para terminar.");
+    throw new ErroDeEnvio(`${erro instanceof Error ? erro.message : String(erro)} (parou na etapa: ${etapa})`, statusDo(erro));
+  } finally {
+    clearInterval(vigia);
+    window.removeEventListener("error", erroSolto);
+    window.removeEventListener("unhandledrejection", rejeicaoSolta);
+    document.removeEventListener("visibilitychange", mudancaDeVisibilidade);
+    window.removeEventListener("online", conexao);
+    window.removeEventListener("offline", conexao);
   }
 };

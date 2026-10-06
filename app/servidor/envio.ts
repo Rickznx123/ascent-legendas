@@ -81,17 +81,43 @@ export const rotasDeEnvio = ({
   const {s3, bucket: Bucket} = armazenamento;
   const rotas = express.Router();
 
+  // Diagnóstico (provisório, envio parando no iPhone): cada pedido e a resposta no
+  // terminal, sem endereços assinados e com a chave e o número do envio encurtados.
+  const resumo = (dados: unknown): Record<string, unknown> => {
+    const saida: Record<string, unknown> = {};
+    for (const [campo, valor] of Object.entries((dados ?? {}) as Record<string, unknown>)) {
+      if (campo === "chave") saida.arquivo = path.posix.basename(String(valor));
+      else if (campo === "envio") saida.envio = `${String(valor).slice(0, 8)}…`;
+      else if (campo === "enderecos" && Array.isArray(valor)) saida.enderecos = valor.map((e: {numero: number}) => e.numero);
+      else if (campo === "partes" && Array.isArray(valor) && typeof valor[0] === "object") saida.partes = valor.length;
+      else saida[campo] = valor;
+    }
+    return saida;
+  };
+  const registrar = (texto: string, dados?: unknown) => {
+    const horario = new Date().toLocaleTimeString("pt-BR", {hour12: false});
+    console.log(`[envio ${horario}] servidor ${texto}${dados === undefined ? "" : ` ${JSON.stringify(resumo(dados))}`}`);
+  };
+
   const responder =
     (fn: (request: Request, response: Response, espaco: Espaco & {usuario: NonNullable<Espaco["usuario"]>}) => Promise<unknown>) =>
     async (request: Request, response: Response) => {
+      const rota = `${request.method} ${request.path}`;
+      const inicio = Date.now();
+      registrar(`← ${rota}`, request.method === "GET" ? request.query : request.body);
       try {
         const espaco = espacoDe(response);
         if (!espaco.usuario) {
           throw new ErroDoEnvio("Entre na sua conta para enviar vídeos.", 401);
         }
-        response.json(await fn(request, response, espaco as Espaco & {usuario: NonNullable<Espaco["usuario"]>}));
+        const resultado = await fn(request, response, espaco as Espaco & {usuario: NonNullable<Espaco["usuario"]>});
+        registrar(`→ ${rota} 200 (${Date.now() - inicio} ms)`, resultado);
+        response.json(resultado);
       } catch (erro) {
-        response.status(erro instanceof ErroDoEnvio ? erro.status : 400).json({mensagem: erro instanceof Error ? erro.message : String(erro)});
+        const status = erro instanceof ErroDoEnvio ? erro.status : 400;
+        const mensagem = erro instanceof Error ? erro.message : String(erro);
+        registrar(`→ ${rota} ${status} (${Date.now() - inicio} ms)`, {erro: (erro as {name?: string}).name, mensagem});
+        response.status(status).json({mensagem});
       }
     };
 
