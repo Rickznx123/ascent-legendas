@@ -30,11 +30,15 @@ export const PASTAS_NO_BUCKET = {
 // Envios em partes abandonados no meio: apagados depois de tantos dias.
 export const DIAS_PARA_ENVIO_ABANDONADO = 2;
 
+// Região da AWS: única fonte, usada pelo servidor e pelos scripts de nuvem/.
+export const REGIAO_AWS_PADRAO = "us-east-2";
+export const regiaoAwsDoAmbiente = (): string => process.env.REMOTION_AWS_REGION?.trim() || REGIAO_AWS_PADRAO;
+
 export const configuracaoDoAmbiente = (): Configuracao => {
   const publico = process.env.SERVIDOR_PUBLICO?.trim() === "1";
   const porta = Number(process.env.PORT ?? process.env.PORTA ?? 5174);
   const enderecoDoApp = (process.env.ENDERECO_DO_APP?.trim() || `http://localhost:${porta}`).replace(/\/+$/u, "");
   const bucketDosVideos = process.env.BUCKET_DOS_VIDEOS?.trim() || "ascent-legendas-videos-275060989338";
-  const regiaoAws = process.env.REMOTION_AWS_REGION?.trim() || "us-east-2";
+  const regiaoAws = regiaoAwsDoAmbiente();
   return {publico, porta, enderecoDoApp, bucketDosVideos, regiaoAws};
 };

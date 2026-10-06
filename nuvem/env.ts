@@ -3,6 +3,7 @@
 import {existsSync} from "node:fs";
 import path from "node:path";
 import type {AwsRegion} from "@remotion/lambda";
+import {regiaoAwsDoAmbiente} from "../app/servidor/configuracao";
 
 export const RAIZ = path.resolve(import.meta.dirname, "..");
 
@@ -18,4 +19,5 @@ export const exigir = (...nomes: string[]): void => {
   }
 };
 
-export const REGIAO = (process.env.REMOTION_AWS_REGION?.trim() || "us-east-1") as AwsRegion;
+// Lida depois do .env, da mesma fonte do servidor (padrão us-east-2).
+export const REGIAO = regiaoAwsDoAmbiente() as AwsRegion;
