@@ -12,7 +12,7 @@ Levantado em 05/10/2026, olhando o código atual e a conta da AWS.
 | Assunto | Decisão |
 |---|---|
 | Hospedagem | **Render** |
-| Domínio | Ainda não há: usar o endereço provisório do Render em toda a Etapa 3. O endereço do app fica numa única configuração (`ENDERECO_DO_APP`), para trocar fácil depois. |
+| Domínio | `ascentstudio.com.br`, já registrado na Hostinger (decidido em 06/10/2026). O app fica em **`legendas.ascentstudio.com.br`** e o e-mail do login sai desse domínio. Até o Bloco 9, o endereço provisório do Render; o endereço do app fica numa única configuração (`ENDERECO_DO_APP`). |
 | Envio | Grátis: 300 MB e 2 min. Assinante: 1 GB e 10 min. |
 | Transcrições por dia | Grátis: 3. Assinante: 30. |
 | Guarda dos vídeos | Enviados: 30 dias. Exportados: 7 dias. Com aviso na tela. |
@@ -169,7 +169,7 @@ Legenda: **[VOCÊ]** contas, consoles, domínio e decisões; **[EU]** código, s
 **Bloco 0 — Preparação**
 1. [VOCÊ] Decidir as pendências da seção 9.
 2. [VOCÊ] Criar um repositório **privado** no GitHub. Eu envio o código; o `.env` nunca vai.
-3. [VOCÊ] Comprar o domínio (ex.: `ascentlegendas.com.br`).
+3. ~~[VOCÊ] Comprar o domínio~~ ✅ já existe: `ascentstudio.com.br` (Hostinger). O app vai no subdomínio `legendas.ascentstudio.com.br`.
 4. [VOCÊ] Criar o orçamento na AWS (Budgets) e ativar o Cost Anomaly Detection.
 
 **Bloco 1 — Servidor pronto para nuvem** ✅ concluído em 05/10/2026 (a imagem Docker só é construída de verdade no Render, no Bloco 9).
@@ -252,8 +252,8 @@ Render, perto da AWS, devem cair para menos de 1 s.
 
 **Bloco 9 — Publicar**
 1. [VOCÊ] Criar a conta no Render, conectar o repositório e colar as variáveis de ambiente (eu entrego a lista).
-2. [VOCÊ] Apontar o domínio no registrador (eu digo os registros DNS).
-3. [VOCÊ] No Supabase, colocar o domínio em Site URL e Redirect URLs.
+2. [VOCÊ] No painel de DNS da Hostinger, criar o registro de `legendas.ascentstudio.com.br` apontando para o Render (eu digo qual).
+3. [VOCÊ] No Supabase, colocar `https://legendas.ascentstudio.com.br` em Site URL e Redirect URLs.
 4. [EU] Teste completo no endereço público: login, envio, transcrição, edição, exportação e download, no celular e no computador.
 
 **Bloco 10 — Antes dos testadores** (seção 8)
@@ -262,9 +262,9 @@ Render, perto da AWS, devem cair para menos de 1 s.
 
 ## 8. Pronto antes de abrir para testadores
 
-- **E-mail próprio para o login:** o e-mail grátis do Supabase tem limite baixo e só envia para a equipe do projeto. Criar conta no Resend (plano grátis: 3.000 e-mails por mês, 100 por dia), verificar o domínio (registros DNS) e colar o SMTP no Supabase (Authentication → Emails → SMTP Settings). Ajustar o modelo do e-mail em português, com o código de 6 dígitos.
+- **E-mail próprio para o login:** o e-mail grátis do Supabase tem limite baixo e só envia para a equipe do projeto. Criar conta no Resend (plano grátis: 3.000 e-mails por mês, 100 por dia), verificar o domínio `ascentstudio.com.br` (registros DNS na Hostinger; o login sai, por exemplo, de `login@ascentstudio.com.br`) e colar o SMTP no Supabase (Authentication → Emails → SMTP Settings). Ajustar o modelo do e-mail em português, com o código de 6 dígitos.
 - **Crédito no Replicate:** abaixo de US$ 5, a conta fica limitada a 6 pedidos por minuto, um por vez. Sugestão: **US$ 20–25** (dá ~1.000–2.000 transcrições de 1 minuto).
-- **Domínio** com HTTPS: necessário para o PWA, o e-mail próprio e um endereço fixo para o login.
+- **Domínio** com HTTPS (`legendas.ascentstudio.com.br`): necessário para o PWA, o e-mail próprio e um endereço fixo para o login.
 - **Orçamento e alertas** na AWS ativos (item 4).
 - **Seus projetos importados** para a sua conta (rodando localmente, antes de publicar).
 - **Plano dos testadores:** decidir se entram como grátis ou se você troca para assinante com `npm run plano`.
@@ -274,24 +274,23 @@ Render, perto da AWS, devem cair para menos de 1 s.
 - Render: US$ 7–25.
 - S3: cerca de US$ 1–10 (armazenamento pequeno com as expirações; o que mais pesa é a transferência dos vídeos baixados, US$ 0,09/GB).
 - Por minuto exportado: Lambda ~US$ 0,03 + WhisperX ~US$ 0,01–0,02.
-- Domínio: ~R$ 40 por ano.
+- Domínio: já pago (`ascentstudio.com.br`, Hostinger).
 - Resend e Supabase: grátis nos planos iniciais.
 
 ---
 
 ## 9. Decisões que dependiam de você
 
-Todas tomadas em 05/10/2026 (veja "Decisões tomadas", no começo).
+Todas tomadas em 05/10/2026 (veja "Decisões tomadas", no começo). O domínio saiu desta lista: decidido em 06/10/2026.
 
 1. **Hospedagem:** Render (recomendado, US$ 7–25/mês, fora dos créditos) ou Lightsail (US$ 10–25/mês, dentro dos créditos).
-2. **Domínio:** qual nome.
-3. **Limites de envio por plano:** tamanho e duração (sugestão na seção 2).
-4. **Limite de transcrições por dia:** sugestão de 3 no grátis e 30 no assinante.
-5. **Por quantos dias guardar** os vídeos enviados (30) e os exportados (7).
-6. **Valor do alerta de orçamento** na AWS (sugestão de US$ 50/mês) e crédito inicial no Replicate (US$ 20–25).
-7. **Login no iPhone pela Tela de Início:** acrescentar o código de 6 dígitos ao e-mail.
-8. **Ícone do app:** usar o seu ou eu gero a partir da marca.
-9. **Testadores** entram como grátis ou assinante.
+2. **Limites de envio por plano:** tamanho e duração (sugestão na seção 2).
+3. **Limite de transcrições por dia:** sugestão de 3 no grátis e 30 no assinante.
+4. **Por quantos dias guardar** os vídeos enviados (30) e os exportados (7).
+5. **Valor do alerta de orçamento** na AWS (sugestão de US$ 50/mês) e crédito inicial no Replicate (US$ 20–25).
+6. **Login no iPhone pela Tela de Início:** acrescentar o código de 6 dígitos ao e-mail.
+7. **Ícone do app:** usar o seu ou eu gero a partir da marca.
+8. **Testadores** entram como grátis ou assinante.
 
 ---
 
