@@ -1,45 +1,28 @@
-// Galeria de templates no celular: a mesma do computador, mas o pacote vai para o
-// vídeo inteiro segurando o dedo no chip (o botão "Aplicar pacote" fica escondido
-// em celular.css). Um toque curto continua só filtrando as miniaturas.
-import {useEffect, useRef} from "react";
+// Galeria de templates no celular: a mesma do computador, mas tocar no chip de um
+// pacote já o aplica ao vídeo inteiro (o botão "Aplicar pacote" fica escondido em
+// celular.css). O chip tocado também passa a filtrar as miniaturas, então fica
+// marcado como o escolhido; a troca entra no desfazer.
 import {PACOTE_MISTO} from "../../../src/motor/blocos";
 import {GaleriaDoProjeto} from "../GaleriaDoProjeto";
 import type {Editor} from "../useEditor";
 import {Dica, marcarDica} from "./Dica";
 
-// Tempo segurando o chip (ms) para aplicar o pacote.
-const TEMPO_PARA_APLICAR = 500;
-// Dedo que andou mais que isso (px) está rolando os chips, não segurando.
-const FOLGA_DO_DEDO = 10;
 // Duração do retorno visual depois de aplicar (ms).
 const TEMPO_DO_RETORNO = 600;
 
-type Toque = {chip: HTMLElement; x: number; y: number; timer: number};
-
 export const GaleriaCelular: React.FC<{e: Editor}> = ({e}) => {
-  const toque = useRef<Toque | undefined>(undefined);
-
   // Os chips seguem a ordem da galeria: Misto e depois os pacotes do estilo.
   const pacotes = e.estiloGaleria ? Object.values(e.estiloGaleria.pacotes).map((rules) => rules.name) : [];
   const ordem = [PACOTE_MISTO, ...pacotes];
   const podeAplicar = (pacote: string) =>
-    !e.ocupado && pacote !== e.estilo?.pacote && (pacote !== PACOTE_MISTO || pacotes.length > 1);
-
-  const soltar = () => {
-    if (toque.current) {
-      window.clearTimeout(toque.current.timer);
-      toque.current.chip.classList.remove("cel-chip-segurando");
-      toque.current = undefined;
-    }
-  };
-  useEffect(() => soltar, []);
+    !e.ocupado && Boolean(e.projetoDoVideo) && pacote !== e.estilo?.pacote && (pacote !== PACOTE_MISTO || pacotes.length > 1);
 
   return (
     <div
       className="cel-galeria"
       // Proporção do vídeo: as miniaturas recortam a composição em volta da legenda.
       style={{["--proporcao-mini" as string]: e.videoInfo ? e.videoInfo.width / e.videoInfo.height : 9 / 16}}
-      onPointerDown={(event) => {
+      onClick={(event) => {
         const chip = event.target instanceof Element ? event.target.closest<HTMLElement>(".chips > .chip") : null;
         if (!chip) {
           return;
@@ -48,33 +31,13 @@ export const GaleriaCelular: React.FC<{e: Editor}> = ({e}) => {
         if (!pacote || !podeAplicar(pacote)) {
           return;
         }
-        soltar();
-        chip.classList.add("cel-chip-segurando");
-        const timer = window.setTimeout(() => {
-          soltar();
-          navigator.vibrate?.(20);
-          chip.classList.add("cel-chip-aplicado");
-          window.setTimeout(() => chip.classList.remove("cel-chip-aplicado"), TEMPO_DO_RETORNO);
-          void e.trocarPacote(pacote);
-          marcarDica("templates");
-        }, TEMPO_PARA_APLICAR);
-        toque.current = {chip, x: event.clientX, y: event.clientY, timer};
+        chip.classList.add("cel-chip-aplicado");
+        window.setTimeout(() => chip.classList.remove("cel-chip-aplicado"), TEMPO_DO_RETORNO);
+        void e.trocarPacote(pacote);
+        marcarDica("templates");
       }}
-      onPointerMove={(event) => {
-        if (
-          toque.current &&
-          Math.hypot(event.clientX - toque.current.x, event.clientY - toque.current.y) > FOLGA_DO_DEDO
-        ) {
-          soltar();
-        }
-      }}
-      onPointerUp={soltar}
-      onPointerCancel={soltar}
-      onPointerLeave={soltar}
-      // Segurar o dedo não abre o menu do navegador.
-      onContextMenu={(event) => event.target instanceof Element && event.target.closest(".chips") && event.preventDefault()}
     >
-      <Dica nome="templates">Segure o pacote para aplicar ao vídeo inteiro</Dica>
+      <Dica nome="templates">Toque no pacote para aplicar ao vídeo inteiro</Dica>
       <GaleriaDoProjeto e={e} />
     </div>
   );

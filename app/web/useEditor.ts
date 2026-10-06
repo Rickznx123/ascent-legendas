@@ -239,13 +239,19 @@ export const useEditor = () => {
   const editarBlocos = (fn: (atuais: AssignedCaptionBlock[]) => AssignedCaptionBlock[]) =>
     editarProjeto({blocks: fn(blocos)});
 
-  // Desfazer/refazer: guarda só o que as edições mudam (blocos, excluídos, posição).
-  // Trocar de pacote, de vídeo ou transcrever limpa o histórico, porque os layouts
-  // antigos seriam de outro estilo.
-  type Passo = Pick<Projeto, "blocks" | "excluidos" | "posicao">;
+  // Desfazer/refazer: guarda o que as edições mudam (blocos, excluídos, posição) e o
+  // pacote com a semente do sorteio, para desfazer uma troca de pacote. Trocar de
+  // vídeo ou transcrever limpa o histórico.
+  type Passo = Pick<Projeto, "blocks" | "excluidos" | "posicao" | "pacote" | "semente">;
   const historico = useRef<{desfazer: Passo[]; refazer: Passo[]}>({desfazer: [], refazer: []});
   const [, setVersaoDoHistorico] = useState(0);
-  const passoDe = (atual: Projeto): Passo => ({blocks: atual.blocks, excluidos: atual.excluidos, posicao: atual.posicao});
+  const passoDe = (atual: Projeto): Passo => ({
+    blocks: atual.blocks,
+    excluidos: atual.excluidos,
+    posicao: atual.posicao,
+    pacote: atual.pacote,
+    semente: atual.semente,
+  });
   function guardarNoHistorico(atual: Projeto) {
     historico.current.desfazer = [...historico.current.desfazer, passoDe(atual)].slice(-PASSOS_DE_DESFAZER);
     historico.current.refazer = [];
@@ -255,11 +261,21 @@ export const useEditor = () => {
     historico.current = {desfazer: [], refazer: []};
     setVersaoDoHistorico((versao) => versao + 1);
   };
-  const andarNoHistorico = (de: "desfazer" | "refazer") => {
+  const andarNoHistorico = async (de: "desfazer" | "refazer") => {
     const pilha = historico.current[de];
     const passo = pilha[pilha.length - 1];
     if (!projetoDoVideo || !passo) {
       return;
+    }
+    // Passo de outro pacote: o estilo dele chega antes dos blocos, para a prévia
+    // nunca ter layouts que o estilo atual não conhece.
+    if (passo.pacote && estilo && passo.pacote !== estilo.pacote) {
+      try {
+        setEstilo(await api.estilo(passo.pacote, estilo.paleta));
+      } catch (error) {
+        mostrarErro(error);
+        return;
+      }
     }
     const para = de === "desfazer" ? "refazer" : "desfazer";
     historico.current = {
@@ -269,10 +285,11 @@ export const useEditor = () => {
     };
     setVersaoDoHistorico((versao) => versao + 1);
     setBlocoSelecionado((atual) => (atual < passo.blocks.length ? atual : -1));
-    atualizarProjeto(passo);
+    // Troca de pacote desfeita é salva na hora, como a troca.
+    atualizarProjeto(passo, passo.pacote !== projetoDoVideo.pacote);
   };
-  const desfazer = () => andarNoHistorico("desfazer");
-  const refazer = () => andarNoHistorico("refazer");
+  const desfazer = () => void andarNoHistorico("desfazer");
+  const refazer = () => void andarNoHistorico("refazer");
   const podeDesfazer = Boolean(projetoDoVideo) && historico.current.desfazer.length > 0;
   const podeRefazer = Boolean(projetoDoVideo) && historico.current.refazer.length > 0;
 
@@ -391,11 +408,11 @@ export const useEditor = () => {
   const trocarPacote = async (pacote: string) => {
     try {
       const novoEstilo = await api.estilo(pacote, estilo?.paleta);
-      limparHistorico();
       setEstilo(novoEstilo);
       if (projetoDoVideo) {
         const semente = projetoDoVideo.semente ?? novaSemente();
-        atualizarProjeto({pacote, semente, blocks: refazerLayouts(novoEstilo, blocos, semente)}, true);
+        // Entra no desfazer (o passo guarda o pacote anterior).
+        atualizarProjeto({pacote, semente, blocks: refazerLayouts(novoEstilo, blocos, semente)}, true, true);
         setAviso(
           pacote === PACOTE_MISTO
             ? "Modo misto: cada bloco sorteou um pacote."
@@ -715,9 +732,9 @@ export const useEditor = () => {
       atualizarProjeto(
         {pacote: PACOTE_MISTO, blocks: setLayout(blocksToMixed(blocos, estilo.pacote), indice, chave, misto)},
         true,
+        true,
       );
       setEstilo(misto);
-      limparHistorico();
       setAviso(
         `O vídeo passou para o modo misto para usar ${chave} no bloco ${indice + 1}. Os outros blocos continuam com os mesmos layouts.`,
       );

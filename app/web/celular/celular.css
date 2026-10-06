@@ -630,7 +630,7 @@
   padding: 0 16px;
 }
 
-/* Aplicar o pacote ao vídeo é segurar o chip (GaleriaCelular): o botão do
+/* Aplicar o pacote ao vídeo é tocar no chip (GaleriaCelular): o botão do
    computador sai. "Sortear de novo" (modo misto) fica. */
 .cel .galeria .acoes-topo > .bt:first-child {
   display: none;
@@ -646,27 +646,6 @@
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
-}
-
-/* Segurando: o chip enche da esquerda para a direita em 500 ms. */
-.cel-galeria .chip::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--acento-fraco);
-  transform: scaleX(0);
-  transform-origin: left;
-  pointer-events: none;
-}
-
-.cel-galeria .chip.cel-chip-segurando::after {
-  animation: cel-encher 0.5s linear forwards;
-}
-
-@keyframes cel-encher {
-  to {
-    transform: scaleX(1);
-  }
 }
 
 /* Aplicado: um pulso curto na borda. */
