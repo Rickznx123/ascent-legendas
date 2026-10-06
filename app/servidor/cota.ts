@@ -13,6 +13,11 @@ export const LIMITES = {
   videosNoGratis: 1,
   segundosPorMesNoAssinante: 30 * 60,
   reexportacoesSemDesconto: 5,
+  // Envio de vídeo (Etapa 3): tamanho e duração máximos de cada arquivo.
+  envio: {
+    gratis: {bytes: 300 * 1024 * 1024, segundos: 2 * 60},
+    assinante: {bytes: 1024 * 1024 * 1024, segundos: 10 * 60},
+  } satisfies Record<Plano, {bytes: number; segundos: number}>,
 };
 
 // Brasília (sem horário de verão desde 2019).

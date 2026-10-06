@@ -18,6 +18,8 @@ export type ConfigDoLogin = {
   // Botão "Entrar com Google": só com LOGIN_GOOGLE=1 no .env (depois de configurar
   // o Google no painel do Supabase).
   google?: boolean;
+  // O vídeo vai do navegador direto para o S3, em partes (Etapa 3).
+  envioDireto?: boolean;
 };
 
 export type Contas = {

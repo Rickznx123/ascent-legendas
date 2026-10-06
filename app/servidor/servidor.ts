@@ -28,7 +28,10 @@ import {reloadModules} from "../../src/template-loader";
 import {configDosEfeitos, planejarEfeitos} from "../../src/sons";
 import {cortesDosExcluidos, precisaoDoProjeto, sincroniaDoProjeto} from "../../src/entrada";
 import type {AssignedCaptionBlock} from "../../src/types";
+import {configuracaoDoAmbiente} from "./configuracao";
 import {contasDoAmbiente} from "./contas";
+import {rotasDeEnvio} from "./envio";
+import {s3DoAmbiente} from "./s3";
 import type {ConfigDoLogin} from "./contas";
 import {espacoDoUsuario, espacoLocal} from "./espaco";
 import type {Espaco} from "./espaco";
@@ -124,6 +127,10 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   if (publico && !contas) {
     throw new Error("SERVIDOR_PUBLICO=1 exige SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY e SUPABASE_SECRET_KEY.");
   }
+  // Envio direto ao S3 (com login e com as credenciais da AWS); sem isso, o envio
+  // passa pelo servidor e vai para o disco, como sempre.
+  const armazenamento = contas ? s3DoAmbiente(configuracaoDoAmbiente()) : undefined;
+  console.log(armazenamento ? `Envio de vídeos: direto para o S3 (${armazenamento.bucket}).` : "Envio de vídeos: pelo servidor, para o disco.");
   const app = express();
   // Atrás do proxy do Render: o endereço e o https verdadeiros vêm dos cabeçalhos.
   if (publico) {
@@ -170,7 +177,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // O que a tela precisa para mostrar (ou não) o login. Sem token: é o primeiro
   // pedido. A chave publicável pode ir ao navegador; a secreta nunca.
   app.get("/api/config", (_request, response) => {
-    const config: ConfigDoLogin = contas?.config ?? {login: false};
+    const config: ConfigDoLogin = contas ? {...contas.config, envioDireto: Boolean(armazenamento)} : {login: false};
     response.json(config);
   });
 
@@ -196,6 +203,11 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       response.status(401).json({mensagem: error instanceof Error ? error.message : String(error)});
     }
   });
+
+  // Envio direto do navegador para o S3, em partes (veja envio.ts).
+  if (contas && armazenamento) {
+    app.use("/api/envio", rotasDeEnvio({contas, armazenamento, espacoDe}));
+  }
 
   // Vídeos do espaço e os que já têm projeto (para a lista do Início).
   const catalogo = async (espaco: Espaco) => ({...loadCatalog(root, espaco.pasta), projetos: await espaco.projetos()});
@@ -296,6 +308,12 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // temporário e só ganha o nome final quando a cópia termina.
   app.put("/api/importar", async (request, response) => {
     const espaco = espacoDe(response);
+    // Com envio direto ao S3, o vídeo não passa pelo servidor (e os limites do
+    // plano valem lá): esta rota fica só para o modo local.
+    if (armazenamento && espaco.usuario) {
+      response.status(400).json({mensagem: "Atualize a página: o envio de vídeos agora vai direto para o armazenamento."});
+      return;
+    }
     const nome = path.basename(String(request.query.nome ?? ""));
     const substituir = request.query.substituir === "1";
     if (!/\.(mp4|mov|mkv|webm)$/iu.test(nome) || nome.toLowerCase() === "saida.mp4") {

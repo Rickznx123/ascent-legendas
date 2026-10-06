@@ -8,7 +8,7 @@ import {tokenDaSessao} from "./sessao";
 // Com login, todo pedido leva o token da sessão; um 401 (sessão expirada) avisa a
 // tela para voltar ao login. Sem login, é o fetch de sempre.
 export const EVENTO_SESSAO_EXPIRADA = "sessao-expirada";
-const pedir = async (url: string, init: RequestInit = {}): Promise<Response> => {
+export const pedir = async (url: string, init: RequestInit = {}): Promise<Response> => {
   const token = tokenDaSessao();
   const resposta = await fetch(url, token ? {...init, headers: {...(init.headers ?? {}), Authorization: `Bearer ${token}`}} : init);
   if (resposta.status === 401 && token) {

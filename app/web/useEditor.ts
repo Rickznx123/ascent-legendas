@@ -34,6 +34,7 @@ import type {AssignedCaptionBlock, VideoMetadata} from "../../src/types";
 import {ErroDaTarefa, api, executarTarefa} from "./api";
 import type {Andamento, Catalogo, DecisaoDeExportacao} from "./api";
 import {useConta} from "./conta";
+import {enviosInterrompidos} from "./envio";
 import type {Aviso} from "./Avisos";
 import type {Salvamento} from "./BarraTopo";
 import type {BlocoSelecionado} from "./Galeria";
@@ -119,6 +120,10 @@ export const useEditor = () => {
           setAviso(AVISO_SEM_SONS);
         }
       });
+    // Envio para o S3 interrompido (conexão caiu ou a página fechou): lembra como continuar.
+    for (const {nome, fracao} of enviosInterrompidos()) {
+      setAviso(`Envio interrompido: ${nome} (${Math.round(fracao * 100)}% enviado). Importe o mesmo vídeo para continuar de onde parou.`);
+    }
   }, []);
 
   useEffect(() => {

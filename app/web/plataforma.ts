@@ -1,7 +1,8 @@
 // O que muda entre o navegador e o Electron fica só aqui. No Electron, o preload
 // expõe window.legendasElectron com as funções que devem substituir as do navegador
 // (seletor nativo do Windows, "Salvar como", abrir pasta pelo shell).
-import {tokenDaSessao} from "./sessao";
+import {ErroDeEnvio, enviarDireto} from "./envio";
+import {envioDireto, tokenDaSessao} from "./sessao";
 
 export const EXTENSOES_DE_VIDEO = [".mp4", ".mov", ".mkv", ".webm"];
 
@@ -65,9 +66,19 @@ const enviarArquivo = (
     xhr.send(arquivo);
   });
 
+// Com login e S3, o vídeo vai direto do navegador para o S3 (envio.ts); senão, para
+// o servidor local, como sempre.
 const videoDoArquivo = (arquivo: File): VideoEscolhido | undefined =>
   ehVideo(arquivo.name)
-    ? {nome: arquivo.name, importar: (substituir, onProgresso) => enviarArquivo(arquivo, substituir, onProgresso)}
+    ? {
+        nome: arquivo.name,
+        importar: (substituir, onProgresso) =>
+          envioDireto()
+            ? enviarDireto(arquivo, substituir, onProgresso).catch((erro: unknown) => {
+                throw erro instanceof ErroDeEnvio && erro.status === 409 ? new ErroArquivoExiste(erro.message) : erro;
+              })
+            : enviarArquivo(arquivo, substituir, onProgresso),
+      }
     : undefined;
 
 const navegador: Plataforma = {

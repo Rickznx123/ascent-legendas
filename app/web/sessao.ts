@@ -5,15 +5,18 @@
 import {createClient} from "@supabase/supabase-js";
 import type {Session, SupabaseClient} from "@supabase/supabase-js";
 
-export type ConfigDoLogin = {login: boolean; supabaseUrl?: string; chavePublica?: string; google?: boolean};
+export type ConfigDoLogin = {login: boolean; supabaseUrl?: string; chavePublica?: string; google?: boolean; envioDireto?: boolean};
 
 let cliente: SupabaseClient | undefined;
 let tokenAtual: string | undefined;
+let usuarioAtual: string | undefined;
+let envioDiretoLigado = false;
 
 // O cookie leva o token nos pedidos que o navegador faz sozinho (o vídeo da
 // prévia, os sons, o download): eles não mandam o cabeçalho Authorization.
 const guardarToken = (sessao: Session | null) => {
   tokenAtual = sessao?.access_token;
+  usuarioAtual = sessao?.user.id;
   document.cookie = tokenAtual
     ? `sessao=${encodeURIComponent(tokenAtual)}; Path=/; SameSite=Strict${location.protocol === "https:" ? "; Secure" : ""}`
     : "sessao=; Path=/; Max-Age=0; SameSite=Strict";
@@ -22,12 +25,20 @@ const guardarToken = (sessao: Session | null) => {
 // Token para o cabeçalho Authorization dos pedidos à API (sem login: nenhum).
 export const tokenDaSessao = (): string | undefined => tokenAtual;
 
+// Conta logada (separa os envios interrompidos de cada conta neste aparelho).
+export const usuarioDaSessao = (): string | undefined => usuarioAtual;
+
+// O vídeo vai do navegador direto para o S3 (o servidor diz em /api/config).
+export const envioDireto = (): boolean => envioDiretoLigado;
+
 export const lerConfig = async (): Promise<ConfigDoLogin> => {
   const resposta = await fetch("/api/config");
   if (!resposta.ok) {
     throw new Error(`O servidor não respondeu (${resposta.status}).`);
   }
-  return (await resposta.json()) as ConfigDoLogin;
+  const config = (await resposta.json()) as ConfigDoLogin;
+  envioDiretoLigado = Boolean(config.envioDireto);
+  return config;
 };
 
 // Prepara o cliente (uma vez só) e devolve a sessão salva, ou a que veio no link

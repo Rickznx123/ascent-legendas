@@ -34,8 +34,9 @@ const s3 = new S3Client({
   },
 });
 
-// Endereços cujo navegador pode usar o bucket.
-const origens = [...new Set([enderecoDoApp, "http://localhost:5174", "http://127.0.0.1:5174", "https://*.trycloudflare.com"])];
+// Endereços cujo navegador pode usar o bucket: o do app, o próprio computador em
+// qualquer porta (desenvolvimento e testes) e os túneis trycloudflare.
+const origens = [...new Set([enderecoDoApp, "http://localhost:*", "http://127.0.0.1:*", "https://*.trycloudflare.com"])];
 
 const existe = await s3
   .send(new HeadBucketCommand({Bucket}))
