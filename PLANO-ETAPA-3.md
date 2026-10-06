@@ -211,7 +211,7 @@ O servidor parado usa ~140 MB. No Starter do Render (512 MB, 0,5 CPU): 1080p cab
 1 min de conversão por minuto de vídeo 1080p (estimado: um quarto do processador
 usado aqui). A capa sai em menos de 1 s, então a tela tem o que mostrar logo.
 
-**Bloco 5 — Transcrição lendo do S3** — código em 06/10/2026; falta o teste no seu celular.
+**Bloco 5 — Transcrição lendo do S3** ✅ concluído em 06/10/2026 (commit `d8344db`; limite do assinante ajustado para 10 em `8ca9922`). Ressalva: retomada da transcrição ao sair do app: falta teste no iPhone.
 1. [EU] O ffmpeg lê o vídeo pelo endereço assinado e extrai o áudio; só o áudio vai para o WhisperX ou a Groq, como hoje. A detecção de voz usa o mesmo áudio.
 2. [EU] Limite diário de transcrições por plano.
 3. [EU] Teste: transcrever um vídeo enviado pelo celular.
@@ -289,6 +289,11 @@ Todas tomadas em 05/10/2026 (veja "Decisões tomadas", no começo). O domínio s
 6. **Login:** e-mail e senha (06/10/2026; antes, código de 6 dígitos no e-mail).
 7. **Ícone do app:** usar o seu ou eu gero a partir da marca.
 8. **Testadores** entram como grátis ou assinante.
+
+## Pendências
+
+- **Retomada da transcrição ao sair do app** (Bloco 5): falta teste no iPhone.
+- **Pacote C: refazer âncora + trilho, mais variações e templates lineares.** A primeira versão (commit `a349932`) ficou ruim e foi desfeita em 06/10/2026 (`16f22a2`); o C voltou à versão de dois grupos com motion blur (`31f6b06`).
 
 ---
 
