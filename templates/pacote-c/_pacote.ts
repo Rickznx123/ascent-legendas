@@ -1,29 +1,20 @@
 import type {PackageConfig} from "../../src/types";
 
 /*
- * REGRAS DO PACOTE C — qual layout usar em cada situação.
- * As regras de destaque são testadas em ordem; vale a primeira que combinar.
- * "before" e "after" contam as palavras antes e depois da palavra-chave.
- * Com mais de um template na lista, eles se alternam entre os blocos.
+ * REGRAS DO PACOTE C — estilo imobiliário.
+ * Um desenho só para todos os blocos (veja src/imobiliario.tsx); as regras abaixo só
+ * cumprem o ritmo comum. Blocos curtos: no imobiliário, cada bloco ocupa a tela em
+ * dois grupos, então o linear é dividido acima de 6 palavras.
  */
 const pacote: PackageConfig = {
   linear: "linear",
-  highlight: [
-    // Uma palavra só: alterna a pilha (só a chave) e a manuscrita gigante.
-    {words: {max: 1}, templates: ["c3", "c4"]},
-    // Duas palavras de apoio em cima, nada depois.
-    {before: {min: 2, max: 2}, after: {max: 0}, templates: ["c4"]},
-    // Duas palavras de apoio em cima e complemento embaixo.
-    {before: {min: 2, max: 2}, after: {min: 1}, templates: ["c2"]},
-    // Duas linhas antes da palavra-chave (3+ palavras antes), nada depois.
-    {before: {min: 3}, after: {max: 0}, templates: ["c3", "c5"]},
-    // Apoio em cima e embaixo (os demais casos).
-    {templates: ["c1", "c6"]},
-  ],
-  // Junção com o bloco seguinte e palavra-chave primeiro.
-  threeLines: ["c1", "c6"],
+  highlight: [{templates: ["imobiliario"]}],
+  threeLines: ["imobiliario"],
+  maxLinearWords: 6,
   // Texto das miniaturas da galeria quando nenhum bloco está selecionado.
-  exemplo: {texto: "um resultado natural que dura", palavraChave: "natural"},
+  exemplo: {texto: "casa para viver em Alphaville", palavraChave: "Alphaville"},
+  // Projetos salvos com o desenho antigo do pacote C passam a usar o novo.
+  aliases: {c1: "imobiliario", c2: "imobiliario", c3: "imobiliario", c4: "imobiliario", c5: "imobiliario", c6: "imobiliario"},
 };
 
 export default pacote;

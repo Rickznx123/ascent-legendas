@@ -1,20 +1,11 @@
 import type {CaptionTemplate} from "../../src/types";
-import {ANTON, BLOCO, SOBE} from "./_estilos";
+import {IMOBILIARIO_BASE} from "./_estilos";
 
 /*
  * LINEAR DO PACOTE C
- * Respiro entre os destaques: condensada em caixa-alta de 8%, entrelinha 1,08,
- * sem palavra-chave pintada. Acima de 22 caracteres, quebra em duas linhas.
+ * O mesmo desenho do destaque: no pacote C, todo bloco é imobiliário. Existe à parte
+ * só porque o ritmo comum (dois lineares e um destaque) pede um layout linear.
  */
-const template: CaptionTemplate = {
-  family: "linear",
-  structure: "linear",
-  keywordEffect: "sombra",
-  styles: {
-    block: {...BLOCO, ...ANTON, fontSize: "8cqw", lineHeight: 1.08, letterSpacing: ".01em"},
-  },
-  animations: {word: SOBE, keyword: SOBE},
-  maxCharactersPerLine: 22,
-};
+const template: CaptionTemplate = {...IMOBILIARIO_BASE, family: "linear"};
 
 export default template;

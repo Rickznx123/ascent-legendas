@@ -20,7 +20,7 @@ Pacotes e paletas atuais:
 |---|---|---|
 | `a` | `layout-1` a `layout-7` | `templates/pacote-a/referencia.html` |
 | `b` | `b1` a `b6` e `linear` | `templates/pacote-b/referencia.html` |
-| `c` | `c1` a `c6` e `linear` (Anton e Kaushan Script) | `templates/pacote-c/referencia.html` |
+| `c` | `imobiliario` e `linear`, os dois com a estrutura `imobiliario` (Inter Tight); os nomes antigos `c1` a `c6` desenham com o novo | `templates/pacote-c/referencia.html` |
 | `d` | `d1` a `d6` (d6 é a dupla) e `linear` (Hanken Grotesk) | `templates/pacote-d/referencia.html` |
 | `e` | `e1` a `e6` e `linear` (Urbanist, Hanken Grotesk e EB Garamond) | `templates/pacote-e/referencia.html` |
 
@@ -59,6 +59,7 @@ const pacote: PackageConfig = {
 - `before` e `after` contam as palavras antes e depois da palavra-chave; `words` conta as palavras do bloco.
 - `protectedExpression: true` faz a regra valer só para blocos com expressão protegida.
 - `dupla` (opcional): o layout de dupla do pacote (ex.: `"d6"`). Dois blocos seguidos ficam na tela ao mesmo tempo quando cada um tem até 4 palavras e o silêncio entre eles é menor que 0,4 s, no máximo uma dupla a cada 6 blocos (valores em `dupla` no `src/agrupamento-config.ts`). A dupla conta como um destaque no ritmo.
+- `aliases` (opcional): nomes antigos de layouts que saíram do pacote, cada um apontando para o layout novo (ex.: `{c1: "imobiliario"}`). Projetos salvos com os nomes antigos continuam abrindo e exportando; os nomes antigos não aparecem na galeria.
 - `maxLinearWords` (opcional): máximo de palavras do linear. Um linear maior é dividido em dois no ponto de menor penalidade do agrupador; um bloco com layout escolhido à mão não é dividido, só fica marcado "revisar". No modo misto, um linear maior não sorteia esse pacote.
 - Com mais de um layout na lista, eles se alternam entre os blocos.
 
@@ -96,6 +97,7 @@ A linha de cima depende da estrutura do layout. Em `escada` e `pilha`, a última
   - `pilha`: duas linhas antes da palavra-chave (a de baixo é a última palavra antes dela).
   - `dupla`: dois blocos seguidos na tela ao mesmo tempo. O layout descreve cada parte em `pair` (`first`, `second`, cada uma com sua estrutura, estilos e ajuste da palavra-chave) e onde fica cada grupo (`firstGroup`, `secondGroup`).
   - `linear`: palavras em sequência.
+  - `imobiliario` (pacote C): o bloco se divide num grupo acima da cabeça e outro na altura do tronco (até 2 palavras: um grupo só, no peito). Artigos, preposições, conjunções e verbos de ligação são apoio (finos e pequenos); o resto é chave (peso 800, tamanho pelo número de letras). Uma chave por grupo recebe o preenchimento da paleta (números e medidas, sempre). Entrada palavra por palavra com motion blur num eixo só (filtro SVG por quadro), grupo de baixo alternando dos lados e de baixo a cada bloco, saída para cima em cascata. O desenho e os parâmetros ficam em `src/imobiliario.tsx` e `src/imobiliario-config.ts`; o layout só declara a estrutura.
 - `styles`: CSS de cada papel (`block`, `support`, `supportBelow`, `keyword`, `keywordOuter`, `emphasis`, `complement`). As medidas em `cqw` equivalem a % da largura do vídeo; `em` é relativo ao tamanho da letra do próprio elemento.
 - Posição: o `block` não define `position`, `left`, `top` nem `transform` (se definir, é ignorado). O centro do bloco vai para a posição escolhida na interface (padrão: 50% da largura e 68% da altura), dentro da margem segura de 5% a 95% da largura e 8% a 92% da altura. O alinhamento do texto (`textAlign`) continua sendo do layout.
 - `keywordFit`: ajuste da palavra-chave, igual a `data-w` e `data-max` do HTML. `targetWidthPercent` é a largura alvo e `maxFontPercent` é o teto do tamanho da letra, os dois em % da largura do vídeo. O padding lateral da palavra-chave entra na largura medida, como no `offsetWidth` do HTML.

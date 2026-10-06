@@ -146,6 +146,12 @@ export const loadStyle = async (
     for (const [layout, template] of Object.entries(doPacote)) {
       templates[prefix + layout] = template;
     }
+    // Nomes antigos (ex.: o pacote C antes do novo desenho) desenham com o layout novo.
+    for (const [antigo, novo] of Object.entries(config.aliases ?? {})) {
+      if (doPacote[novo] && !doPacote[antigo]) {
+        templates[prefix + antigo] = doPacote[novo];
+      }
+    }
   }
 
   const todasAsPaletas: Record<string, Palette> = {};
