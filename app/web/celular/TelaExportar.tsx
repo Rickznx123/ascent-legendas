@@ -99,7 +99,8 @@ export const TelaExportar: React.FC<{e: Editor; onVoltar: () => void}> = ({e, on
           </>
         ) : e.previaExportacao && !e.erro ? (
           <>
-            <h2>Exportar</h2>
+            {/* Bloqueado, o título vem do aviso ("Assine para continuar"). */}
+            {e.previaExportacao.permitido ? <h2>Exportar</h2> : null}
             <AvisoDoPlano
               decisao={e.previaExportacao}
               ocupado={e.ocupado || !e.podeExportar}

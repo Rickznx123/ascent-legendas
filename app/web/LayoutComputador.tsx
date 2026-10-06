@@ -273,7 +273,7 @@ export const LayoutComputador: React.FC<{e: Editor}> = ({e}) => {
       {e.previaExportacao && !e.ocupado ? (
         <div className="janela-fundo" role="dialog" aria-modal="true" aria-label="Exportar">
           <div className="janela-plano">
-            <h2>Exportar</h2>
+            {e.previaExportacao.permitido ? <h2>Exportar</h2> : null}
             <AvisoDoPlano
               decisao={e.previaExportacao}
               ocupado={e.ocupado || !e.podeExportar}

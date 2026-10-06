@@ -22,7 +22,8 @@ export const duracaoEmTexto = (segundos: number): string => {
   return minutos > 0 ? `${minutos} min ${String(resto).padStart(2, "0")} s` : `${resto} s`;
 };
 
-const dataCurta = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", {day: "2-digit", month: "2-digit"});
+// No horário de Brasília (o mês do plano vira à meia-noite de lá, não no fuso do aparelho).
+const dataCurta = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", {day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo"});
 
 // Quadro do plano: título, detalhe e quanto da barra está cheio (0 a 1).
 export const resumoDoUso = (uso: UsoDoPlano): {titulo: string; detalhe: string; fracao: number} => {
@@ -51,7 +52,9 @@ export const avisoDaExportacao = (decisao: DecisaoDeExportacao): string[] => {
   if (decisao.uso.plano === "gratis") {
     linhas.push(
       decisao.descontoS > 0
-        ? `Vai usar o seu vídeo do plano grátis (sobra${decisao.restanteDepois === 1 ? "" : "m"} ${decisao.restanteDepois}).`
+        ? decisao.restanteDepois > 0
+          ? `Vai usar 1 dos seus vídeos do plano grátis (sobram ${decisao.restanteDepois}).`
+          : "Vai usar o seu vídeo do plano grátis (é o único)."
         : `${reexportacao(decisao)}: não desconta.`,
     );
     linhas.push("Sai com a marca d'água Ascent Legendas. Assinantes exportam sem marca.");
