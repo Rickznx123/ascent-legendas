@@ -186,7 +186,7 @@ Legenda: **[VOCÊ]** contas, consoles, domínio e decisões; **[EU]** código, s
 2. [EU] Teste: enviar pelo túnel no 4G, derrubar a conexão no meio e retomar.
 3. [VOCÊ] Teste no seu celular: enviar um vídeo de verdade.
 
-**Bloco 4 — Prévia e capas pelo S3** — código em 06/10/2026; falta o teste no seu celular.
+**Bloco 4 — Prévia e capas pelo S3** ✅ concluído em 06/10/2026 (commit `d06536e`), testado no iPhone.
 1. [EU] Endereços assinados para a prévia e as capas; prévia leve em H.264.
 2. [EU] Teste: um vídeo HEVC de iPhone tocando no Chrome do Windows.
 
