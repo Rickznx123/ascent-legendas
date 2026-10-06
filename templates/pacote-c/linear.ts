@@ -1,11 +1,8 @@
-import type {CaptionTemplate} from "../../src/types";
-import {IMOBILIARIO_BASE} from "./_estilos";
+import {layoutImobiliario} from "./_estilos";
 
 /*
  * LINEAR DO PACOTE C
- * O mesmo desenho do destaque: no pacote C, todo bloco é imobiliário. Existe à parte
- * só porque o ritmo comum (dois lineares e um destaque) pede um layout linear.
+ * O bloco numa linha (ou duas), na altura do peito: apoio fino, chave pesada (teto
+ * menor que o do destaque), uma chave em degradê; cada palavra sobe com blur.
  */
-const template: CaptionTemplate = {...IMOBILIARIO_BASE, family: "linear"};
-
-export default template;
+export default layoutImobiliario("linear", {papel: "linear", entrada: "baixo"});

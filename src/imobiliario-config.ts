@@ -19,6 +19,13 @@ export const IMOBILIARIO = {
   linha: {espaco: 7, sobreposicao: 14},
   // Bloco com até tantas palavras: um grupo só, na altura do peito.
   palavrasDoGrupoUnico: 2,
+  // Âncora e trilho: a âncora tem mais de uma palavra, ou uma com tantas letras.
+  // Ela fica até passarem palavrasMinimas no trilho e sai na pausa ou no fim de
+  // frase seguinte; com palavrasMaximas, sai de qualquer jeito.
+  ancora: {letrasDaPalavraLonga: 10},
+  trilho: {palavrasMinimas: 5, palavrasMaximas: 8, distancia: 210, saida: 180, apoioCurto: 3},
+  // Linear do C: chave menor que a do destaque.
+  linear: {chaveMaxima: 64},
 } as const;
 
 // Entrada equivalente (para a antecipação da Sincronia, veja src/entrada.ts):
