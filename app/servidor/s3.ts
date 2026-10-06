@@ -1,7 +1,7 @@
 // Bucket S3 dos vídeos (Etapa 3), com as credenciais do usuário IAM do Remotion
 // (permissão: nuvem/politicas/bucket-videos.json). Sem as credenciais no ambiente,
 // não há S3 e o envio continua pelo servidor, para o disco.
-import {GetObjectCommand, S3Client} from "@aws-sdk/client-s3";
+import {GetObjectCommand, HeadObjectCommand, S3Client} from "@aws-sdk/client-s3";
 import {getSignedUrl} from "@aws-sdk/s3-request-presigner";
 import type {Configuracao} from "./configuracao";
 
@@ -10,6 +10,8 @@ export type ArmazenamentoS3 = {
   bucket: string;
   // Endereço assinado de leitura (o ffprobe e o ffmpeg leem o vídeo por ele).
   enderecoDeLeitura: (chave: string, segundos?: number) => Promise<string>;
+  // O arquivo está no bucket? (Vídeos enviados antes do S3 só existem no disco.)
+  existe: (chave: string) => Promise<boolean>;
 };
 
 export const s3DoAmbiente = (configuracao: Configuracao): ArmazenamentoS3 | undefined => {
@@ -47,5 +49,13 @@ export const s3DoAmbiente = (configuracao: Configuracao): ArmazenamentoS3 | unde
     s3,
     bucket,
     enderecoDeLeitura: (chave, segundos = 3600) => getSignedUrl(s3, new GetObjectCommand({Bucket: bucket, Key: chave}), {expiresIn: segundos}),
+    existe: (chave) =>
+      s3.send(new HeadObjectCommand({Bucket: bucket, Key: chave})).then(
+        () => true,
+        (erro: {name?: string; $metadata?: {httpStatusCode?: number}}) => {
+          if (erro.name === "NotFound" || erro.$metadata?.httpStatusCode === 404) return false;
+          throw erro;
+        },
+      ),
   };
 };

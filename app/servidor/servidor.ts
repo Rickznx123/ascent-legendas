@@ -1,5 +1,4 @@
 import {spawn} from "node:child_process";
-import {randomUUID} from "node:crypto";
 import {createWriteStream, existsSync, writeFileSync} from "node:fs";
 import {copyFile, mkdir, rename, rm} from "node:fs/promises";
 import type {Server} from "node:http";
@@ -29,10 +28,11 @@ import {reloadModules} from "../../src/template-loader";
 import {configDosEfeitos, planejarEfeitos} from "../../src/sons";
 import {cortesDosExcluidos, precisaoDoProjeto, sincroniaDoProjeto} from "../../src/entrada";
 import type {AssignedCaptionBlock} from "../../src/types";
-import {configuracaoDoAmbiente} from "./configuracao";
+import {PASTAS_NO_BUCKET, configuracaoDoAmbiente} from "./configuracao";
 import {contasDoAmbiente} from "./contas";
 import {rotasDeEnvio} from "./envio";
 import {previasLeves} from "./previa-leve";
+import {tarefasSoltas} from "./tarefas-soltas";
 import {s3DoAmbiente} from "./s3";
 import type {ConfigDoLogin} from "./contas";
 import {espacoDoUsuario, espacoLocal} from "./espaco";
@@ -395,61 +395,111 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     }),
   );
 
-  app.post("/api/transcrever", async (request, response) => {
-    if (!reservar("transcrição", response)) {
-      return;
+  // Transcrição (Etapa 3, bloco 5), solta do pedido como a exportação (veja
+  // tarefas-soltas.ts): GET /api/transcricao diz o andamento ou o resultado; com uma
+  // do mesmo vídeo em curso, POST devolve a mesma. O vídeo é lido do S3 pelo
+  // endereço assinado (o ffmpeg só extrai o áudio); o que só existe no disco, do disco.
+  // Limite diário do plano (cota.ts): conferido antes; só a que terminou é gravada.
+  // manterAjustes ("Recomeçar do zero"): as edições somem, mas os ajustes do vídeo
+  // (efeitos sonoros e sincronia) continuam. A transcrição antiga só é trocada
+  // quando a nova fica pronta: se o whisper falhar, ela continua como estava.
+  const transcricoes = tarefasSoltas();
+  const origemDoVideo = async (espaco: Espaco, video: string): Promise<string> => {
+    const noDisco = videoPath(espaco, video);
+    if (armazenamento && espaco.usuario) {
+      const chave = `${PASTAS_NO_BUCKET.videos.prefixo}${espaco.usuario.id}/${video}`;
+      if (await armazenamento.existe(chave)) {
+        return armazenamento.enderecoDeLeitura(chave, 3600);
+      }
     }
-    const espaco = espacoDe(response);
-    // manterAjustes ("Recomeçar do zero"): as edições somem, mas os ajustes do vídeo
-    // (efeitos sonoros e sincronia) continuam. A transcrição antiga só é trocada
-    // quando a nova fica pronta: se o whisper falhar, ela continua como estava.
-    const {video, pacote, paleta, manterAjustes} = request.body as {
-      video: string;
-      pacote?: string;
-      paleta?: string;
-      manterAjustes?: boolean;
+    return noDisco;
+  };
+
+  app.post(
+    "/api/transcrever",
+    handle(async (request, response) => {
+      const espaco = espacoDe(response);
+      const {video, pacote, paleta, manterAjustes} = request.body as {
+        video: string;
+        pacote?: string;
+        paleta?: string;
+        manterAjustes?: boolean;
+      };
+      videoPath(espaco, video);
+      const chave = chaveDaTarefa(espaco, video);
+      const atual = transcricoes.emAndamento(chave);
+      if (atual) {
+        return atual;
+      }
+      if (espaco.cota) {
+        const decisao = await espaco.cota.podeTranscrever();
+        if (!decisao.permitido) {
+          response.status(429).json({mensagem: decisao.motivo, codigo: "limite-transcricoes", uso: decisao.uso});
+          return undefined;
+        }
+      }
+      if (!reservar("transcrição", response)) {
+        return undefined;
+      }
+      return transcricoes.iniciar(
+        chave,
+        video,
+        async (progress) => {
+          const anterior = await espaco.lerProjeto(video);
+          const ajustes = manterAjustes && anterior?.source === video ? anterior : undefined;
+          const origem = await origemDoVideo(espaco, video);
+          console.log(`[${video}] Transcrição: lendo o vídeo ${origem.startsWith("http") ? "do S3" : "do disco"}.`);
+          // WhisperX, com a Groq e o Whisper local de reserva; a voz do áudio
+          // (Sincronia precisa) é detectada junto (veja src/motor/transcricao.ts).
+          const {words, voz, model, motor, avisos} = await transcrever(root, origem, {
+            // Na internet, sem o Whisper local (não fica no servidor).
+            ...(publico ? {semWhisperLocal: true} : {}),
+            onProgress: progress,
+            log: (texto) => console.log(`[${video}] ${texto}`),
+          });
+    progress("Escolhendo os layouts...");
+    const style = await loadStyle(root, {pacote, paleta});
+    const semente = novaSemente();
+    const blocks = assignForStyle(groupWords(words), style, {semente});
+    const projeto: Projeto = {
+      source: video,
+      language: "pt",
+      model,
+      pacote: style.pacote,
+      paleta: style.paleta,
+      semente,
+      efeitos: ajustes?.efeitos,
+      // Recomeçar do zero mantém a sincronia do projeto; um projeto novo nasce
+      // com a Sincronia precisa ligada e 0 ms.
+      ...(ajustes
+        ? {sincroniaMs: ajustes.sincroniaMs, sincroniaPrecisa: ajustes.sincroniaPrecisa}
+        : SINCRONIA_DE_PROJETO_NOVO),
+      voz,
+      words,
+      blocks,
     };
-    try {
-      await streamTask(response, async (progress) => {
-        const anterior = await espaco.lerProjeto(video);
-        const ajustes = manterAjustes && anterior?.source === video ? anterior : undefined;
-        // WhisperX, com a Groq e o Whisper local de reserva; a voz do áudio
-        // (Sincronia precisa) é detectada junto (veja src/motor/transcricao.ts).
-        const {words, voz, model, avisos} = await transcrever(root, videoPath(espaco, video), {
-          // Na internet, sem o Whisper local (não fica no servidor).
-          ...(publico ? {semWhisperLocal: true} : {}),
-          onProgress: progress,
-          log: (texto) => console.log(`[${video}] ${texto}`),
-        });
-        progress("Escolhendo os layouts...");
-        const style = await loadStyle(root, {pacote, paleta});
-        const semente = novaSemente();
-        const blocks = assignForStyle(groupWords(words), style, {semente});
-        const projeto: Projeto = {
-          source: video,
-          language: "pt",
-          model,
-          pacote: style.pacote,
-          paleta: style.paleta,
-          semente,
-          efeitos: ajustes?.efeitos,
-          // Recomeçar do zero mantém a sincronia do projeto; um projeto novo nasce
-          // com a Sincronia precisa ligada e 0 ms.
-          ...(ajustes
-            ? {sincroniaMs: ajustes.sincroniaMs, sincroniaPrecisa: ajustes.sincroniaPrecisa}
-            : SINCRONIA_DE_PROJETO_NOVO),
-          voz,
-          words,
-          blocks,
-        };
-        await espaco.salvarProjeto(projeto);
-        // A tela mostra qual reserva foi usada, se não foi o WhisperX.
-        return {projeto, avisos};
-      });
-    } finally {
-      tarefaAtual = undefined;
-    }
-  });
+    await espaco.salvarProjeto(projeto);
+    // A tela mostra qual reserva foi usada, se não foi o WhisperX.
+          // Conta no limite do dia só agora, que terminou. Uma falha ao gravar não
+          // desfaz a transcrição (fica no log).
+          await espaco.cota?.registrarTranscricao(video, motor, voz.duracaoMs / 1000).catch((erro: unknown) => {
+            console.log(`[${video}] Transcrição: não deu para registrar no limite do dia: ${erro instanceof Error ? erro.message : String(erro)}`);
+          });
+          // A tela mostra qual reserva foi usada, se não foi o WhisperX.
+          return {projeto, avisos};
+        },
+        () => {
+          tarefaAtual = undefined;
+        },
+      );
+    }),
+  );
+
+  // Andamento (ou resultado) da última transcrição deste vídeo.
+  app.get(
+    "/api/transcricao",
+    handle((request, response) => transcricoes.ler(chaveDaTarefa(espacoDe(response), String(request.query.video ?? ""))) ?? {estado: "nenhuma"}),
+  );
 
   // Remover vídeo: o arquivo sai da lista indo para removidos/ (não é apagado) e a
   // transcrição dele é apagada. saidas/ não é tocada.
@@ -501,25 +551,11 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     }),
   );
 
-  // Exportação (render neste computador até o Bloco 6, no Lambda depois). Ela roda
-  // solta do pedido: o celular pode ir para segundo plano (e a conexão cair) sem
-  // parar o render. A tela pergunta o andamento em GET /api/exportacao e, ao voltar,
-  // retoma o acompanhamento ou mostra o vídeo pronto. Pedir de novo com uma
-  // exportação do mesmo vídeo em curso devolve a que já existe (sem outro render).
-  // Guardadas na memória do servidor (no Bloco 6, na tabela renders do Supabase).
-  type Exportacao = {
-    id: string;
-    video: string;
-    estado: "andamento" | "pronta" | "falhou";
-    etapa?: string;
-    fracao?: number;
-    caminho?: string;
-    descontoS?: number;
-    mensagem?: string;
-    codigo?: string;
-  };
-  const exportacoes = new Map<string, Exportacao>();
-  const chaveDaExportacao = (espaco: Espaco, video: string) => `${espaco.usuario?.id ?? "local"}:${video}`;
+  // Exportação (render neste computador até o Bloco 6, no Lambda depois), solta do
+  // pedido (veja tarefas-soltas.ts): GET /api/exportacao diz o andamento ou o
+  // resultado; com uma do mesmo vídeo em curso, POST devolve a mesma (sem outro render).
+  const exportacoes = tarefasSoltas();
+  const chaveDaTarefa = (espaco: Espaco, video: string) => `${espaco.usuario?.id ?? "local"}:${video}`;
 
   const renderizarProjeto = async (espaco: Espaco, projeto: Projeto, progress: (etapa: string, fracao?: number) => void) => {
     const inputPath = videoPath(espaco, projeto.source);
@@ -588,38 +624,30 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       if (!projeto || (pedido && projeto.source !== pedido)) {
         throw new Error("Não há projeto para exportar.");
       }
-      const chave = chaveDaExportacao(espaco, projeto.source);
-      const atual = exportacoes.get(chave);
-      if (atual?.estado === "andamento") {
+      const chave = chaveDaTarefa(espaco, projeto.source);
+      const atual = exportacoes.emAndamento(chave);
+      if (atual) {
         console.log(`Exportar: ${projeto.source} já está sendo exportado; o pedido acompanha o mesmo render.`);
         return atual;
       }
       if (!reservar("exportação", response)) {
         return undefined;
       }
-      const exportacao: Exportacao = {id: randomUUID(), video: projeto.source, estado: "andamento", etapa: "Começando..."};
-      exportacoes.set(chave, exportacao);
-      void renderizarProjeto(espaco, projeto, (etapa, fracao) => Object.assign(exportacao, {etapa, fracao}))
-        .then((resultado) => Object.assign(exportacao, {estado: "pronta", ...resultado}))
-        .catch((error: unknown) =>
-          Object.assign(exportacao, {
-            estado: "falhou",
-            mensagem: error instanceof Error ? error.message : String(error),
-            // A tela mostra uma tela própria (ex.: "assine" → Assine para continuar).
-            codigo: error instanceof ErroDoPlano ? error.codigo : undefined,
-          }),
-        )
-        .finally(() => {
+      return exportacoes.iniciar(
+        chave,
+        projeto.source,
+        (progress) => renderizarProjeto(espaco, projeto, progress),
+        () => {
           tarefaAtual = undefined;
-        });
-      return exportacao;
+        },
+      );
     }),
   );
 
   // Andamento (ou resultado) da última exportação deste vídeo.
   app.get(
     "/api/exportacao",
-    handle((request, response) => exportacoes.get(chaveDaExportacao(espacoDe(response), String(request.query.video ?? ""))) ?? {estado: "nenhuma"}),
+    handle((request, response) => exportacoes.ler(chaveDaTarefa(espacoDe(response), String(request.query.video ?? ""))) ?? {estado: "nenhuma"}),
   );
 
   // "Importar projetos deste computador": no primeiro login, traz para a conta os

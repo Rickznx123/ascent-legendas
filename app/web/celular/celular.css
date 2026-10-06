@@ -977,6 +977,11 @@
   color: var(--suave);
 }
 
+/* Transcrições do dia, embaixo da barra do plano. */
+.cel-uso small.cel-uso-transcricoes {
+  margin-top: 8px;
+}
+
 .cel-medidor {
   height: 6px;
   margin-top: 10px;

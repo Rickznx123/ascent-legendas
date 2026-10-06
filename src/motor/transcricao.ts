@@ -6,7 +6,14 @@
 //      for pedido (local: true; no app e no terminal, TRANSCRICAO=local no .env).
 // A detecção de voz roda junto, e o encaixe no áudio vem depois, pela Sincronia
 // precisa (src/encaixe.ts). Cada desvio é registrado no log e em avisos.
+// O áudio é extraído do vídeo uma vez só (WAV mono 16 kHz, num arquivo temporário)
+// e serve a todos: WhisperX, Groq, detecção de voz e Whisper local. O vídeo pode ser
+// um arquivo ou um endereço (o assinado do S3: o ffmpeg lê só o que precisa).
+import {mkdtemp, rm} from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import type {VozDoAudio, Word} from "../types";
+import {execFileAsync, ffmpegPath} from "./ferramentas";
 import {MODELO_GROQ, transcreverGroq} from "./groq";
 import {WHISPER_MODEL} from "./projeto";
 import {transcribeVideo} from "./transcrever";
@@ -36,9 +43,23 @@ export type Transcricao = {
 
 const mensagem = (erro: unknown) => (erro instanceof Error ? erro.message : String(erro));
 
+// Áudio do vídeo num WAV temporário (mono 16 kHz, o que todos os motores usam).
+// Devolve o caminho e uma função que apaga o arquivo.
+export const extrairAudioParaTranscrever = async (video: string): Promise<{audio: string; apagar: () => Promise<void>}> => {
+  const pasta = await mkdtemp(path.join(os.tmpdir(), "legendas-audio-"));
+  const audio = path.join(pasta, "audio.wav");
+  try {
+    await execFileAsync(ffmpegPath(), ["-v", "error", "-y", "-i", video, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", audio]);
+  } catch (erro) {
+    await rm(pasta, {recursive: true, force: true});
+    throw erro;
+  }
+  return {audio, apagar: () => rm(pasta, {recursive: true, force: true})};
+};
+
 export const transcrever = async (
   root: string,
-  inputPath: string,
+  video: string,
   {
     local = process.env.TRANSCRICAO?.trim().toLowerCase() === "local",
     semWhisperLocal = false,
@@ -59,6 +80,38 @@ export const transcrever = async (
     log(`Transcrição: ${texto}`);
   };
   const inicio = Date.now();
+  onProgress("Extraindo o áudio...");
+  const {audio: inputPath, apagar} = await extrairAudioParaTranscrever(video);
+  const extracaoS = (Date.now() - inicio) / 1000;
+  log(`Transcrição: áudio extraído em ${extracaoS.toFixed(1)} s.`);
+  try {
+    return await transcreverAudio(root, inputPath, {local, semWhisperLocal, onProgress, log, avisos, avisar, inicio});
+  } finally {
+    await apagar();
+  }
+};
+
+const transcreverAudio = async (
+  root: string,
+  inputPath: string,
+  {
+    local,
+    semWhisperLocal,
+    onProgress,
+    log,
+    avisos,
+    avisar,
+    inicio,
+  }: {
+    local: boolean;
+    semWhisperLocal: boolean;
+    onProgress: Progresso;
+    log: (texto: string) => void;
+    avisos: string[];
+    avisar: (texto: string) => void;
+    inicio: number;
+  },
+): Promise<Transcricao> => {
   let vozS = 0;
   const deteccao = detectarVozDoVideo(inputPath).then((voz) => {
     vozS = (Date.now() - inicio) / 1000;

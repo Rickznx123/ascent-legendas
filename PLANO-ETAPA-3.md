@@ -124,7 +124,7 @@ O resto (S3, Lambda) fica na AWS de qualquer jeito; o servidor no Render fala co
 **Se algo falhar no meio**
 - **WhisperX falha ou passa de 60 s:** a Groq assume (já é assim). Se a Groq também falhar, aparece "não deu para transcrever, tente de novo". Transcrição não desconta minutos.
 - **Lambda falha:** o Remotion já tenta de novo os pedaços que falham. Se o render falhar de vez, não desconta (já é assim), o arquivo parcial é apagado e a tela oferece "tentar de novo".
-- **Servidor reinicia ou o celular perde a conexão durante o render:** hoje o progresso depende da conexão aberta. No servidor público, cada render vira um registro no Supabase (tabela `renders`: id do Lambda, usuário, projeto, situação). Um vigia no servidor acompanha os renders "em andamento", inclusive depois de reiniciar, e só registra a exportação, descontando, quando o Lambda termina com sucesso. A tela reabre e mostra "pronto" ou "falhou". Isso pede uma migração 004.
+- **Servidor reinicia ou o celular perde a conexão durante o render:** hoje o progresso depende da conexão aberta. No servidor público, cada render vira um registro no Supabase (tabela `renders`: id do Lambda, usuário, projeto, situação). Um vigia no servidor acompanha os renders "em andamento", inclusive depois de reiniciar, e só registra a exportação, descontando, quando o Lambda termina com sucesso. A tela reabre e mostra "pronto" ou "falhou". Isso pede uma migração 005 (a 004 é a das transcrições, Bloco 5).
 
 ---
 
@@ -213,13 +213,32 @@ O servidor parado usa ~140 MB. No Starter do Render (512 MB, 0,5 CPU): 1080p cab
 1 min de conversão por minuto de vídeo 1080p (estimado: um quarto do processador
 usado aqui). A capa sai em menos de 1 s, então a tela tem o que mostrar logo.
 
-**Bloco 5 — Transcrição lendo do S3**
+**Bloco 5 — Transcrição lendo do S3** — código em 06/10/2026; falta o teste no seu celular.
 1. [EU] O ffmpeg lê o vídeo pelo endereço assinado e extrai o áudio; só o áudio vai para o WhisperX ou a Groq, como hoje. A detecção de voz usa o mesmo áudio.
 2. [EU] Limite diário de transcrições por plano.
 3. [EU] Teste: transcrever um vídeo enviado pelo celular.
 
+Decisões (06/10/2026): transcrição solta da página, com retomada ao voltar (como a
+exportação), e pedir de novo com uma em curso não começa outra; só contam no limite
+as que terminaram; o dia é o do calendário de Brasília (renova à 00:00); o saldo
+aparece no quadro do plano ("Restam N de 3 transcrições hoje"); a detecção de voz da
+Sincronia precisa não conta; vídeos só no disco continuam transcritos do disco.
+Migração 004: tabela `transcricoes` (a dos renders do Bloco 6 passa a ser a 005).
+
+**Medição** (vídeo do iPhone, H.264 1080p, 27 s; WhisperX):
+| | Tempo total | Extração do áudio | Processamento no Replicate | Custo |
+|---|---|---|---|---|
+| Antes (disco, 3 extrações) | 9,9 s | — | 5,7 s | US$ 0,0079 |
+| Depois, do disco | 8,7 s | 0,1 s | 5,6 s | US$ 0,0079 |
+| Depois, do S3 (3 vezes) | 11,8 a 17,0 s | 3,0 s | 6,1 a 11,1 s | US$ 0,0086 a 0,0156 |
+
+O áudio extraído do S3 é idêntico ao do disco (mesmo md5): o custo depende só do
+tempo de processamento no Replicate, que variou entre 6 e 11 s com o mesmo arquivo.
+Os 3 s a mais da extração são o download do vídeo daqui (Brasil) até us-east-2; no
+Render, perto da AWS, devem cair para menos de 1 s.
+
 **Bloco 6 — Exportar no Lambda**
-1. [EU] Migração 004 (tabela `renders`); [VOCÊ] colar no SQL Editor.
+1. [EU] Migração 005 (tabela `renders`); [VOCÊ] colar no SQL Editor.
 2. [EU] Exportar = Lambda, com o site já publicado; vigia de renders; desconto só no sucesso; download por endereço assinado; arquivo parcial apagado na falha.
 3. [EU] Teste: exportar, fechar a aba no meio, reabrir e encontrar "pronto"; falha simulada sem desconto.
 

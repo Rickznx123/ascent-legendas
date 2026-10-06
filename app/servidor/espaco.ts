@@ -9,8 +9,8 @@ import path from "node:path";
 import {listarVideos, readProject, saveProject} from "../../src/motor/projeto";
 import type {Projeto} from "../../src/motor/projeto";
 import type {Contas, Usuario} from "./contas";
-import {decidirExportacao, usoDoPlano} from "./cota";
-import type {DecisaoDeExportacao, RegistroDeExportacao, UsoDoPlano} from "./cota";
+import {decidirExportacao, decidirTranscricao, diaDoCalendario, usoDeTranscricoes, usoDoPlano} from "./cota";
+import type {DecisaoDeExportacao, RegistroDeExportacao, UsoDeTranscricoes, UsoDoPlano} from "./cota";
 
 export type ResumoDoProjeto = {video: string; blocos: number};
 
@@ -40,6 +40,10 @@ export type Cota = {
   decidir: (video: string, duracaoS: number) => Promise<DecisaoDeExportacao>;
   // Grava a exportação que terminou, com o que foi decidido antes do render.
   registrar: (video: string, duracaoS: number, decisao: DecisaoDeExportacao) => Promise<void>;
+  // Transcrições: se ainda pode hoje (com o motivo, se não) e o registro de uma que
+  // terminou (só as que terminaram contam).
+  podeTranscrever: () => Promise<{permitido: boolean; motivo?: string; uso: UsoDeTranscricoes}>;
+  registrarTranscricao: (video: string, motor: string, duracaoS: number) => Promise<void>;
 };
 
 export const espacoLocal = (root: string): Espaco => ({
@@ -86,6 +90,22 @@ export const espacoDoUsuario = (root: string, contas: Contas, usuario: Usuario, 
       .eq("usuario_id", usuario.id);
     if (error) throw falha("ler as exportações", error);
     return data as RegistroDeExportacao[];
+  };
+
+  // Transcrições que terminaram hoje (dia de Brasília). Lidas com a chave secreta.
+  const transcricoesDeHoje = async (agora: Date): Promise<number> => {
+    const {count, error} = await contas.admin
+      .from("transcricoes")
+      // Sem head: numa tabela que não existe, o head volta sem erro e sem contagem
+      // (o limite ficaria desligado sem ninguém saber).
+      .select("id", {count: "exact"})
+      .eq("usuario_id", usuario.id)
+      .gte("criado_em", diaDoCalendario(agora).inicio.toISOString())
+      .limit(1);
+    if (error || count === null) {
+      throw falha("ler as transcrições de hoje (a migração 004 já rodou no Supabase?)", error ?? {message: "sem contagem"});
+    }
+    return count;
   };
 
   const linhaDoVideo = async (video: string): Promise<Linha | undefined> => {
@@ -143,7 +163,23 @@ export const espacoDoUsuario = (root: string, contas: Contas, usuario: Usuario, 
         .map((linha) => ({video: linha.video, blocos: Array.isArray(linha.blocos) ? linha.blocos.length : 0}));
     },
     cota: {
-      uso: async () => usoDoPlano(await plano(), await historico(), new Date()),
+      uso: async () => {
+        const agora = new Date();
+        const [p, h, hoje] = await Promise.all([plano(), historico(), transcricoesDeHoje(agora).catch(() => undefined)]);
+        // Sem a tabela (migração 004 ainda não rodou), o quadro só não mostra as transcrições.
+        return {...usoDoPlano(p, h, agora), ...(hoje === undefined ? {} : {transcricoes: usoDeTranscricoes(p, hoje, agora)})};
+      },
+      podeTranscrever: async () => {
+        const agora = new Date();
+        const [p, hoje] = await Promise.all([plano(), transcricoesDeHoje(agora)]);
+        const uso = usoDeTranscricoes(p, hoje, agora);
+        return {...decidirTranscricao(uso, p), uso};
+      },
+      registrarTranscricao: async (video, motor, duracaoS) => {
+        // Só o servidor insere em transcricoes (a chave secreta; o usuário só lê).
+        const {error} = await contas.admin.from("transcricoes").insert({usuario_id: usuario.id, video, motor, duracao_s: duracaoS});
+        if (error) throw falha("registrar a transcrição", error);
+      },
       decidir: async (video, duracaoS) => {
         const [p, h, projeto] = await Promise.all([plano(), historico(), linhaDoVideo(video)]);
         return decidirExportacao(p, h, projeto?.id ?? null, duracaoS, new Date());

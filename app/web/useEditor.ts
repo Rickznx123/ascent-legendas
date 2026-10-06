@@ -31,8 +31,10 @@ import {POSICAO_PADRAO} from "../../src/posicao";
 import type {Posicao} from "../../src/posicao";
 import {computeTimeline, findActiveBlockIndex} from "../../src/tempos";
 import type {AssignedCaptionBlock, VideoMetadata} from "../../src/types";
-import {api, executarTarefa} from "./api";
-import type {Exportacao} from "./api";
+import {api} from "./api";
+import type {Exportacao, TranscricaoNoServidor} from "./api";
+import {acompanharTarefa, marcarTarefaMostrada, tarefaJaMostrada} from "./tarefas-soltas";
+import type {TarefaSolta} from "./tarefas-soltas";
 import type {Andamento, Catalogo, DecisaoDeExportacao} from "./api";
 import {useConta} from "./conta";
 import {EVENTO_ENVIO_PARADO, enviosInterrompidos} from "./envio";
@@ -470,6 +472,57 @@ export const useEditor = () => {
   };
 
   // recomecar: "Recomeçar do zero" (as edições somem; efeitos sonoros e sincronia ficam).
+  // Tarefas do servidor sendo acompanhadas agora (pelo id).
+  const acompanhando = useRef(new Set<string>());
+
+  // Aplica uma transcrição pronta (a que acabou de terminar ou a retomada).
+  const aplicarTranscricao = async (tarefa: TranscricaoNoServidor, recomecar: boolean) => {
+    const novo = tarefa.projeto;
+    if (!novo) {
+      return;
+    }
+    setProjeto(novo);
+    limparHistorico();
+    setBlocoSelecionado(-1);
+    setEstilo(await api.estilo(novo.pacote, novo.paleta));
+    // A lista do Início mostra este vídeo como transcrito.
+    setCatalogo(await api.catalogo());
+    // O saldo de transcrições do dia mudou (quadro do Início).
+    atualizarConta();
+    setAviso(
+      (recomecar
+        ? `Recomeçado do zero: transcrição nova com ${novo.blocks.length} blocos.`
+        : `Transcrição pronta: ${novo.blocks.length} blocos.`) +
+        // Reserva usada (WhisperX indisponível): a tela avisa qual foi.
+        (tarefa.avisos?.length ? ` Atenção: ${tarefa.avisos.join(" ")}` : ""),
+    );
+  };
+
+  // A transcrição roda no servidor solta da página (veja tarefas-soltas.ts); aqui só
+  // se acompanha. Com uma deste vídeo em curso, o servidor devolve a mesma.
+  const acompanharTranscricao = async (inicial: TranscricaoNoServidor, nome: string, recomecar: boolean) => {
+    if (acompanhando.current.has(inicial.id)) {
+      return;
+    }
+    acompanhando.current.add(inicial.id);
+    try {
+      const fim = await acompanharTarefa(inicial, () => api.transcricao(inicial.video), (t) =>
+        setTarefa({nome, etapa: t.etapa ?? "Transcrevendo...", fracao: t.fracao}),
+      );
+      marcarTarefaMostrada(fim.id);
+      if (fim.estado === "pronta") {
+        await aplicarTranscricao(fim, recomecar);
+      } else {
+        mostrarErro(new Error(fim.mensagem ?? "Não deu para transcrever."));
+      }
+    } catch (error) {
+      mostrarErro(error);
+    } finally {
+      acompanhando.current.delete(inicial.id);
+      setTarefa(undefined);
+    }
+  };
+
   const transcrever = async (recomecar = false) => {
     if (!video) {
       return;
@@ -481,30 +534,16 @@ export const useEditor = () => {
     setAviso(undefined);
     setTarefa({nome, etapa: "Começando..."});
     try {
-      const {projeto: novo, avisos} = await executarTarefa<{projeto: Projeto; avisos?: string[]}>(
-        "/api/transcrever",
-        {video, pacote: estilo?.pacote, paleta: estilo?.paleta, manterAjustes: recomecar},
-        (andamento) => setTarefa({nome, ...andamento}),
-      );
-      setProjeto(novo);
-      limparHistorico();
-      setBlocoSelecionado(-1);
-      setEstilo(await api.estilo(novo.pacote, novo.paleta));
-      // A lista do Início mostra este vídeo como transcrito.
-      setCatalogo(await api.catalogo());
-      setAviso(
-        (recomecar
-          ? `Recomeçado do zero: transcrição nova com ${novo.blocks.length} blocos.`
-          : `Transcrição pronta: ${novo.blocks.length} blocos.`) +
-          // Reserva usada (WhisperX indisponível): a tela avisa qual foi.
-          (avisos?.length ? ` Atenção: ${avisos.join(" ")}` : ""),
-      );
+      const tarefa = await api.transcrever({video, pacote: estilo?.pacote, paleta: estilo?.paleta, manterAjustes: recomecar});
+      void acompanharTranscricao(tarefa, nome, recomecar);
     } catch (error) {
+      // Sem transcrições no dia: a mensagem do servidor diz quando renova.
       mostrarErro(error);
-    } finally {
       setTarefa(undefined);
+      atualizarConta();
     }
   };
+
 
   const recomecarDoZero = () => {
     if (
@@ -613,72 +652,38 @@ export const useEditor = () => {
     }
   };
 
-  // Exportação: o servidor faz o render solto da página; aqui só se acompanha o
-  // andamento (a cada 1,5 s). Ao voltar para o app, recarregar ou abrir o projeto de
-  // novo, o acompanhamento é retomado, ou o vídeo pronto aparece (uma vez por
-  // exportação: as já mostradas ficam marcadas neste aparelho).
-  const acompanhando = useRef<string | undefined>(undefined);
+  // Exportação: o servidor faz o render solto da página; aqui só se acompanha.
   // Muda quando uma exportação é retomada (o celular abre a tela de exportar).
   const [exportacaoRetomada, setExportacaoRetomada] = useState(0);
-  const jaMostrada = (id: string) => {
-    try {
-      return localStorage.getItem(`exportacao-vista:${id}`) !== null;
-    } catch {
-      return false;
-    }
-  };
-  const marcarMostrada = (id: string) => {
-    try {
-      localStorage.setItem(`exportacao-vista:${id}`, "1");
-    } catch {
-      // Sem armazenamento: no pior caso, o vídeo pronto aparece de novo.
-    }
-  };
   const acompanharExportacao = async (inicial: Exportacao) => {
-    if (acompanhando.current === inicial.id) {
+    if (acompanhando.current.has(inicial.id)) {
       return;
     }
-    acompanhando.current = inicial.id;
-    let atual = inicial;
+    acompanhando.current.add(inicial.id);
     try {
-      while (atual.estado === "andamento") {
-        setTarefa({nome: "Exportar", etapa: atual.etapa ?? "Exportando...", fracao: atual.fracao});
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        // Página em segundo plano: espera voltar (o render segue no servidor).
-        while (document.visibilityState === "hidden") {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-        const lido = await api.exportacao(inicial.video).catch(() => atual);
-        // Outro render do mesmo vídeo (ou o servidor reiniciou): para de acompanhar.
-        if (lido.estado === "nenhuma" || lido.id !== inicial.id) {
-          throw new Error("A exportação foi interrompida no servidor. Toque em Exportar para tentar de novo.");
-        }
-        atual = lido;
-      }
-      marcarMostrada(atual.id);
-      if (atual.estado === "pronta" && atual.caminho) {
-        setExportado({nome: nomeDoArquivo(atual.caminho), caminho: atual.caminho});
+      const fim = await acompanharTarefa(inicial, () => api.exportacao(inicial.video), (t) =>
+        setTarefa({nome: "Exportar", etapa: t.etapa ?? "Exportando...", fracao: t.fracao}),
+      );
+      marcarTarefaMostrada(fim.id);
+      if (fim.estado === "pronta" && fim.caminho) {
+        setExportado({nome: nomeDoArquivo(fim.caminho), caminho: fim.caminho});
         setPreviaExportacao(undefined);
         // O uso do plano mudou (quadro do Início, menu da conta).
         atualizarConta();
-      } else if (atual.codigo === "assine" || atual.codigo === "sem-saldo") {
+      } else if (fim.codigo === "assine" || fim.codigo === "sem-saldo") {
         // O plano não deixou (o servidor recusou antes do render): mostra a decisão
         // dele ("Assine para continuar" ou quanto falta) em vez de um erro comum.
         await prepararExportacao();
       } else {
-        mostrarErro(new Error(atual.mensagem ?? "Não deu para exportar."));
+        mostrarErro(new Error(fim.mensagem ?? "Não deu para exportar."));
       }
     } catch (error) {
       mostrarErro(error);
     } finally {
-      acompanhando.current = undefined;
+      acompanhando.current.delete(inicial.id);
       setTarefa(undefined);
     }
   };
-
-  // O efeito de retomada chama sempre a versão atual (com o projeto de agora).
-  const acompanharAtual = useRef(acompanharExportacao);
-  acompanharAtual.current = acompanharExportacao;
 
   const exportar = async () => {
     if (!projetoDoVideo) {
@@ -699,23 +704,32 @@ export const useEditor = () => {
     }
   };
 
-  // Retomada: ao abrir o vídeo e ao voltar para a página, pergunta ao servidor.
+  // Retomada: ao abrir o vídeo e ao voltar para a página, pergunta ao servidor se
+  // há uma transcrição ou exportação deste vídeo em curso, ou pronta e ainda não
+  // mostrada (a página pode ter sido fechada ou recarregada no meio).
+  const retomar = useRef({acompanharExportacao, acompanharTranscricao});
+  retomar.current = {acompanharExportacao, acompanharTranscricao};
   useEffect(() => {
     if (!video) {
       return;
     }
+    const nova = (t: {estado: string; id?: string}): t is TarefaSolta =>
+      t.estado !== "nenhuma" && Boolean(t.id) && !tarefaJaMostrada(t.id!) && !acompanhando.current.has(t.id!);
     const conferir = () => {
-      if (document.visibilityState !== "visible" || acompanhando.current) {
+      if (document.visibilityState !== "visible") {
         return;
       }
       api
+        .transcricao(video)
+        .then((t) => nova(t) && void retomar.current.acompanharTranscricao(t as TranscricaoNoServidor, "Transcrever", false))
+        .catch(() => undefined);
+      api
         .exportacao(video)
-        .then((exportacao) => {
-          if (exportacao.estado === "nenhuma" || jaMostrada(exportacao.id) || acompanhando.current) {
-            return;
+        .then((t) => {
+          if (nova(t)) {
+            setExportacaoRetomada((n) => n + 1);
+            void retomar.current.acompanharExportacao(t as Exportacao);
           }
-          setExportacaoRetomada((n) => n + 1);
-          void acompanharAtual.current(exportacao);
         })
         .catch(() => undefined);
     };

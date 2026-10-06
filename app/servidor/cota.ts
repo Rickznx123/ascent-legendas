@@ -7,12 +7,16 @@
 // reexportações seguintes do mesmo projeto não descontam; da sexta em diante, cada
 // uma desconta de novo. Só desconta o que terminou: o registro é gravado depois do
 // render (e o que foi descontado fica gravado em descontado_s).
+// Transcrições (Etapa 3, bloco 5): grátis, 3 por dia; assinante, 30. O dia vira à
+// meia-noite de Brasília. Só contam as que terminaram ("Recomeçar do zero" conta;
+// a detecção de voz sozinha, não).
 import type {Plano} from "./contas";
 
 export const LIMITES = {
   videosNoGratis: 1,
   segundosPorMesNoAssinante: 30 * 60,
   reexportacoesSemDesconto: 5,
+  transcricoesPorDia: {gratis: 3, assinante: 30} satisfies Record<Plano, number>,
   // Envio de vídeo (Etapa 3): tamanho e duração máximos de cada arquivo.
   envio: {
     gratis: {bytes: 300 * 1024 * 1024, segundos: 2 * 60},
@@ -30,10 +34,14 @@ export type RegistroDeExportacao = {
   criado_em: string;
 };
 
+// Transcrições de hoje (dia de Brasília) e quando o dia vira.
+export type UsoDeTranscricoes = {usadas: number; doPlano: number; renovaEm: string};
+
 // Uso do plano para a tela (quadro do Início, menu da conta).
-export type UsoDoPlano =
+export type UsoDoPlano = (
   | {plano: "gratis"; comMarca: true; videosUsados: number; videosDoPlano: number}
-  | {plano: "assinante"; comMarca: false; segundosUsados: number; segundosDoPlano: number; renovaEm: string};
+  | {plano: "assinante"; comMarca: false; segundosUsados: number; segundosDoPlano: number; renovaEm: string}
+) & {transcricoes?: UsoDeTranscricoes};
 
 // O que uma exportação vai fazer, ou por que não pode.
 export type DecisaoDeExportacao = {
@@ -59,6 +67,30 @@ export const mesDoCalendario = (agora: Date): {inicio: Date; fim: Date} => {
   const emUtc = (a: number, m: number) => new Date(Date.UTC(a, m, 1) - FUSO_HORAS * 3600_000);
   return {inicio: emUtc(ano, mes), fim: emUtc(ano, mes + 1)};
 };
+
+// Começo do dia de agora e do seguinte, no horário de Brasília (em UTC).
+export const diaDoCalendario = (agora: Date): {inicio: Date; fim: Date} => {
+  const local = new Date(agora.getTime() + FUSO_HORAS * 3600_000);
+  const inicio = new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) - FUSO_HORAS * 3600_000);
+  return {inicio, fim: new Date(inicio.getTime() + 24 * 3600_000)};
+};
+
+export const usoDeTranscricoes = (plano: Plano, usadasHoje: number, agora: Date): UsoDeTranscricoes => ({
+  usadas: usadasHoje,
+  doPlano: LIMITES.transcricoesPorDia[plano],
+  renovaEm: diaDoCalendario(agora).fim.toISOString(),
+});
+
+// Pode transcrever agora? Sem: o motivo, com quando renova.
+export const decidirTranscricao = (uso: UsoDeTranscricoes, plano: Plano): {permitido: boolean; motivo?: string} =>
+  uso.usadas < uso.doPlano
+    ? {permitido: true}
+    : {
+        permitido: false,
+        motivo:
+          `Você já usou as ${uso.doPlano} transcrições de hoje do plano ${plano === "assinante" ? "Assinante" : "grátis"}. ` +
+          "Elas renovam à meia-noite (horário de Brasília).",
+      };
 
 export const usoDoPlano = (plano: Plano, historico: RegistroDeExportacao[], agora: Date): UsoDoPlano => {
   if (plano === "gratis") {

@@ -4,6 +4,7 @@ import type {Estilo, Projeto} from "../../src/motor/projeto";
 import type {ArquivoSom} from "../../src/sons";
 import type {VideoMetadata, VozDoAudio} from "../../src/types";
 import {tokenDaSessao} from "./sessao";
+import type {TarefaSolta} from "./tarefas-soltas";
 
 // Com login, todo pedido leva o token da sessão; um 401 (sessão expirada) avisa a
 // tela para voltar ao login. Sem login, é o fetch de sempre.
@@ -41,18 +42,9 @@ export class ErroDaTarefa extends Error {
 
 export type Andamento = {etapa: string; fracao?: number};
 
-// Uma exportação no servidor (veja POST /api/exportar).
-export type Exportacao = {
-  id: string;
-  video: string;
-  estado: "andamento" | "pronta" | "falhou";
-  etapa?: string;
-  fracao?: number;
-  caminho?: string;
-  descontoS?: number;
-  mensagem?: string;
-  codigo?: string;
-};
+// Tarefas no servidor, soltas da página (veja app/web/tarefas-soltas.ts).
+export type Exportacao = TarefaSolta & {caminho?: string; descontoS?: number};
+export type TranscricaoNoServidor = TarefaSolta & {projeto?: Projeto; avisos?: string[]};
 
 const lerJson = async <T>(response: Response): Promise<T> => {
   const data = (await response.json()) as T & {mensagem?: string};
@@ -92,6 +84,16 @@ export const api = {
   exportar: (video: string) =>
     pedir("/api/exportar", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({video})}).then((r) =>
       lerJson<Exportacao>(r),
+    ),
+  // Transcrição, do mesmo jeito: começa (ou devolve a que está em curso) e depois o
+  // andamento ou o resultado. Sem transcrições no dia: erro com o motivo.
+  transcrever: (corpo: {video: string; pacote?: string; paleta?: string; manterAjustes?: boolean}) =>
+    pedir("/api/transcrever", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(corpo)}).then((r) =>
+      lerJson<TranscricaoNoServidor>(r),
+    ),
+  transcricao: (video: string) =>
+    pedir(`/api/transcricao?video=${encodeURIComponent(video)}`).then((r) =>
+      lerJson<TranscricaoNoServidor | {estado: "nenhuma"}>(r),
     ),
   exportacao: (video: string) =>
     pedir(`/api/exportacao?video=${encodeURIComponent(video)}`).then((r) => lerJson<Exportacao | {estado: "nenhuma"}>(r)),

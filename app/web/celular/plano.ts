@@ -43,6 +43,19 @@ export const resumoDoUso = (uso: UsoDoPlano): {titulo: string; detalhe: string; 
   };
 };
 
+// Transcrições do dia: "Restam 2 de 3 transcrições hoje" ou, sem nenhuma, quando
+// renova (meia-noite de Brasília). Sem o dado (servidor antigo): nada.
+export const resumoDasTranscricoes = (uso: UsoDoPlano): string | undefined => {
+  if (!uso.transcricoes) {
+    return undefined;
+  }
+  const {usadas, doPlano} = uso.transcricoes;
+  const restam = Math.max(0, doPlano - usadas);
+  return restam > 0
+    ? `Restam ${restam} de ${doPlano} ${doPlano === 1 ? "transcrição" : "transcrições"} hoje`
+    : `As ${doPlano} transcrições de hoje acabaram · renovam à meia-noite`;
+};
+
 // "2ª reexportação de 5 sem desconto" (a primeira exportação é a número 0).
 const reexportacao = (decisao: DecisaoDeExportacao) => `${decisao.exportacoesDoProjeto}ª reexportação deste projeto (de 5 sem desconto)`;
 

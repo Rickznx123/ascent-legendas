@@ -7,11 +7,12 @@ import type {Editor} from "../useEditor";
 import {Andamento} from "./Andamento";
 import {useConta} from "../conta";
 import type {UsoDoPlano} from "../api";
-import {CONFIG_CELULAR, nomeDoPlano, resumoDoUso} from "./plano";
+import {CONFIG_CELULAR, nomeDoPlano, resumoDasTranscricoes, resumoDoUso} from "./plano";
 
 // Quadro do plano: usados e restantes (o servidor manda o uso; aqui só se mostra).
 const QuadroDoPlano: React.FC<{uso: UsoDoPlano}> = ({uso}) => {
   const {titulo, detalhe, fracao} = resumoDoUso(uso);
+  const transcricoes = resumoDasTranscricoes(uso);
   return (
     <div className="cel-uso">
       <b>{titulo}</b>
@@ -19,6 +20,7 @@ const QuadroDoPlano: React.FC<{uso: UsoDoPlano}> = ({uso}) => {
       <div className="cel-medidor">
         <i style={{width: `${Math.min(100, fracao * 100)}%`}} />
       </div>
+      {transcricoes ? <small className="cel-uso-transcricoes">{transcricoes}</small> : null}
     </div>
   );
 };
