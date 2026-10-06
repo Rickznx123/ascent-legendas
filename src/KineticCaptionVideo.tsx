@@ -17,7 +17,7 @@ import {measureText} from "@remotion/layout-utils";
 import {findKeywordIndex, findProtectedSpans, isBlockEndingFunctionWord} from "./captions";
 import {blocosNaTela, entradaAjustada} from "./entrada";
 import {MarcaDagua} from "./marca-dagua";
-import {BlocoImobiliario, CenaImobiliaria, montarCenas, palavrasDaCena, quadrosDaSaida} from "./imobiliario";
+import {BlocoImobiliario, quadrosDaSaida} from "./imobiliario";
 import {POSICAO_PADRAO, centroDentroDaMargem, posicaoDoBloco} from "./posicao";
 import type {Posicao} from "./posicao";
 import {waitForFonts} from "./fontes";
@@ -592,51 +592,36 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
   const agoraMs = (frame / fps) * 1000;
   const active = findActiveBlocks(blocks, timeline, agoraMs);
   const indiceAtivo = findActiveBlockIndex(timeline, agoraMs);
-  // Pacote C (estrutura "imobiliario", veja src/imobiliario.tsx): as cenas (âncora e
-  // trilho) desenham os blocos delas; os blocos fora das cenas (único e linear)
-  // continuam na tela enquanto saem, junto com a entrada do seguinte.
-  const {cenas, blocosEmCena} = useMemo(() => montarCenas(blocks, templates, timeline), [blocks, templates, timeline]);
-  const duracaoDaSaidaMs = (palavras: number) => (quadrosDaSaida(palavras) / fps) * 1000;
-  const cenasNaTela = cenas.filter((cena) => agoraMs >= cena.inicioMs && agoraMs < cena.saidaMs + duracaoDaSaidaMs(palavrasDaCena(cena)));
-  const configDoBloco = (block: AssignedCaptionBlock | undefined) => {
-    const t = block ? templates[block.template] : undefined;
-    return t?.structure === "imobiliario" ? (t.imobiliario ?? {papel: "cena" as const}) : undefined;
-  };
+  // Pacote C (estrutura "imobiliario"): o bloco que acabou continua na tela enquanto
+  // sai (sobe em cascata), junto com a entrada do seguinte.
+  const ehImobiliario = (block: AssignedCaptionBlock | undefined) => block !== undefined && templates[block.template]?.structure === "imobiliario";
   const saindo = timeline
     .map((tempo, indice) => ({tempo, indice}))
     .filter(
       ({tempo, indice}) =>
         indice !== indiceAtivo &&
-        !blocosEmCena.has(indice) &&
-        configDoBloco(blocks[indice]) !== undefined &&
+        ehImobiliario(blocks[indice]) &&
         agoraMs >= tempo.hideMs &&
-        agoraMs < tempo.hideMs + duracaoDaSaidaMs(blocks[indice].words.length),
+        agoraMs < tempo.hideMs + (quadrosDaSaida(blocks[indice].words.length) / fps) * 1000,
     );
   // Arrastar move o conjunto: o quanto a posição saiu do padrão.
   const deslocamentoDe = (block: AssignedCaptionBlock) => {
     const escolhida = posicaoDoBloco(block.posicao, posicao);
     return {x: escolhida.x - POSICAO_PADRAO.x, y: escolhida.y - POSICAO_PADRAO.y};
   };
-  const comPaleta = (block: AssignedCaptionBlock, key: string, conteudo: ReactNode) => {
+  const blocoImobiliario = (block: AssignedCaptionBlock, indice: number) => {
     const own = paletteOf(block);
     return (
-      <AbsoluteFill key={key} style={own ? paletteVariables(own) : undefined}>
-        {conteudo}
+      <AbsoluteFill key={`c-${block.startMs}`} style={own ? paletteVariables(own) : undefined}>
+        <BlocoImobiliario
+          block={withEntry(block, timeline[indice].showMs)}
+          indiceDoBloco={indice}
+          saidaMs={timeline[indice].hideMs}
+          deslocamento={deslocamentoDe(block)}
+        />
       </AbsoluteFill>
     );
   };
-  const blocoImobiliario = (block: AssignedCaptionBlock, indice: number) =>
-    comPaleta(
-      block,
-      `c-${block.startMs}`,
-      <BlocoImobiliario
-        block={withEntry(block, timeline[indice].showMs)}
-        indiceDoBloco={indice}
-        config={configDoBloco(block)!}
-        saidaMs={timeline[indice].hideMs}
-        deslocamento={deslocamentoDe(block)}
-      />,
-    );
   const activeBlock = active?.block;
   const template = activeBlock ? templates[activeBlock.template] : undefined;
   const paletteOf = (block: AssignedCaptionBlock) => (block.paleta ? palettes?.[block.paleta] : undefined);
@@ -696,14 +681,9 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
       <AbsoluteFill
         style={{containerType: "inline-size", overflow: "hidden", ...paletteVariables(palette)}}
       >
-        {fontsReady
-          ? cenasNaTela.map((cena) =>
-              comPaleta(blocks[cena.bloco], `cena-${cena.id}`, <CenaImobiliaria cena={cena} deslocamento={deslocamentoDe(blocks[cena.bloco])} miniatura={!videoSrc} />),
-            )
-          : null}
         {fontsReady ? saindo.map(({indice}) => blocoImobiliario(blocks[indice], indice)) : null}
         {fontsReady && activeBlock && template && template.structure === "imobiliario" ? (
-          blocosEmCena.has(indiceAtivo) ? null : blocoImobiliario(blocks[indiceAtivo], indiceAtivo)
+          blocoImobiliario(blocks[indiceAtivo], indiceAtivo)
         ) : fontsReady && activeBlock && template ? (
           // Centro do bloco no ponto escolhido (o do bloco, senão o geral). Na dupla,
           // o conjunto se move junto, pela posição do primeiro bloco.

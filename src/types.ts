@@ -138,24 +138,6 @@ export type Palette = {
   };
 };
 
-// Pacote C (estrutura "imobiliario"):
-//   papel "cena"   — destaque: abre uma âncora (fixa) com o trilho (palavras passando);
-//   papel "unico"  — bloco curto sozinho, num grupo central;
-//   papel "linear" — bloco linear numa linha, fora das cenas.
-export type ConfigImobiliario = {
-  papel: "cena" | "unico" | "linear";
-  // Ordem na tela: âncora em cima e trilho embaixo, ou o contrário.
-  ordem?: "ancora-trilho" | "trilho-ancora";
-  // De que lado as palavras entram no trilho (saem pelo outro).
-  trilhoEntra?: "esquerda" | "direita";
-  // Âncora com uma chave ou com duas (duas linhas grandes).
-  chavesNaAncora?: 1 | 2;
-  // Onde fica o conjunto: acima da cabeça ou na altura do tronco.
-  altura?: "cabeca" | "tronco";
-  // Linear e único: como as palavras entram.
-  entrada?: "cima" | "baixo" | "lados";
-};
-
 // Uma parte de um layout composto (cada grupo da dupla).
 export type TemplatePart = {
   structure: CaptionStructure;
@@ -208,9 +190,6 @@ export type CaptionTemplate = {
   };
   // Só para o linear: acima de quantos caracteres a linha é quebrada em duas.
   maxCharactersPerLine?: number;
-  // Só na estrutura "imobiliario" (pacote C, src/imobiliario.tsx): o papel do layout
-  // e a variação do desenho.
-  imobiliario?: ConfigImobiliario;
   // Só na estrutura "dupla": o desenho de cada bloco e de cada grupo.
   pair?: {
     first: TemplatePart;
