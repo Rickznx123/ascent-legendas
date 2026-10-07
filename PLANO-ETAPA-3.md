@@ -256,7 +256,7 @@ Como ficou: manifesto ("Ascent Legendas", nome curto "Legendas", standalone, em 
 1. [EU] Manifesto, ícones, tags da Apple e service worker mínimo.
 2. [VOCÊ] Adicionar à Tela de Início no seu iPhone ou Android e entrar com o e-mail e a senha.
 
-**Bloco 9 — Publicar** — preparação em 06/10/2026: site do Lambda da versão publicado; modo público conferido no computador (porta do PORT, 0.0.0.0, /saude, tela montada, S3 e Lambda); variáveis em `.env.example`. A imagem Docker não foi montada aqui (sem Docker no computador): a primeira montagem é a do Render.
+**Bloco 9 — Publicar** ✅ concluído em 06/10/2026: app no ar em https://legendas.ascentstudio.com.br, serviço `ascent-legendas` no Render (região Ohio, plano Free por enquanto); CNAME `legendas` na Hostinger; Site URL e Redirect URLs do Supabase atualizadas; CORS do bucket só com o domínio. Testado no iPhone pelo domínio: entrar, importar, transcrever, exportar, instalar pelo ícone e redefinir senha. (Preparação: site do Lambda da versão publicado; modo público conferido no computador; variáveis em `.env.example`.)
 
 Ordem: (1) `npm run nuvem:site`; (2) criar o serviço no Render (Docker, Ohio, Starter, branch main, health check `/saude`) com as variáveis; (3) com o endereço provisório no ar, rodar `criar-bucket.ts` com `ENDERECOS_EXTRAS=<endereço .onrender.com>` e pôr esse endereço nas Redirect URLs do Supabase, para testar antes do domínio; (4) domínio no Render e CNAME na Hostinger; (5) com o HTTPS do domínio ativo, `criar-bucket.ts` de novo (domínio, sem o extra) e Site URL / Redirect URLs do Supabase com o domínio; (6) teste completo.
 
@@ -304,6 +304,7 @@ Todas tomadas em 05/10/2026 (veja "Decisões tomadas", no começo). O domínio s
 
 ## Pendências
 
+- **Render: trocar do plano Free para o Starter antes de chamar testadores** (o Free dorme sem uso e tem menos memória; as vagas da fila foram medidas para o Starter).
 - **Retomada da transcrição ao sair do app** (Bloco 5): falta teste no iPhone.
 - **Pacote C: refazer no estilo imobiliário (dois grupos, âncora + trilho, variações e templates lineares).** As duas versões de 06/10/2026 foram desfeitas (dois grupos com motion blur, `31f6b06`; âncora e trilho, `a349932`): o C voltou ao desenho de antes (c1 a c6 e linear, Anton e Kaushan Script). A prancha de referência está em `pacote-c-referencia.html`, na raiz.
 
