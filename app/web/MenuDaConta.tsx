@@ -4,13 +4,14 @@ import {useEffect, useRef, useState} from "react";
 import {nomeDoPlano, resumoDasTranscricoes, resumoDoUso} from "./celular/plano";
 import {useConta} from "./conta";
 import {JanelaTrocarSenha} from "./Senha";
-import {JanelaAssinar, JanelaGerenciarAssinatura, acaoDaAssinatura, avisoDaAssinatura} from "./Assinatura";
+import {JanelaDaAcao, ROTULO_DA_ACAO, acaoDaAssinatura, avisoDaAssinatura} from "./Assinatura";
+import type {AcaoDaAssinatura} from "./Assinatura";
 
 export const MenuDaConta: React.FC<{ocupado: boolean}> = ({ocupado}) => {
   const {conta, sair} = useConta();
   const [aberto, setAberto] = useState(false);
   const [trocandoSenha, setTrocandoSenha] = useState(false);
-  const [janelaDaAssinatura, setJanelaDaAssinatura] = useState<"assinar" | "gerenciar">();
+  const [janelaDaAssinatura, setJanelaDaAssinatura] = useState<AcaoDaAssinatura>();
   const raiz = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!aberto) {
@@ -76,7 +77,7 @@ export const MenuDaConta: React.FC<{ocupado: boolean}> = ({ocupado}) => {
                 setJanelaDaAssinatura(acaoDaAssinatura(conta.assinatura));
               }}
             >
-              {acaoDaAssinatura(conta.assinatura) === "assinar" ? "Assinar" : "Gerenciar assinatura"}
+              {ROTULO_DA_ACAO[acaoDaAssinatura(conta.assinatura)!]}
             </button>
           ) : null}
           <button
@@ -105,8 +106,7 @@ export const MenuDaConta: React.FC<{ocupado: boolean}> = ({ocupado}) => {
         </div>
       ) : null}
       {trocandoSenha ? <JanelaTrocarSenha email={conta.email} onFechar={() => setTrocandoSenha(false)} /> : null}
-      {janelaDaAssinatura === "assinar" ? <JanelaAssinar onFechar={() => setJanelaDaAssinatura(undefined)} /> : null}
-      {janelaDaAssinatura === "gerenciar" ? <JanelaGerenciarAssinatura onFechar={() => setJanelaDaAssinatura(undefined)} /> : null}
+      <JanelaDaAcao acao={janelaDaAssinatura} onFechar={() => setJanelaDaAssinatura(undefined)} />
     </div>
   );
 };

@@ -41,7 +41,8 @@ import type {EstadoDaPrevia} from "../servidor/previa-leve";
 export type {EstadoDaPrevia};
 // assinatura: o resumo da assinatura do Mercado Pago (veja app/servidor/assinaturas.ts).
 import type {ResumoDaAssinatura} from "../servidor/assinaturas";
-export type {ResumoDaAssinatura};
+import type {VistaDoPix} from "../servidor/pix";
+export type {ResumoDaAssinatura, VistaDoPix};
 export type Conta = {email: string; nome: string | null; plano: Plano; uso?: UsoDoPlano; assinatura?: ResumoDaAssinatura};
 
 // Erro de uma tarefa com um código do servidor (ex.: "assine", "sem-saldo").
@@ -62,9 +63,10 @@ export type Exportacao = TarefaSolta & {caminho?: string; descontoS?: number; ur
 export type TranscricaoNoServidor = TarefaSolta & {projeto?: Projeto; avisos?: string[]};
 
 const lerJson = async <T>(response: Response): Promise<T> => {
-  const data = (await response.json()) as T & {mensagem?: string};
+  const data = (await response.json()) as T & {mensagem?: string; codigo?: string};
   if (!response.ok) {
-    throw new Error(data.mensagem ?? `Erro ${response.status}`);
+    // codigo: o que a tela pode fazer com o erro (ex.: "cpf-necessario" no Pix).
+    throw Object.assign(new Error(data.mensagem ?? `Erro ${response.status}`), {codigo: data.codigo});
   }
   return data;
 };
@@ -119,6 +121,14 @@ export const api = {
   confirmarAssinatura: () =>
     pedir("/api/assinatura/confirmar", {method: "POST"}).then((r) => lerJson<{plano: Plano; assinatura: ResumoDaAssinatura; recusado?: boolean}>(r)),
   cancelarAssinatura: () => pedir("/api/assinatura/cancelar", {method: "POST"}).then((r) => lerJson<{assinatura: ResumoDaAssinatura}>(r)),
+  // Pix avulso de 30 dias (Etapa 2d): o último Pix da conta, gerar (com o CPF só se o
+  // Mercado Pago pedir) e conferir se caiu.
+  pix: () => pedir("/api/pix").then((r) => lerJson<{pix: VistaDoPix | null; assinatura: ResumoDaAssinatura}>(r)),
+  gerarPix: (cpf?: string) =>
+    pedir("/api/pix", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(cpf ? {cpf} : {})}).then((r) =>
+      lerJson<{pix: VistaDoPix}>(r),
+    ),
+  conferirPix: () => pedir("/api/pix/conferir", {method: "POST"}).then((r) => lerJson<{pix: VistaDoPix | null; assinatura: ResumoDaAssinatura}>(r)),
 
   importacaoLocal: () =>
     pedir("/api/importacao-local").then((r) =>

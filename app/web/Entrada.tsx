@@ -10,6 +10,7 @@ import {ContaContexto} from "./conta";
 import {TelaDeLogin} from "./Login";
 import {FormularioDeSenhaNova} from "./Senha";
 import {RetornoDaAssinatura, checkoutRecente} from "./Assinatura";
+import {AvisoDoPix} from "./Pix";
 import {iniciarSessao, lerConfig, ouvirSessao, pedeSenhaNova, sair} from "./sessao";
 import type {ConfigDoLogin} from "./sessao";
 
@@ -273,6 +274,7 @@ export const Entrada: React.FC = () => {
         <ContaContexto.Provider value={{conta: estado.conta, sair: sairDaConta, atualizarConta}}>
           <App key={estado.usuario} />
           {mostrarRetorno ? <RetornoDaAssinatura onFechar={() => setMostrarRetorno(false)} /> : null}
+          <AvisoDoPix />
         </ContaContexto.Provider>
       );
   }

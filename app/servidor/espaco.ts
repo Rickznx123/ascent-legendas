@@ -12,6 +12,7 @@ import type {Contas, Usuario} from "./contas";
 import {decidirExportacao, decidirTranscricao, diaDoCalendario, usoDeTranscricoes, usoDoPlano} from "./cota";
 import type {CicloDoPlano, DecisaoDeExportacao, RegistroDeExportacao, UsoDeTranscricoes, UsoDoPlano} from "./cota";
 import type {Plano} from "./contas";
+import {cicloDoPix} from "./pix";
 
 export type ResumoDoProjeto = {video: string; blocos: number};
 
@@ -84,14 +85,19 @@ export const espacoDoUsuario = (root: string, contas: Contas, usuario: Usuario, 
   // Plano do perfil e histórico de exportações, lidos com a chave secreta (o
   // usuário não muda nenhum dos dois).
   const plano = async () => (await contas.perfil(usuario, token)).plano;
-  // Ciclo pago da assinatura (só de quem assina pelo Mercado Pago; veja cota.ts).
+  // Ciclo pago da assinatura ou do Pix (só de quem paga pelo Mercado Pago; veja
+  // cota.ts e pix.ts).
   const planoECiclo = async (): Promise<{plano: Plano; ciclo?: CicloDoPlano}> => {
     const perfil = await contas.perfil(usuario, token);
     const {plano_origem, ciclo_inicio, ciclo_fim} = perfil.assinatura;
     const ciclo =
-      perfil.plano === "assinante" && plano_origem === "assinatura" && ciclo_inicio && ciclo_fim
-        ? {inicio: new Date(ciclo_inicio), fim: new Date(ciclo_fim)}
-        : undefined;
+      perfil.plano !== "assinante"
+        ? undefined
+        : plano_origem === "pix"
+          ? cicloDoPix(perfil.assinatura, new Date())
+          : plano_origem === "assinatura" && ciclo_inicio && ciclo_fim
+            ? {inicio: new Date(ciclo_inicio), fim: new Date(ciclo_fim)}
+            : undefined;
     return {plano: perfil.plano, ciclo};
   };
   const historico = async (): Promise<RegistroDeExportacao[]> => {

@@ -297,6 +297,19 @@ Webhook com credenciais de teste: só chega com o webhook configurado **em modo 
 Falta (depois da cobrança real):
 1. [VOCÊ] Origem e licença dos efeitos sonoros (`sons/ORIGEM.md`): todos "a confirmar".
 2. [VOCÊ, opcional] `CHAVE_ADMIN` no Render, só se for usar o diagnóstico.
+
+**Etapa 2d — Pix de 30 dias pelo Mercado Pago** — código pronto (07/10/2026), falta testar no app publicado.
+
+Decisões: na tela "Assinar", dois caminhos: "Cartão (renova todo mês)" (a assinatura da 2c) e "Pix (30 dias, sem renovação)". R$ 30 (`ASSINATURA_VALOR_BRL`) dão 30 dias de assinante com os mesmos direitos; não renova sozinho. Outro Pix antes do fim soma 30 dias ao fim do período, e o ciclo novo de minutos começa quando o atual acaba (os 30 minutos renovam a cada 30 dias, contados do começo dos períodos seguidos). Só ativa com o pagamento aprovado confirmado no Mercado Pago (webhook `payment` validado e consulta; a tela conferindo a cada 5 s; a verificação periódica como reserva). Pix vencido ou não pago não muda nada; dá para gerar outro. Estorno ou contestação: grátis na hora. Cortesia intocada. Quem tem assinatura por cartão valendo (ativa, cancelada ainda no mês pago ou na tolerância) não vê o Pix; quem está no Pix só assina com cartão quando o período acaba. Ao gerar um Pix, um checkout de cartão aberto e não pago é cancelado.
+
+Como ficou: `POST /v1/payments` com `payment_method_id: "pix"` (a API de pagamentos; a nova API Orders não foi usada porque o webhook `payment`, já ligado e testado, cobre o Pix), `X-Idempotency-Key` e `external_reference` = id da linha em `pix_pagamentos` (migração 008), código válido por 1 hora. O QR code e o copia e cola aparecem dentro do app (copia e cola primeiro, com "Copiar código"; no computador, o QR code em cima), com o prazo correndo; a tela troca sozinha para "Pagamento confirmado". Quadro do plano: "Pix · ativo até DD/MM"; faltando 5 dias ou menos, aviso no topo do app com "Renovar com Pix" (fechado, volta no dia seguinte); no menu da conta, "Renovar com Pix". CPF: a documentação não deixa claro se a API de pagamentos o exige no Pix (a API Orders pede só o e-mail); o Pix é pedido sem CPF e, só se o Mercado Pago recusar por falta dele, a tela pede o CPF (formato e dígitos conferidos), que vai só ao Mercado Pago: não é guardado no banco nem aparece no log (os erros do Mercado Pago passam por um filtro que tira números com cara de CPF). Os pagamentos de cartão também deixaram de guardar os dados do pagador e do cartão no registro. Termos e Privacidade atualizados. Testes: `npm run teste:assinaturas` (agora com os do Pix).
+
+E-mail faltando 3 dias: **não feito**. O servidor não envia e-mail hoje (o Resend só está ligado como SMTP do Supabase, para o login); precisaria de uma chave da API do Resend no Render, uma coluna para não mandar duas vezes e um modelo de e-mail. Fica para depois do teste do Pix.
+
+Para ligar:
+1. [VOCÊ] Rodar a migração `008_pix.sql` no SQL Editor do Supabase (antes de testar; ela não atrapalha o código atual).
+2. [VOCÊ] Chave Pix cadastrada na conta do Mercado Pago que recebe (sem ela, o Mercado Pago não gera o Pix). O webhook continua o mesmo: o evento **Pagamentos** (`payment`) já está marcado.
+3. [EU/VOCÊ] Teste no app publicado: gerar o Pix, pagar R$ 30, ver "Pagamento confirmado" e "Pix · ativo até"; gerar e deixar vencer; estornar pelo painel e ver a conta voltar ao grátis.
 ---
 
 ## 8. Pronto antes de abrir para testadores
@@ -334,6 +347,7 @@ Todas tomadas em 05/10/2026 (veja "Decisões tomadas", no começo). O domínio s
 ## Pendências
 
 - **Assinatura (Etapa 2c):** concluída, cobrança real ligada em 07/10/2026.
+- **Pix de 30 dias (Etapa 2d):** migração 008, chave Pix na conta do Mercado Pago e teste no app publicado; e-mail faltando 3 dias para depois (veja o bloco da 2d).
 - **Origem dos efeitos sonoros** (`sons/ORIGEM.md`): os sete arquivos estão sem origem nem licença comprovadas.
 - **Retomada da transcrição ao sair do app** (Bloco 5): falta teste no iPhone.
 - **Pacote C: refazer no estilo imobiliário (dois grupos, âncora + trilho, variações e templates lineares).** As duas versões de 06/10/2026 foram desfeitas (dois grupos com motion blur, `31f6b06`; âncora e trilho, `a349932`): o C voltou ao desenho de antes (c1 a c6 e linear, Anton e Kaushan Script). A prancha de referência está em `pacote-c-referencia.html`, na raiz.

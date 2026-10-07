@@ -23,6 +23,8 @@
 //     grátis na hora, e a assinatura é cancelada no Mercado Pago.
 // O plano do perfil só muda para quem tem plano_origem 'assinatura': contas de
 // testadores (npm run plano, origem 'manual') nunca são tocadas pelos webhooks.
+// O Pix avulso (Etapa 2d, origem 'pix') fica em pix.ts; os webhooks "payment" que não
+// são de assinatura vão para lá.
 import type {SupabaseClient} from "@supabase/supabase-js";
 import type {ApiDoMercadoPago, Pagamento, PagamentoAutorizado, Preapproval} from "./mercadopago";
 
@@ -63,7 +65,7 @@ export type PagamentoDaAssinatura = {
 // O que da assinatura fica no perfil.
 export type PerfilDaAssinatura = {
   plano: "gratis" | "assinante";
-  plano_origem: "manual" | "assinatura";
+  plano_origem: "manual" | "assinatura" | "pix";
   plano_ate: string | null;
   ciclo_inicio: string | null;
   ciclo_fim: string | null;
@@ -97,9 +99,9 @@ const statusDaApi: Record<Preapproval["status"], StatusDaAssinatura> = {
   cancelled: "cancelada",
 };
 
-// O plano que vale agora: o assinante por assinatura acaba em plano_ate.
+// O plano que vale agora: o assinante por assinatura ou por Pix acaba em plano_ate.
 export const planoEfetivo = (perfil: PerfilDaAssinatura, agora: Date): "gratis" | "assinante" =>
-  perfil.plano === "assinante" && perfil.plano_origem === "assinatura" && perfil.plano_ate && new Date(perfil.plano_ate) <= agora
+  perfil.plano === "assinante" && perfil.plano_origem !== "manual" && perfil.plano_ate && new Date(perfil.plano_ate) <= agora
     ? "gratis"
     : perfil.plano;
 
@@ -241,8 +243,8 @@ export type ResumoDaAssinatura = {
   valor: number;
   // nenhuma: pode assinar; ativa: renova em renovaEm; cancelada: assinante até ate;
   // falhou: a cobrança falhou, assinante até ate (tolerância); cortesia: assinante
-  // pelo npm run plano (sem cobrança).
-  situacao: "nenhuma" | "ativa" | "cancelada" | "falhou" | "cortesia";
+  // pelo npm run plano (sem cobrança); pix: assinante por Pix até ate (sem renovação).
+  situacao: "nenhuma" | "ativa" | "cancelada" | "falhou" | "cortesia" | "pix";
   renovaEm?: string;
   ate?: string;
 };
@@ -259,13 +261,25 @@ export const resumoDaAssinatura = (
   if (plano === "assinante" && perfil.plano_origem === "manual") return {...base, situacao: "cortesia"};
   if (plano !== "assinante") return {...base, situacao: "nenhuma"};
   const ate = perfil.plano_ate ?? undefined;
+  if (perfil.plano_origem === "pix") return {...base, situacao: "pix", ate};
   if (assinatura?.status === "cancelada" || assinatura?.status === "pausada") return {...base, situacao: "cancelada", ate: perfil.ciclo_fim ?? ate};
   if (assinatura?.cobranca_falhou_em || (perfil.ciclo_fim && new Date(perfil.ciclo_fim) <= agora)) return {...base, situacao: "falhou", ate};
   return {...base, situacao: "ativa", renovaEm: perfil.ciclo_fim ?? undefined};
 };
 
 // ---------- processamento dos eventos ----------
-export const processadorDeEventos = ({banco, api, agora = () => new Date()}: {banco: BancoDeAssinaturas; api: ApiDoMercadoPago; agora?: () => Date}) => {
+export const processadorDeEventos = ({
+  banco,
+  api,
+  agora = () => new Date(),
+  outroPagamento,
+}: {
+  banco: BancoDeAssinaturas;
+  api: ApiDoMercadoPago;
+  agora?: () => Date;
+  // Pagamento que não é de assinatura (o Pix avulso, veja pix.ts): undefined se não for de lá.
+  outroPagamento?: (pagamentoId: string) => Promise<string | undefined>;
+}) => {
   const aplicarNoPerfil = async (usuarioId: string, campos: Partial<PerfilDaAssinatura> | undefined) => {
     if (campos && Object.keys(campos).length > 0) await banco.salvarPerfil(usuarioId, campos);
   };
@@ -388,10 +402,13 @@ export const processadorDeEventos = ({banco, api, agora = () => new Date()}: {ba
 
   const doPagamento = async (pagamentoId: string) => {
     const conhecido = await banco.pagamento(pagamentoId);
-    // Só pagamentos de assinatura já registrados (vindos das cobranças).
-    if (!conhecido) return "ignorado: pagamento desconhecido";
+    // Só pagamentos de assinatura já registrados (vindos das cobranças); os outros
+    // podem ser de um Pix.
+    if (!conhecido) return (await outroPagamento?.(pagamentoId)) ?? "ignorado: pagamento desconhecido";
     const pagamento = await api.pagamento(pagamentoId);
-    await banco.salvarPagamento({...conhecido, status: pagamento.status, dados: pagamento});
+    // Sem os dados do pagador (documento, nome) e do cartão.
+    const {payer: _pagador, card: _cartao, ...semPagador} = pagamento as Pagamento & {payer?: unknown; card?: unknown};
+    await banco.salvarPagamento({...conhecido, status: pagamento.status, dados: semPagador});
     const perfil = await banco.perfil(conhecido.usuario_id);
     const efeito = regraDoPagamento(pagamento, perfil, agora());
     if (!efeito.estornado) return `pagamento ${pagamento.status}`;

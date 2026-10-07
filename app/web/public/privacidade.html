@@ -29,7 +29,7 @@
   <li><b>Conta:</b> o seu e-mail e a senha (guardada de forma cifrada pelo serviço de login; não temos acesso a ela).</li>
   <li><b>Vídeos:</b> os vídeos que você envia, as transcrições, as legendas e os ajustes dos projetos, e os vídeos exportados.</li>
   <li><b>Uso:</b> quantos vídeos você transcreveu e exportou, a duração deles e o plano da conta (para os limites do plano), e registros técnicos do servidor (como horário e erros) para manter o serviço funcionando.</li>
-  <li><b>Assinatura:</b> a situação da assinatura e dos pagamentos (datas, valores e se foram aprovados). Os dados de pagamento (cartão, conta) ficam só com o Mercado Pago; nós não os recebemos.</li>
+  <li><b>Assinatura:</b> a situação da assinatura e dos pagamentos (datas, valores e se foram aprovados). Os dados de pagamento (cartão, conta) ficam só com o Mercado Pago; nós não os recebemos. No Pix, se o Mercado Pago pedir o CPF de quem paga, ele passa pelo nosso servidor só para ser enviado ao Mercado Pago: não é guardado nem registrado.</li>
 </ul>
 
 <h2>3. Para que usamos</h2>
@@ -47,7 +47,7 @@
   <li><b>Armazenamento e geração do vídeo:</b> os vídeos ficam guardados na Amazon Web Services (AWS, nos Estados Unidos), onde também é gerado o vídeo legendado.</li>
   <li><b>Conta e projetos:</b> o login e os projetos ficam no Supabase.</li>
   <li><b>Servidor e e-mail:</b> o app roda no Render, e os e-mails da conta são enviados pelo Resend.</li>
-  <li><b>Pagamento:</b> a assinatura é paga pelo Mercado Pago, que recebe o seu e-mail para a cobrança.</li>
+  <li><b>Pagamento:</b> a assinatura e o Pix são pagos pelo Mercado Pago, que recebe o seu e-mail para a cobrança (e o CPF, no Pix, quando ele pedir).</li>
 </ul>
 <p>Alguns desses serviços ficam fora do Brasil; a transferência é feita para prestar o serviço que você pediu.</p>
 

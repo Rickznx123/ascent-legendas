@@ -1,5 +1,6 @@
-// Telas da assinatura (Etapa 2c): "Assinar", o retorno do checkout do Mercado Pago,
-// "Gerenciar assinatura" e os avisos. Quem decide o plano é o servidor (consultando o
+// Telas da assinatura (Etapa 2c) e do Pix de 30 dias (Etapa 2d): "Assinar" (cartão
+// ou Pix), o retorno do checkout do Mercado Pago, o Pix dentro do app, "Gerenciar
+// assinatura" e os avisos. Quem decide o plano é o servidor (consultando o
 // Mercado Pago, veja app/servidor/assinaturas.ts); aqui só se mostra.
 
 // Checkout aberto neste navegador há menos de 1 hora. No app instalado do iPhone, o
@@ -27,6 +28,7 @@ import {useEffect, useState} from "react";
 import {api} from "./api";
 import type {ResumoDaAssinatura} from "./api";
 import {useConta} from "./conta";
+import {JanelaPix} from "./Pix";
 
 // Datas no horário de Brasília ("07/11").
 const dataCurta = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", {day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo"});
@@ -41,22 +43,38 @@ export const avisoDaAssinatura = (resumo: ResumoDaAssinatura | undefined): strin
   if (resumo.situacao === "cancelada") return `Assinatura cancelada: você continua assinante${resumo.ate ? ` até ${dataCurta(resumo.ate)}` : ""}.`;
   if (resumo.situacao === "ativa" && resumo.renovaEm) return `Assinatura ativa · renova em ${dataCurta(resumo.renovaEm)}.`;
   if (resumo.situacao === "cortesia") return "Assinante (cortesia, sem cobrança).";
+  if (resumo.situacao === "pix" && resumo.ate) return `Pix · ativo até ${dataCurta(resumo.ate)}`;
   return undefined;
 };
 
-// O que aparece no menu da conta: "Assinar", "Gerenciar assinatura" ou nada.
-export const acaoDaAssinatura = (resumo: ResumoDaAssinatura | undefined): "assinar" | "gerenciar" | undefined => {
+// O que aparece no menu da conta: "Assinar", "Gerenciar assinatura", "Renovar com
+// Pix" ou nada.
+export type AcaoDaAssinatura = "assinar" | "gerenciar" | "pix";
+export const acaoDaAssinatura = (resumo: ResumoDaAssinatura | undefined): AcaoDaAssinatura | undefined => {
   if (!resumo?.disponivel) return undefined;
   if (resumo.situacao === "nenhuma") return "assinar";
   if (resumo.situacao === "cortesia") return undefined;
+  if (resumo.situacao === "pix") return "pix";
   return "gerenciar";
 };
+export const ROTULO_DA_ACAO: Record<AcaoDaAssinatura, string> = {assinar: "Assinar", gerenciar: "Gerenciar assinatura", pix: "Renovar com Pix"};
+
+// A janela de cada ação (para os menus).
+export const JanelaDaAcao: React.FC<{acao: AcaoDaAssinatura | undefined; onFechar: () => void}> = ({acao, onFechar}) =>
+  acao === "assinar" ? (
+    <JanelaAssinar onFechar={onFechar} />
+  ) : acao === "gerenciar" ? (
+    <JanelaGerenciarAssinatura onFechar={onFechar} />
+  ) : acao === "pix" ? (
+    <JanelaPix onFechar={onFechar} />
+  ) : null;
 
 // "Assinar": o que inclui e o botão que leva ao checkout do Mercado Pago.
 export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
   const {conta} = useConta();
   const [indo, setIndo] = useState(false);
   const [erro, setErro] = useState<string>();
+  const [pagandoPix, setPagandoPix] = useState(false);
   const valor = conta?.assinatura?.valor ?? 30;
   const assinar = async () => {
     setIndo(true);
@@ -72,6 +90,7 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
       setIndo(false);
     }
   };
+  if (pagandoPix) return <JanelaPix onFechar={onFechar} />;
   return (
     <div className="login janela-fundo" role="dialog" aria-modal="true" aria-labelledby="assinar-titulo">
       <div className="login-caixa">
@@ -84,13 +103,20 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
           <li>Vídeos sem a marca d'água</li>
           <li>Até 10 transcrições por dia</li>
         </ul>
-        <p className="suave">
-          Pagamento pelo Mercado Pago. Renova todo mês, no mesmo dia; cancele quando quiser e continue assinante até
-          o fim do mês pago.
-        </p>
-        <button type="button" className="bt primario cheio" disabled={indo} onClick={() => void assinar()}>
-          {indo ? "Abrindo o Mercado Pago…" : "Assinar com o Mercado Pago"}
-        </button>
+        <div className="assinatura-opcao">
+          <button type="button" className="bt primario cheio" disabled={indo} onClick={() => void assinar()}>
+            {indo ? "Abrindo o Mercado Pago…" : "Cartão (renova todo mês)"}
+          </button>
+          <p className="suave pequeno">
+            Pelo Mercado Pago. Renova todo mês, no mesmo dia; cancele quando quiser e continue assinante até o fim do mês pago.
+          </p>
+        </div>
+        <div className="assinatura-opcao">
+          <button type="button" className="bt cheio" disabled={indo} onClick={() => setPagandoPix(true)}>
+            Pix (30 dias, sem renovação)
+          </button>
+          <p className="suave pequeno">{reais(valor)} dão 30 dias de assinante. Não renova sozinho: para continuar, pague outro Pix.</p>
+        </div>
         <button type="button" className="bt cheio" disabled={indo} onClick={onFechar}>
           Agora não
         </button>

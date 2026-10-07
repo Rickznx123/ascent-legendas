@@ -37,7 +37,14 @@ import {videosDasContas} from "./videos";
 import {apiDoMercadoPago, mercadoPagoDoAmbiente, validarWebhook} from "./mercadopago";
 import {bancoNoSupabase, processadorDeEventos, regraDaAssinatura, resumoDaAssinatura} from "./assinaturas";
 import type {ResumoDaAssinatura} from "./assinaturas";
+import {ErroDoPix, bancoDoPixNoSupabase, cpfValido, motivoParaNaoPagarPix, processadorDePix, vistaDoPix} from "./pix";
 import {LIMITES_DE_USO, filaComVagas, limiteDePedidos} from "./limites";
+
+// Erro com mensagem já pronta para a tela.
+class ErroParaATela extends Error {}
+// "07/11" no horário de Brasília.
+const dataCurtaBr = (iso: string | undefined) =>
+  iso ? new Date(iso).toLocaleDateString("pt-BR", {day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo"}) : "o fim do período";
 import {rendersNoLambda} from "./renders";
 import type {ExportacaoMontada} from "./renders";
 import type {AwsRegion} from "@remotion/lambda/client";
@@ -161,8 +168,11 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   const mercadoPago = contas ? mercadoPagoDoAmbiente() : undefined;
   const apiMp = mercadoPago ? apiDoMercadoPago(mercadoPago) : undefined;
   const bancoDasAssinaturas = contas ? bancoNoSupabase(contas.admin) : undefined;
-  const eventosMp = apiMp && bancoDasAssinaturas ? processadorDeEventos({banco: bancoDasAssinaturas, api: apiMp}) : undefined;
-  console.log(mercadoPago ? `Assinatura: Mercado Pago ligado (R$ ${mercadoPago.valor} por mês).` : "Assinatura: desligada (sem MERCADOPAGO_ACCESS_TOKEN).");
+  // Pix avulso de 30 dias (Etapa 2d, veja pix.ts): o mesmo token e o mesmo webhook.
+  const pixMp = apiMp && bancoDasAssinaturas && contas ? processadorDePix({banco: bancoDoPixNoSupabase(contas.admin, bancoDasAssinaturas), api: apiMp}) : undefined;
+  const eventosMp =
+    apiMp && bancoDasAssinaturas ? processadorDeEventos({banco: bancoDasAssinaturas, api: apiMp, outroPagamento: pixMp?.doPagamento}) : undefined;
+  console.log(mercadoPago ? `Assinatura: Mercado Pago ligado (R$ ${mercadoPago.valor} por mês ou 30 dias por Pix).` : "Assinatura: desligada (sem MERCADOPAGO_ACCESS_TOKEN).");
   const processarEventosMp = () =>
     void eventosMp
       ?.processarPendentes()
@@ -176,10 +186,16 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       ?.verificarAssinaturas()
       .then((resultados) => resultados.forEach((linha) => console.log(`Mercado Pago: ${linha}`)))
       .catch((erro: unknown) => console.log(`Mercado Pago: verificação: ${erro instanceof Error ? erro.message : String(erro)}`));
+  const verificarPixMp = () =>
+    void pixMp
+      ?.verificar()
+      .then((resultados) => resultados.forEach((linha) => console.log(`Pix: ${linha}`)))
+      .catch((erro: unknown) => console.log(`Pix: verificação: ${erro instanceof Error ? erro.message : String(erro)}`));
   if (eventosMp) {
     setInterval(() => {
       processarEventosMp();
       verificarAssinaturasMp();
+      verificarPixMp();
     }, 60_000).unref();
   }
 
@@ -469,6 +485,9 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       }
       const resumo = await resumoDaConta(espaco, response.locals.token as string);
       if (resumo.situacao === "cortesia") throw new Error("A sua conta já é assinante (cortesia), sem cobrança.");
+      if (resumo.situacao === "pix") {
+        throw new Error(`Você está no Pix até ${dataCurtaBr(resumo.ate)}. Depois dessa data, você pode assinar com cartão.`);
+      }
       if (resumo.situacao !== "nenhuma") throw new Error("Você já é assinante. Para mudar, use Gerenciar assinatura.");
       const atual = await bancoDasAssinaturas.assinaturaDaConta(espaco.usuario.id);
       // Assinar de novo depois de um pagamento recusado: a assinatura recusada é
@@ -539,13 +558,83 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       }
       const atual = await bancoDasAssinaturas.assinaturaDaConta(espaco.usuario.id);
       if (!atual || atual.status === "cancelada") throw new Error("Não há assinatura ativa para cancelar.");
-      const pre = await apiMp.cancelarAssinatura(atual.mp_preapproval_id);
+      const pre = await apiMp.cancelarAssinatura(atual.mp_preapproval_id).catch((erro: unknown) => {
+        console.log(`Mercado Pago: cancelar ${atual.mp_preapproval_id}: ${erro instanceof Error ? erro.message : String(erro)}`);
+        throw new Error("Não foi possível cancelar agora. Tente de novo em instantes.");
+      });
       const perfil = await bancoDasAssinaturas.perfil(espaco.usuario.id);
       const efeito = regraDaAssinatura(atual, pre, perfil, new Date());
       await bancoDasAssinaturas.salvarAssinatura(atual.id, efeito.assinatura);
       if (efeito.perfil) await bancoDasAssinaturas.salvarPerfil(espaco.usuario.id, efeito.perfil);
       console.log(`Assinatura: cancelada por ${espaco.usuario.id} (${atual.mp_preapproval_id}).`);
       return {assinatura: await resumoDaConta(espaco, response.locals.token as string)};
+    }),
+  );
+
+  // Pix avulso de 30 dias (Etapa 2d). Erros para a tela em português claro, com um
+  // código (cpf-necessario: a tela pede o CPF); o detalhe fica só no log. O CPF vai
+  // direto ao Mercado Pago: não é guardado nem registrado.
+  const rotaDoPix =
+    (fn: (request: Request, response: Response) => Promise<unknown>) => async (request: Request, response: Response) => {
+      try {
+        response.json(await fn(request, response));
+      } catch (erro) {
+        if (erro instanceof ErroDoPix) {
+          response.status(400).json({mensagem: erro.message, codigo: erro.codigo});
+          return;
+        }
+        if (erro instanceof ErroParaATela) {
+          response.status(400).json({mensagem: erro.message});
+          return;
+        }
+        console.log(`Pix: ${request.path}: ${erro instanceof Error ? erro.message : String(erro)}`);
+        response.status(400).json({mensagem: "Não foi possível falar com o Mercado Pago agora. Tente de novo em instantes."});
+      }
+    };
+  const contaDoPix = (response: Response) => {
+    const espaco = espacoDe(response);
+    if (!contas || !espaco.usuario) throw new ErroParaATela("Entre na sua conta.");
+    if (!pixMp || !mercadoPago) throw new ErroParaATela("O pagamento por Pix não está disponível agora.");
+    return {espaco, usuario: espaco.usuario, pix: pixMp, valor: mercadoPago.valor};
+  };
+  // O último Pix da conta (para a tela retomar um código ainda dentro do prazo).
+  app.get(
+    "/api/pix",
+    rotaDoPix(async (_request, response) => {
+      const {espaco, usuario, pix} = contaDoPix(response);
+      const ultimo = await pix.conferir(usuario.id);
+      return {pix: ultimo ? vistaDoPix(ultimo) : null, assinatura: await resumoDaConta(espaco, response.locals.token as string)};
+    }),
+  );
+  // Gerar (ou retomar) um Pix. Corpo: {cpf?} (só quando o Mercado Pago pediu).
+  app.post(
+    "/api/pix",
+    rotaDoPix(async (request, response) => {
+      const {espaco, usuario, pix, valor} = contaDoPix(response);
+      const resumo = await resumoDaConta(espaco, response.locals.token as string);
+      const motivo = motivoParaNaoPagarPix(resumo);
+      if (motivo) throw new ErroParaATela(motivo);
+      const recebido = String((request.body as {cpf?: unknown} | undefined)?.cpf ?? "").trim();
+      const cpf = recebido ? cpfValido(recebido) : undefined;
+      if (recebido && !cpf) throw new ErroDoPix("cpf-invalido", "CPF inválido. Confira os 11 números.");
+      // Um checkout de cartão aberto e não pago é cancelado (para não haver as duas cobranças).
+      const cartao = await bancoDasAssinaturas?.assinaturaDaConta(usuario.id).catch(() => undefined);
+      if (cartao?.status === "pendente" && apiMp && bancoDasAssinaturas) {
+        await apiMp
+          .cancelarAssinatura(cartao.mp_preapproval_id)
+          .then(() => bancoDasAssinaturas.salvarAssinatura(cartao.id, {status: "cancelada", cancelada_em: new Date().toISOString()}))
+          .catch((erro: unknown) => console.log(`Pix: cancelar o checkout de cartão ${cartao.mp_preapproval_id}: ${erro instanceof Error ? erro.message : String(erro)}`));
+      }
+      return {pix: vistaDoPix(await pix.gerar({id: usuario.id, email: usuario.email}, valor, cpf))};
+    }),
+  );
+  // A tela do Pix conferindo se o pagamento caiu (o servidor consulta o Mercado Pago).
+  app.post(
+    "/api/pix/conferir",
+    rotaDoPix(async (_request, response) => {
+      const {espaco, usuario, pix} = contaDoPix(response);
+      const ultimo = await pix.conferir(usuario.id);
+      return {pix: ultimo ? vistaDoPix(ultimo) : null, assinatura: await resumoDaConta(espaco, response.locals.token as string)};
     }),
   );
 

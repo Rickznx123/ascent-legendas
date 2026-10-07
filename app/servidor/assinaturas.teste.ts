@@ -147,6 +147,9 @@ const montar = (perfilInicial: Partial<PerfilDaAssinatura> = {}, assinaturaInici
     },
     cobrancasDaAssinatura: async (id) => mp.busca.filter((c) => c.preapproval_id === id),
     pagamento: async (id) => mp.pagamentos.get(id)!,
+    criarPix: async () => {
+      throw new Error("sem Pix nestes testes");
+    },
   };
   const processador = processadorDeEventos({banco, api, agora: () => relogio});
   let numero = 0;

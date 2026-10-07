@@ -1,5 +1,5 @@
-// Mercado Pago (Etapa 2c): a API de assinaturas (preapproval) e a validação dos
-// webhooks. Só no servidor: o token nunca sai daqui.
+// Mercado Pago (Etapas 2c e 2d): a API de assinaturas (preapproval), o Pix avulso
+// (POST /v1/payments) e a validação dos webhooks. Só no servidor: o token nunca sai daqui.
 //   MERCADOPAGO_ACCESS_TOKEN     token da aplicação (de teste ou de produção)
 //   MERCADOPAGO_WEBHOOK_SECRET   assinatura secreta dos webhooks (painel → Webhooks)
 //   ASSINATURA_VALOR_BRL         preço mensal (padrão 30)
@@ -61,8 +61,33 @@ export type Pagamento = {
   status: string;
   status_detail?: string;
   transaction_amount?: number;
+  currency_id?: string;
   date_approved?: string;
+  payment_method_id?: string;
+  external_reference?: string | null;
+  date_of_expiration?: string | null;
+  // Pix: o código copia e cola e a imagem do QR code.
+  point_of_interaction?: {transaction_data?: {qr_code?: string; qr_code_base64?: string}};
 };
+
+// Pedido de um Pix (Etapa 2d). O CPF só vai se o Mercado Pago exigir; nunca é guardado.
+export type PedidoDePix = {
+  // Id da linha em pix_pagamentos: vira o external_reference e a chave de idempotência.
+  id: string;
+  email: string;
+  valor: number;
+  expiraEm: Date;
+  cpf?: string;
+};
+
+// "2026-10-08T12:30:00.000-03:00": a data no horário de Brasília, com o fuso (o
+// formato dos exemplos do Mercado Pago).
+export const dataDoMercadoPago = (data: Date): string =>
+  `${new Date(data.getTime() - 3 * 3600_000).toISOString().slice(0, 23)}-03:00`;
+
+// Tira de um texto qualquer coisa com cara de CPF (para mensagens de erro e o log):
+// 11 dígitos soltos, com ou sem pontos e traço (os ids de pagamento têm 12 ou mais).
+export const semCpf = (texto: string): string => texto.replace(/(?<!\d)\d{3}\.?\d{3}\.?\d{3}-?\d{2}(?!\d)/gu, "[cpf]");
 
 export type ApiDoMercadoPago = {
   criarAssinatura: (pedido: {usuarioId: string; email: string; valor: number; voltaPara: string}) => Promise<Preapproval>;
@@ -72,19 +97,22 @@ export type ApiDoMercadoPago = {
   // As cobranças de uma assinatura (sem depender dos webhooks).
   cobrancasDaAssinatura: (preapprovalId: string) => Promise<PagamentoAutorizado[]>;
   pagamento: (id: string) => Promise<Pagamento>;
+  criarPix: (pedido: PedidoDePix) => Promise<Pagamento>;
 };
 
 export const apiDoMercadoPago = (config: ConfigDoMercadoPago): ApiDoMercadoPago => {
-  const chamar = async <T>(metodo: "GET" | "POST" | "PUT", caminho: string, corpo?: unknown): Promise<T> => {
+  const chamar = async <T>(metodo: "GET" | "POST" | "PUT", caminho: string, corpo?: unknown, extras: Record<string, string> = {}): Promise<T> => {
     const resposta = await fetch(`${API}${caminho}`, {
       method: metodo,
-      headers: {Authorization: `Bearer ${config.token}`, "Content-Type": "application/json"},
+      headers: {Authorization: `Bearer ${config.token}`, "Content-Type": "application/json", ...extras},
       body: corpo === undefined ? undefined : JSON.stringify(corpo),
       signal: AbortSignal.timeout(15_000),
     });
     const texto = await resposta.text();
     if (!resposta.ok) {
-      throw Object.assign(new Error(`Mercado Pago ${metodo} ${caminho.split("?")[0]}: ${resposta.status} ${texto.slice(0, 300)}`), {status: resposta.status});
+      throw Object.assign(new Error(semCpf(`Mercado Pago ${metodo} ${caminho.split("?")[0]}: ${resposta.status} ${texto.slice(0, 300)}`)), {
+        status: resposta.status,
+      });
     }
     return JSON.parse(texto) as T;
   };
@@ -111,6 +139,22 @@ export const apiDoMercadoPago = (config: ConfigDoMercadoPago): ApiDoMercadoPago 
         )
       ).results ?? [],
     pagamento: (id) => chamar<Pagamento>("GET", `/v1/payments/${encodeURIComponent(id)}`),
+    // Pix avulso. A chave de idempotência é o id da linha: repetir o pedido não cria
+    // um segundo Pix.
+    criarPix: ({id, email, valor, expiraEm, cpf}) =>
+      chamar<Pagamento>(
+        "POST",
+        "/v1/payments",
+        {
+          transaction_amount: valor,
+          description: "Ascent Legendas - Assinante por 30 dias (Pix)",
+          payment_method_id: "pix",
+          external_reference: id,
+          date_of_expiration: dataDoMercadoPago(expiraEm),
+          payer: cpf ? {email, identification: {type: "CPF", number: cpf}} : {email},
+        },
+        {"X-Idempotency-Key": id},
+      ),
   };
 };
 
