@@ -272,13 +272,17 @@ Feito (06/10/2026, testado): e-mail do login pelo Resend no domínio (`login@asc
 
 Falta: trocar o Render para o plano Starter; crédito no Replicate (US$ 20–25); alertas de orçamento da AWS (Budgets e Cost Anomaly Detection).
 
-**Etapa 2c — Assinatura pelo Mercado Pago** ✅ testada em 07/10/2026 no app publicado, com credenciais e contas de teste. Falta ligar a cobrança real (lista abaixo).
+**Etapa 2c — Assinatura pelo Mercado Pago** ✅ concluída: **cobrança real ligada em 07/10/2026** (credenciais de produção no Render), testada com dinheiro de verdade.
 
-Feito (commits `33e7abd`, `808a6a8`, `20eb69b`, 06/10/2026): "Assinar" cria a assinatura no Mercado Pago (R$ 30 por mês, sem plano associado) e leva ao checkout; a volta ao app nunca vale como prova: o servidor consulta o Mercado Pago no retorno, a cada webhook validado (x-signature) e na verificação periódica (a cada minuto: pendentes há mais de 2 minutos e ativas perto da cobrança). Regras: aprovado → assinante até o fim do ciclo + 5 dias; recusado → aviso e 5 dias de tolerância; cancelado → assinante até o fim do ciclo pago; estorno/chargeback → grátis na hora e assinatura cancelada. Contas de `npm run plano` (origem "manual") nunca são tocadas. Migração 007. Testes: `npm run teste:assinaturas`. Pagamento de teste aprovado com saldo em conta; o plano ativou pela consulta (o webhook automático não chegou, veja abaixo).
+Feito (commits `33e7abd`, `808a6a8`, `20eb69b`, 06/10/2026): "Assinar" cria a assinatura no Mercado Pago (R$ 30 por mês, sem plano associado) e leva ao checkout; a volta ao app nunca vale como prova: o servidor consulta o Mercado Pago no retorno, a cada webhook validado (x-signature) e na verificação periódica (a cada minuto: pendentes há mais de 2 minutos e ativas perto da cobrança). Regras: aprovado → assinante até o fim do ciclo + 5 dias; recusado → aviso e 5 dias de tolerância; cancelado → assinante até o fim do ciclo pago; estorno/chargeback → grátis na hora e assinatura cancelada. Contas de `npm run plano` (origem "manual") nunca são tocadas. Migração 007. Testes: `npm run teste:assinaturas`.
 
 Ajustes de 07/10/2026: rota de diagnóstico `/admin/assinatura/:id` com chave própria (`CHAVE_ADMIN`, 32+ caracteres; sem ela, a rota não existe), sem valores nem meio de pagamento na resposta e com cada uso no log; textos e termos sem prometer cartão ("pagamento pelo Mercado Pago"). Pagamento recusado: a volta do checkout mostra "Pagamento recusado. Tente outro cartão ou outro meio de pagamento." com "Assinar de novo"; o novo checkout cancela antes, no Mercado Pago, a assinatura recusada (para ela não ser cobrada de novo).
 
-Testado (07/10/2026, duas compradoras de teste): aprovado, recusado (cartão com titular OTHE), cancelamento pelo app e estorno pelo painel da vendedora; tudo como esperado. Os webhooks automáticos chegaram nos quatro casos (depois de configurar o webhook na conta de teste vendedora). O que resolveu cada um:
+Ajustes da cobrança real (07/10/2026): erro do Mercado Pago ao abrir o checkout aparece como "Não foi possível abrir o pagamento agora. Tente de novo em instantes." (o detalhe fica só no log); a volta do checkout continua conferindo por até 10 minutos depois da espera de 90 s, para mostrar a recusa que chega tarde; cobrança sem pagamento ainda (payment sem id) não vira registro de pagamento.
+
+Cobrança real (07/10/2026): assinatura de R$ 30 com cartão, sem conta Mercado Pago, aprovada e ativada no app; estorno pelo painel devolveu a conta ao grátis; uma tentativa anterior com outro cartão foi recusada pelo antifraude e a conta ficou no grátis. Webhooks automáticos de produção chegaram em todos os eventos (`payment`, `subscription_authorized_payment` e `subscription_preapproval`); o estorno foi visto pelo webhook `payment`. As contas de teste (`test_user_…`) e os registros delas foram apagados do banco e do S3.
+
+Testado antes (07/10/2026, duas compradoras de teste): aprovado, recusado (cartão com titular OTHE), cancelamento pelo app e estorno pelo painel da vendedora; tudo como esperado. Os webhooks automáticos chegaram nos quatro casos (depois de configurar o webhook na conta de teste vendedora). O que resolveu cada um:
 - Aprovado: a confirmação na volta do checkout (numa das compras, 6 s antes dos webhooks de assinatura; na outra, os dois juntos). O webhook `payment` chega antes de o app conhecer o pagamento e é ignorado; os de assinatura ativariam o plano sozinhos.
 - Recusado: o webhook `subscription_authorized_payment` (o Mercado Pago registrou a recusa minutos depois do checkout).
 - Cancelamento pelo app: o próprio app, na hora (não depende de webhook). Cancelamento feito na conta do Mercado Pago depende do webhook; sem ele, a verificação periódica só vê na véspera da próxima cobrança (sem prejuízo: o mês já está pago).
@@ -286,18 +290,14 @@ Testado (07/10/2026, duas compradoras de teste): aprovado, recusado (cartão com
 
 Render Free e webhooks: um pedido do Mercado Pago acorda o servidor, mas a primeira tentativa pode passar dos 22 s de espera e falhar; o Mercado Pago tenta de novo a cada 15 minutos, e aí o servidor já está acordado. A verificação periódica fica parada enquanto o servidor dorme. No Starter, os dois funcionam.
 
-Meios de pagamento no checkout de assinatura (teste de 07/10/2026): **saldo em conta e cartão de crédito; sem Pix**. Os textos do app e os termos não prometem um meio específico.
+Meios de pagamento no checkout de assinatura (07/10/2026): **cartão de crédito (também sem conta Mercado Pago) e saldo em conta; sem Pix**. Os textos do app e os termos não prometem um meio específico.
 
 Webhook com credenciais de teste: só chega com o webhook configurado **em modo produção, logado na própria conta de teste vendedora** (Suas integrações → Detalhes da aplicação → Credenciais de teste). Eventos: **Planos e assinaturas** (`subscription_preapproval`, `subscription_authorized_payment`) e **Pagamentos** (`payment`); URL `https://legendas.ascentstudio.com.br/webhooks/mercadopago`. Um evento recusado pelo app aparece no log do Render como "webhook recusado (motivo)".
 
-Falta para ligar a cobrança real:
-1. [VOCÊ] Ativar as credenciais de produção da aplicação no Mercado Pago (dados do negócio) e trocar no Render `MERCADOPAGO_ACCESS_TOKEN` pelo de produção.
-2. [VOCÊ] Webhook em **modo produção** na conta real: mesma URL e eventos, e a assinatura secreta de produção em `MERCADOPAGO_WEBHOOK_SECRET`. Conferir no histórico de notificações que a primeira chegou com sucesso.
-3. [VOCÊ] Render no plano **Starter** (estorno depende do webhook; a verificação periódica só roda com o servidor acordado).
-4. [VOCÊ] Origem e licença dos efeitos sonoros (`sons/ORIGEM.md`): todos "a confirmar".
-5. [EU/VOCÊ] Teste com dinheiro de verdade, com a sua conta: assinar, ver o plano ativar, cancelar pelo app e pedir o estorno no painel.
-6. [EU] Limpar os dados de teste do banco (assinaturas, pagamentos e eventos das contas `test_user_…`) ao trocar para produção; um evento antigo da madrugada de 07/10 ficou parado com erro (id de assinatura enviado como cobrança, antes da correção) e sai junto.
-7. [VOCÊ, opcional] `CHAVE_ADMIN` no Render, só se for usar o diagnóstico.
+Falta (depois da cobrança real):
+1. [VOCÊ] Render no plano **Starter** (o estorno depende do webhook; a verificação periódica só roda com o servidor acordado).
+2. [VOCÊ] Origem e licença dos efeitos sonoros (`sons/ORIGEM.md`): todos "a confirmar".
+3. [VOCÊ, opcional] `CHAVE_ADMIN` no Render, só se for usar o diagnóstico.
 ---
 
 ## 8. Pronto antes de abrir para testadores
@@ -335,7 +335,7 @@ Todas tomadas em 05/10/2026 (veja "Decisões tomadas", no começo). O domínio s
 ## Pendências
 
 - **Render: trocar do plano Free para o Starter antes de chamar testadores** (o Free dorme sem uso e tem menos memória; as vagas da fila foram medidas para o Starter; e a verificação periódica da assinatura só roda com o servidor acordado).
-- **Cobrança real (Etapa 2c, testada em 07/10/2026):** credenciais de produção, webhook em modo produção, Render Starter e teste com dinheiro de verdade; lista completa no bloco da Etapa 2c, acima.
+- **Assinatura (Etapa 2c):** concluída, cobrança real ligada em 07/10/2026. Falta o Render Starter (veja acima).
 - **Origem dos efeitos sonoros** (`sons/ORIGEM.md`): os sete arquivos estão sem origem nem licença comprovadas.
 - **Retomada da transcrição ao sair do app** (Bloco 5): falta teste no iPhone.
 - **Pacote C: refazer no estilo imobiliário (dois grupos, âncora + trilho, variações e templates lineares).** As duas versões de 06/10/2026 foram desfeitas (dois grupos com motion blur, `31f6b06`; âncora e trilho, `a349932`): o C voltou ao desenho de antes (c1 a c6 e linear, Anton e Kaushan Script). A prancha de referência está em `pacote-c-referencia.html`, na raiz.

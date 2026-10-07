@@ -135,7 +135,8 @@ export const regraDaCobranca = (
   perfil: PerfilDaAssinatura,
   agora: Date,
 ): {assinatura: Partial<Assinatura>; perfil?: Partial<PerfilDaAssinatura>; pagamento?: PagamentoDaAssinatura} => {
-  const pagamento = cobranca.payment;
+  // Cobrança ainda sem pagamento (o Mercado Pago manda o objeto vazio, sem id): nada a registrar.
+  const pagamento = cobranca.payment?.id ? cobranca.payment : undefined;
   const statusDoPagamento = pagamento?.status ?? "";
   const registro = pagamento
     ? {
@@ -304,7 +305,7 @@ export const processadorDeEventos = ({banco, api, agora = () => new Date()}: {ba
     const quando = (cobranca: PagamentoAutorizado) => new Date(cobranca.debit_date ?? cobranca.date_created ?? 0).getTime();
     for (const cobranca of [...cobrancas].sort((a, b) => quando(a) - quando(b))) {
       if (cobranca.preapproval_id && cobranca.preapproval_id !== assinatura.mp_preapproval_id) continue;
-      const conhecido = cobranca.payment ? await banco.pagamento(String(cobranca.payment.id)) : undefined;
+      const conhecido = cobranca.payment?.id ? await banco.pagamento(String(cobranca.payment.id)) : undefined;
       if (conhecido && conhecido.status === cobranca.payment?.status) continue;
       assinatura = await aplicarCobranca(assinatura, cobranca, pre);
     }

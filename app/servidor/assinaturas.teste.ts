@@ -236,6 +236,14 @@ describe("regras de cada caso", () => {
     assert.equal(uso.plano === "assinante" && uso.renovaEm, "2026-11-07T12:00:00.000Z");
   });
 
+  it("cobrança ainda sem pagamento (payment sem id): nenhum pagamento registrado", async () => {
+    const t = montar();
+    t.mp.cobrancas.set("c1", {...cobranca("c1", "approved", "p1"), status: "scheduled", payment: {} as PagamentoAutorizado["payment"]});
+    await t.webhook("subscription_authorized_payment", "c1");
+    assert.equal(t.pagamentos.size, 0);
+    assert.equal(t.perfil().plano, "gratis");
+  });
+
   it("recusado na primeira cobrança: continua grátis, sem aviso de assinante", async () => {
     const t = montar();
     t.mp.pre = {...t.mp.pre, status: "pending"};

@@ -67,7 +67,8 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
       marcarCheckout(true);
       window.location.href = endereco;
     } catch (error) {
-      setErro(error instanceof Error ? error.message : String(error));
+      // Sem resposta do servidor (rede, ou página de erro no lugar do JSON): a mesma mensagem simples.
+      setErro(error instanceof TypeError || error instanceof SyntaxError ? "Não foi possível abrir o pagamento agora. Tente de novo em instantes." : error instanceof Error ? error.message : String(error));
       setIndo(false);
     }
   };
@@ -186,7 +187,10 @@ export const JanelaGerenciarAssinatura: React.FC<{onFechar: () => void}> = ({onF
 // retorno não prova o pagamento: a tela pede ao servidor que consulte o Mercado Pago
 // (POST /api/assinatura/confirmar) e mostra o plano que ele decidir, ou a recusa,
 // quando o Mercado Pago confirma que a cobrança foi recusada.
+// Depois da espera, a tela avisa que ainda não confirmou, mas continua conferindo
+// (mais devagar): a recusa pode levar minutos para aparecer no Mercado Pago.
 const ESPERA_MS = 90_000;
+const CONFERE_ATE_MS = 10 * 60_000;
 export const RetornoDaAssinatura: React.FC<{onFechar: () => void}> = ({onFechar}) => {
   const {atualizarConta} = useConta();
   const [situacao, setSituacao] = useState<"confirmando" | "ativa" | "recusado" | "demorando">("confirmando");
@@ -208,12 +212,13 @@ export const RetornoDaAssinatura: React.FC<{onFechar: () => void}> = ({onFechar}
           setSituacao("recusado");
           return;
         }
-        if (Date.now() - inicio > ESPERA_MS) {
+        const passou = Date.now() - inicio;
+        if (passou > CONFERE_ATE_MS) return;
+        if (passou > ESPERA_MS) {
           marcarCheckout(false);
           setSituacao("demorando");
-          return;
         }
-        await new Promise((resolve) => setTimeout(resolve, 4000));
+        await new Promise((resolve) => setTimeout(resolve, passou > ESPERA_MS ? 15_000 : 4000));
       }
     };
     void conferir();

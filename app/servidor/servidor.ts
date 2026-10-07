@@ -449,7 +449,17 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
 
   // "Assinar": cria a assinatura no Mercado Pago e devolve o checkout (init_point).
   // O retorno do checkout não vale como prova de pagamento: o plano só muda pelo
-  // webhook validado, depois da consulta ao Mercado Pago.
+  // webhook validado, depois da consulta ao Mercado Pago. Um erro do Mercado Pago
+  // aparece na tela como mensagem simples; o detalhe fica só no log.
+  const SEM_CHECKOUT = "Não foi possível abrir o pagamento agora. Tente de novo em instantes.";
+  const noMercadoPago = async <T>(acao: string, pedido: () => Promise<T>): Promise<T> => {
+    try {
+      return await pedido();
+    } catch (erro) {
+      console.log(`Mercado Pago: ${acao}: ${erro instanceof Error ? erro.message : String(erro)}`);
+      throw new Error(SEM_CHECKOUT);
+    }
+  };
   app.post(
     "/api/assinatura",
     handle(async (_request, response) => {
@@ -465,8 +475,8 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       // cancelada no Mercado Pago (para ele não tentar cobrar de novo e a pessoa
       // pagar duas vezes) e um checkout novo é aberto.
       if (atual && atual.status !== "cancelada" && atual.cobranca_falhou_em) {
-        const anterior = await apiMp.assinatura(atual.mp_preapproval_id);
-        const pre = anterior.status === "cancelled" ? anterior : await apiMp.cancelarAssinatura(atual.mp_preapproval_id);
+        const anterior = await noMercadoPago("consultar a assinatura recusada", () => apiMp.assinatura(atual.mp_preapproval_id));
+        const pre = anterior.status === "cancelled" ? anterior : await noMercadoPago("cancelar a assinatura recusada", () => apiMp.cancelarAssinatura(atual.mp_preapproval_id));
         const efeito = regraDaAssinatura(atual, pre, await bancoDasAssinaturas.perfil(espaco.usuario.id), new Date());
         await bancoDasAssinaturas.salvarAssinatura(atual.id, efeito.assinatura);
         if (efeito.perfil) await bancoDasAssinaturas.salvarPerfil(espaco.usuario.id, efeito.perfil);
@@ -475,13 +485,18 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
         // Tocou em Assinar de novo logo depois: o mesmo checkout.
         return {endereco: atual.init_point};
       }
-      const pre = await apiMp.criarAssinatura({
-        usuarioId: espaco.usuario.id,
-        email: espaco.usuario.email,
-        valor: mercadoPago.valor,
-        voltaPara: `${configuracaoDoAmbiente().enderecoDoApp}/?assinatura=retorno`,
-      });
-      if (!pre.init_point) throw new Error("O Mercado Pago não devolveu o link de pagamento. Tente de novo.");
+      const pre = await noMercadoPago(`abrir o checkout de ${espaco.usuario.id}`, () =>
+        apiMp.criarAssinatura({
+          usuarioId: espaco.usuario!.id,
+          email: espaco.usuario!.email,
+          valor: mercadoPago.valor,
+          voltaPara: `${configuracaoDoAmbiente().enderecoDoApp}/?assinatura=retorno`,
+        }),
+      );
+      if (!pre.init_point) {
+        console.log(`Mercado Pago: abrir o checkout de ${espaco.usuario.id}: resposta sem init_point (${pre.id}).`);
+        throw new Error(SEM_CHECKOUT);
+      }
       await bancoDasAssinaturas.criarAssinatura({
         usuario_id: espaco.usuario.id,
         mp_preapproval_id: pre.id,
