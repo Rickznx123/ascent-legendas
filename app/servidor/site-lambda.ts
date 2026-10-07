@@ -12,6 +12,8 @@ import type {AwsRegion} from "@remotion/lambda";
 
 const PASTAS_DO_BUNDLE = ["src", "fontes", "sons"];
 const TEXTO = /\.(ts|tsx|js|json|css|md|txt)$/iu;
+// Documentação (como sons/ORIGEM.md) não muda o render: fica fora do nome da versão.
+const DOCUMENTACAO = /\.md$/iu;
 
 const arquivosDe = (pasta: string): string[] =>
   existsSync(pasta)
@@ -26,7 +28,7 @@ const arquivosDe = (pasta: string): string[] =>
 export const versaoDoCodigo = (raiz: string): string => {
   const hash = createHash("sha256");
   for (const pasta of PASTAS_DO_BUNDLE) {
-    for (const arquivo of arquivosDe(path.join(raiz, pasta))) {
+    for (const arquivo of arquivosDe(path.join(raiz, pasta)).filter((arquivo) => !DOCUMENTACAO.test(arquivo))) {
       hash.update(path.relative(raiz, arquivo).replaceAll("\\", "/"));
       // Texto com a quebra de linha do Linux: o git no Windows pode trocar por CRLF,
       // e o mesmo código daria outro nome aqui e no Render.
