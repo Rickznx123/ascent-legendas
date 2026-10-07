@@ -36,7 +36,7 @@ const reais = (valor: number) => valor.toLocaleString("pt-BR", {style: "currency
 export const avisoDaAssinatura = (resumo: ResumoDaAssinatura | undefined): string | undefined => {
   if (!resumo) return undefined;
   if (resumo.situacao === "falhou") {
-    return `Não conseguimos cobrar a assinatura. Atualize o cartão no Mercado Pago${resumo.ate ? ` até ${dataCurta(resumo.ate)}` : ""} para não voltar ao plano grátis.`;
+    return `Não conseguimos cobrar a assinatura. Atualize a forma de pagamento no Mercado Pago${resumo.ate ? ` até ${dataCurta(resumo.ate)}` : ""} para não voltar ao plano grátis.`;
   }
   if (resumo.situacao === "cancelada") return `Assinatura cancelada: você continua assinante${resumo.ate ? ` até ${dataCurta(resumo.ate)}` : ""}.`;
   if (resumo.situacao === "ativa" && resumo.renovaEm) return `Assinatura ativa · renova em ${dataCurta(resumo.renovaEm)}.`;
@@ -84,7 +84,7 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
           <li>Até 10 transcrições por dia</li>
         </ul>
         <p className="suave">
-          Pagamento com cartão pelo Mercado Pago. Renova todo mês, no mesmo dia; cancele quando quiser e continue assinante até
+          Pagamento pelo Mercado Pago. Renova todo mês, no mesmo dia; cancele quando quiser e continue assinante até
           o fim do mês pago.
         </p>
         <button type="button" className="bt primario cheio" disabled={indo} onClick={() => void assinar()}>
@@ -147,7 +147,7 @@ export const JanelaGerenciarAssinatura: React.FC<{onFechar: () => void}> = ({onF
         {resumo?.situacao === "falhou" ? <p className="login-erro">{avisoDaAssinatura(resumo)}</p> : null}
         {resumo?.situacao === "nenhuma" ? <p>Você está no plano grátis.</p> : null}
         <a className="bt cheio assinatura-link" href="https://www.mercadopago.com.br/subscriptions" target="_blank" rel="noopener">
-          Trocar o cartão no Mercado Pago
+          Trocar a forma de pagamento no Mercado Pago
         </a>
         {resumo?.situacao === "ativa" || resumo?.situacao === "falhou" ? (
           confirmando ? (
@@ -232,7 +232,7 @@ export const RetornoDaAssinatura: React.FC<{onFechar: () => void}> = ({onFechar}
             <h1 id="retorno-titulo">Ainda não confirmamos o pagamento</h1>
             <p className="suave">
               Se o pagamento foi aprovado, a assinatura aparece em alguns minutos (o quadro do plano mostra quando). Se foi
-              recusado, toque em Assinar de novo e tente outro cartão.
+              recusado, toque em Assinar de novo e tente outra forma de pagamento.
             </p>
           </>
         )}
