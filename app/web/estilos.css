@@ -1506,6 +1506,36 @@ h3 {
   padding: var(--esp-3) var(--esp-4);
 }
 
+/* Criar conta: declaração de que leu os termos e a política. */
+.login-aceite {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--esp-3);
+  color: var(--suave);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.login-aceite input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: var(--acento);
+}
+
+.login-aceite a,
+.login-legal a {
+  color: var(--acento);
+}
+
+/* Links dos termos e da política, no rodapé da caixa de entrada. */
+.login-legal {
+  text-align: center;
+  color: var(--suave);
+  font-size: 12px;
+}
+
 .login-lista {
   margin: 0;
   padding-left: 18px;

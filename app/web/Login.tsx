@@ -45,6 +45,7 @@ export const TelaDeLogin: React.FC<{google: boolean; aviso?: string}> = ({google
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState<string | undefined>(aviso);
   const [reenviado, setReenviado] = useState(false);
+  const [aceitou, setAceitou] = useState(false);
 
   const trocarVista = (nova: Vista) => {
     setVista(nova);
@@ -176,9 +177,28 @@ export const TelaDeLogin: React.FC<{google: boolean; aviso?: string}> = ({google
                     onMudar={setSenha}
                   />
                   <CampoDeSenha id="login-senha-repetida" rotulo="Repita a senha" valor={repetida} autoComplete="new-password" desativado={ocupado} onMudar={setRepetida} />
+                  {/* Ao criar a conta, a pessoa declara que leu os termos e a política. */}
+                  <label className="login-aceite">
+                    <input type="checkbox" required checked={aceitou} disabled={ocupado} onChange={(event) => setAceitou(event.target.checked)} />
+                    <span>
+                      Li e aceito os{" "}
+                      <a href="/termos.html" target="_blank" rel="noopener">
+                        Termos de uso
+                      </a>{" "}
+                      e a{" "}
+                      <a href="/privacidade.html" target="_blank" rel="noopener">
+                        Política de privacidade
+                      </a>
+                      .
+                    </span>
+                  </label>
                 </>
               ) : null}
-              <button type="submit" className="bt primario cheio" disabled={ocupado || !email.trim() || (vista !== "esqueci" && !senha)}>
+              <button
+                type="submit"
+                className="bt primario cheio"
+                disabled={ocupado || !email.trim() || (vista !== "esqueci" && !senha) || (vista === "criar" && !aceitou)}
+              >
                 {ocupado
                   ? "Aguarde…"
                   : vista === "entrar"
@@ -220,6 +240,15 @@ export const TelaDeLogin: React.FC<{google: boolean; aviso?: string}> = ({google
             {erro}
           </p>
         ) : null}
+        <p className="login-legal">
+          <a href="/termos.html" target="_blank" rel="noopener">
+            Termos de uso
+          </a>{" "}
+          ·{" "}
+          <a href="/privacidade.html" target="_blank" rel="noopener">
+            Política de privacidade
+          </a>
+        </p>
       </div>
     </main>
   );

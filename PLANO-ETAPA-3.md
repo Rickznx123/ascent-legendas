@@ -304,6 +304,7 @@ Todas tomadas em 05/10/2026 (veja "Decisões tomadas", no começo). O domínio s
 
 ## Pendências
 
+- **Termos de uso e política de privacidade** (`app/web/public/termos.html` e `privacidade.html`, rascunho de 06/10/2026): revisar o texto e, **antes do lançamento pago, preencher o marcador "[CNPJ e endereço: preencher antes do lançamento pago]"** nas duas páginas (de preferência com revisão de um advogado).
 - **Render: trocar do plano Free para o Starter antes de chamar testadores** (o Free dorme sem uso e tem menos memória; as vagas da fila foram medidas para o Starter).
 - **Retomada da transcrição ao sair do app** (Bloco 5): falta teste no iPhone.
 - **Pacote C: refazer no estilo imobiliário (dois grupos, âncora + trilho, variações e templates lineares).** As duas versões de 06/10/2026 foram desfeitas (dois grupos com motion blur, `31f6b06`; âncora e trilho, `a349932`): o C voltou ao desenho de antes (c1 a c6 e linear, Anton e Kaushan Script). A prancha de referência está em `pacote-c-referencia.html`, na raiz.
