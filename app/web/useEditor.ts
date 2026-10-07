@@ -131,7 +131,7 @@ export const useEditor = () => {
     }
   }, []);
 
-  // Diagnóstico do envio: 30 s sem andamento mostram em que etapa ele parou.
+  // Envio parado: 30 s sem andamento mostram em que etapa ele parou.
   useEffect(() => {
     const parado = (evento: Event) => setAviso(`O envio está parado há 30 s na etapa: ${(evento as CustomEvent<string>).detail}.`);
     window.addEventListener(EVENTO_ENVIO_PARADO, parado);

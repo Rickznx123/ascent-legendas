@@ -24,29 +24,6 @@ export const s3DoAmbiente = (configuracao: Configuracao): ArmazenamentoS3 | unde
   }
   const s3 = new S3Client({region: configuracao.regiaoAws, credentials: {accessKeyId, secretAccessKey}});
   const bucket = configuracao.bucketDosVideos;
-  // Diagnóstico (provisório, envio parando no iPhone): cada comando enviado ao S3 e a
-  // resposta, no terminal (nome do comando, status e tempo; nunca chaves nem
-  // endereços). Os endereços assinados também passam por aqui, sem resposta do S3:
-  // esses não são registrados.
-  s3.middlewareStack.add(
-    (next, contexto) => async (args) => {
-      const inicio = Date.now();
-      const horario = () => new Date().toLocaleTimeString("pt-BR", {hour12: false});
-      try {
-        const resultado = await next(args);
-        const status = (resultado.output as {$metadata?: {httpStatusCode?: number}}).$metadata?.httpStatusCode;
-        if (status !== undefined) {
-          console.log(`[envio ${horario()}] s3 ${contexto.commandName} → ${status} (${Date.now() - inicio} ms)`);
-        }
-        return resultado;
-      } catch (erro) {
-        const {name, message, $metadata} = erro as {name?: string; message?: string; $metadata?: {httpStatusCode?: number}};
-        console.log(`[envio ${horario()}] s3 ${contexto.commandName} → ${$metadata?.httpStatusCode ?? "sem resposta"} ${name}: ${message} (${Date.now() - inicio} ms)`);
-        throw erro;
-      }
-    },
-    {step: "initialize", name: "registroDoDiagnostico"},
-  );
   return {
     s3,
     bucket,
