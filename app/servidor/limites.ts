@@ -1,6 +1,6 @@
 // Limites de uso do servidor (Etapa 3, bloco 7):
 //   - uma transcrição e uma exportação por conta de cada vez;
-//   - fila geral: até 20 renders no Lambda e 10 transcrições ao mesmo tempo; acima
+//   - fila geral: até 20 renders no Lambda e 3 transcrições ao mesmo tempo; acima
 //     disso, "Na fila, posição N", e a tarefa segue sozinha quando abre vaga;
 //   - pedidos por minuto, por conta (sem login, por endereço): 60 no geral e 10 nas
 //     rotas que custam (transcrever, exportar e abrir um envio).
@@ -16,7 +16,8 @@ const doAmbiente = (nome: string, padrao: number) => {
 
 export const LIMITES_DE_USO = {
   rendersAoMesmoTempo: doAmbiente("FILA_RENDERS", 20),
-  transcricoesAoMesmoTempo: doAmbiente("FILA_TRANSCRICOES", 10),
+  // 3 transcrições: cabe no plano Starter do Render (512 MB); cada uma extrai o áudio com o ffmpeg.
+  transcricoesAoMesmoTempo: doAmbiente("FILA_TRANSCRICOES", 3),
   pedidosPorMinuto: 60,
   pedidosCarosPorMinuto: 10,
 };
