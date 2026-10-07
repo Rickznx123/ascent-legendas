@@ -272,6 +272,23 @@ Feito (06/10/2026, testado): e-mail do login pelo Resend no domínio (`login@asc
 
 Falta: trocar o Render para o plano Starter; crédito no Replicate (US$ 20–25); alertas de orçamento da AWS (Budgets e Cost Anomaly Detection); CNPJ e endereço nos termos e na política (antes do lançamento pago).
 
+**Etapa 2c — Assinatura pelo Mercado Pago** — código pronto e no ar, em modo de teste (07/10/2026).
+
+Feito (commits `33e7abd`, `808a6a8`, `20eb69b`, 06/10/2026): "Assinar" cria a assinatura no Mercado Pago (R$ 30 por mês, sem plano associado) e leva ao checkout; a volta ao app nunca vale como prova: o servidor consulta o Mercado Pago no retorno, a cada webhook validado (x-signature) e na verificação periódica (a cada minuto: pendentes há mais de 2 minutos e ativas perto da cobrança). Regras: aprovado → assinante até o fim do ciclo + 5 dias; recusado → aviso e 5 dias de tolerância; cancelado → assinante até o fim do ciclo pago; estorno/chargeback → grátis na hora e assinatura cancelada. Contas de `npm run plano` (origem "manual") nunca são tocadas. Migração 007. Testes: `npm run teste:assinaturas`. Pagamento de teste aprovado com saldo em conta; o plano ativou pela consulta (o webhook automático não chegou, veja abaixo).
+
+Ajustes de 07/10/2026: rota de diagnóstico `/admin/assinatura/:id` com chave própria (`CHAVE_ADMIN`, 32+ caracteres; sem ela, a rota não existe), sem valores nem meio de pagamento na resposta e com cada uso no log; textos e termos sem prometer cartão ("pagamento pelo Mercado Pago").
+
+Webhook no teste: com credenciais de teste, o Mercado Pago só envia notificações se o webhook estiver configurado **em modo produção, logado na própria conta de teste vendedora** (Suas integrações → Detalhes da aplicação → Credenciais de teste → dados da conta de teste; entrar no Mercado Pago Developers com esse usuário e senha). A "URL modo teste" da aplicação principal não recebe os eventos de compras feitas entre usuários de teste. Conferir no painel: a URL (`https://legendas.ascentstudio.com.br/webhooks/mercadopago`), os eventos marcados (**Planos e assinaturas**: `subscription_preapproval` e `subscription_authorized_payment`; **Pagamentos**: `payment`), a assinatura secreta igual ao `MERCADOPAGO_WEBHOOK_SECRET` do Render e o histórico de notificações (status da entrega e motivo da falha). Um evento recusado pelo app aparece no log do Render como "webhook recusado (motivo)".
+
+Falta para ligar a cobrança de verdade:
+1. [VOCÊ] Ativar as credenciais de produção da aplicação no Mercado Pago (dados do negócio) e trocar no Render `MERCADOPAGO_ACCESS_TOKEN` pelo de produção.
+2. [VOCÊ] Webhook em **modo produção** na conta real: mesma URL, os três eventos acima, e a assinatura secreta de produção em `MERCADOPAGO_WEBHOOK_SECRET`. Conferir no histórico que a primeira notificação chegou com sucesso.
+3. [VOCÊ] Render no plano **Starter**: no Free o servidor dorme, e a verificação periódica (a rede de segurança se um webhook falhar) para junto.
+4. [VOCÊ] CNPJ e endereço nos termos e na política; revisão do texto (de preferência com advogado).
+5. [VOCÊ] Origem e licença dos efeitos sonoros (`sons/ORIGEM.md`): todos estão como "a confirmar", e vão dentro dos vídeos dos assinantes.
+6. [EU/VOCÊ] Teste real com a sua conta: assinar, ver o plano ativar, cancelar pelo app (continua assinante até o fim do ciclo) e pedir o estorno no painel (volta a grátis na hora). Depois, apagar ou deixar cancelada a assinatura de teste no banco.
+7. [VOCÊ, opcional] `CHAVE_ADMIN` no Render, só se for usar o diagnóstico; sem ela, a rota fica desligada.
+
 ---
 
 ## 8. Pronto antes de abrir para testadores
@@ -309,7 +326,9 @@ Todas tomadas em 05/10/2026 (veja "Decisões tomadas", no começo). O domínio s
 ## Pendências
 
 - **Termos de uso e política de privacidade** (`app/web/public/termos.html` e `privacidade.html`, rascunho de 06/10/2026): revisar o texto e, **antes do lançamento pago, preencher o marcador "[CNPJ e endereço: preencher antes do lançamento pago]"** nas duas páginas (de preferência com revisão de um advogado).
-- **Render: trocar do plano Free para o Starter antes de chamar testadores** (o Free dorme sem uso e tem menos memória; as vagas da fila foram medidas para o Starter).
+- **Render: trocar do plano Free para o Starter antes de chamar testadores** (o Free dorme sem uso e tem menos memória; as vagas da fila foram medidas para o Starter; e a verificação periódica da assinatura só roda com o servidor acordado).
+- **Cobrança de verdade (Etapa 2c):** credenciais de produção, webhook em modo produção e teste real; lista completa no bloco da Etapa 2c, acima.
+- **Origem dos efeitos sonoros** (`sons/ORIGEM.md`): os sete arquivos estão sem origem nem licença comprovadas.
 - **Retomada da transcrição ao sair do app** (Bloco 5): falta teste no iPhone.
 - **Pacote C: refazer no estilo imobiliário (dois grupos, âncora + trilho, variações e templates lineares).** As duas versões de 06/10/2026 foram desfeitas (dois grupos com motion blur, `31f6b06`; âncora e trilho, `a349932`): o C voltou ao desenho de antes (c1 a c6 e linear, Anton e Kaushan Script). A prancha de referência está em `pacote-c-referencia.html`, na raiz.
 
