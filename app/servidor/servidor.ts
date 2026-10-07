@@ -183,71 +183,85 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     }, 60_000).unref();
   }
 
-  // Diagnóstico da assinatura (só com a chave secreta do Supabase no cabeçalho
-  // x-chave-admin): o que o Mercado Pago devolve, sem dados pessoais, e reprocessar.
+  // Diagnóstico da assinatura (só com a chave própria CHAVE_ADMIN no cabeçalho
+  // x-chave-admin; sem ela no ambiente, as rotas nem existem). Devolve só o
+  // necessário para entender o estado: nada de valores, meio de pagamento ou e-mail.
+  // Cada uso (e cada chave errada) fica no log, com o endereço de quem pediu.
   const chaveAdminConfere = (request: Request) => {
-    const chave = process.env.SUPABASE_SECRET_KEY?.trim();
+    const chave = process.env.CHAVE_ADMIN?.trim();
     const recebida = request.header("x-chave-admin");
-    if (!chave || !recebida) return false;
+    if (!chave || chave.length < 32 || !recebida) return false;
     const resumo = (texto: string) => createHash("sha256").update(texto).digest();
-    return timingSafeEqual(resumo(chave), resumo(recebida));
+    const confere = timingSafeEqual(resumo(chave), resumo(recebida));
+    if (!confere) console.log(`Admin: chave errada em ${request.method} ${request.path} de ${request.ip ?? "?"}.`);
+    return confere;
   };
+  const idDaAssinaturaValido = (id: string) => /^[A-Za-z0-9_-]{1,64}$/.test(id);
+  const registrarUsoAdmin = (request: Request, id: string, resultado: string) =>
+    console.log(`Admin: ${request.method} ${request.path.replace(id, "…")} assinatura ${id} de ${request.ip ?? "?"}: ${resultado}.`);
   const diagnosticoDaAssinatura = async (preapprovalId: string) => {
     const pre = await apiMp!.assinatura(preapprovalId);
     const linha = await bancoDasAssinaturas!.assinaturaPorPreapproval(preapprovalId);
-    const cobrancas = await apiMp!.cobrancasDaAssinatura(preapprovalId).catch((erro: unknown) => (erro instanceof Error ? erro.message : String(erro)));
+    const cobrancas = await apiMp!.cobrancasDaAssinatura(preapprovalId).catch((erro: unknown) => {
+      console.log(`Admin: cobranças de ${preapprovalId}: ${erro instanceof Error ? erro.message : String(erro)}`);
+      return undefined;
+    });
     const perfil = linha ? await bancoDasAssinaturas!.perfil(linha.usuario_id) : undefined;
     return {
       mercadoPago: {
         status: pre.status,
-        external_reference: pre.external_reference,
         external_reference_confere: Boolean(linha && pre.external_reference === linha.usuario_id),
         date_created: pre.date_created,
         next_payment_date: pre.next_payment_date,
-        auto_recurring: pre.auto_recurring,
-        summarized: pre.summarized,
-        payment_method_id: pre.payment_method_id,
+        cobrancas_feitas: pre.summarized?.charged_quantity ?? null,
+        ultima_cobranca: pre.summarized?.last_charged_date ?? null,
+        semaforo: pre.summarized?.semaphore ?? null,
       },
-      cobrancas: Array.isArray(cobrancas)
+      cobrancas: cobrancas
         ? cobrancas.map((cobranca) => ({
             id: cobranca.id,
             status: cobranca.status,
-            valor: cobranca.transaction_amount,
             debit_date: cobranca.debit_date,
             pagamento: cobranca.payment ? {status: cobranca.payment.status, status_detail: cobranca.payment.status_detail} : undefined,
           }))
-        : {erro: cobrancas},
+        : {erro: "não deu para consultar (detalhe no log)"},
       banco: linha ? {status: linha.status, pago_ate: linha.pago_ate, proxima_cobranca: linha.proxima_cobranca, cobranca_falhou_em: linha.cobranca_falhou_em} : null,
-      perfil,
+      perfil: perfil ? {plano: perfil.plano, plano_origem: perfil.plano_origem, plano_ate: perfil.plano_ate, ciclo_fim: perfil.ciclo_fim} : undefined,
     };
   };
   app.get("/admin/assinatura/:id", async (request: Request, response: Response) => {
-    if (!apiMp || !bancoDasAssinaturas || !chaveAdminConfere(request)) {
+    const id = String(request.params.id);
+    if (!apiMp || !bancoDasAssinaturas || !chaveAdminConfere(request) || !idDaAssinaturaValido(id)) {
       response.status(404).json({ok: false});
       return;
     }
     try {
-      response.json(await diagnosticoDaAssinatura(String(request.params.id)));
+      response.json(await diagnosticoDaAssinatura(id));
+      registrarUsoAdmin(request, id, "consultada");
     } catch (erro) {
-      response.status(502).json({erro: erro instanceof Error ? erro.message : String(erro)});
+      registrarUsoAdmin(request, id, `falhou (${erro instanceof Error ? erro.message : String(erro)})`);
+      response.status(502).json({erro: "não deu para consultar (detalhe no log)"});
     }
   });
   app.post("/admin/assinatura/:id/sincronizar", async (request: Request, response: Response) => {
-    if (!apiMp || !bancoDasAssinaturas || !eventosMp || !chaveAdminConfere(request)) {
+    const id = String(request.params.id);
+    if (!apiMp || !bancoDasAssinaturas || !eventosMp || !chaveAdminConfere(request) || !idDaAssinaturaValido(id)) {
       response.status(404).json({ok: false});
       return;
     }
     try {
-      const linha = await bancoDasAssinaturas.assinaturaPorPreapproval(String(request.params.id));
+      const linha = await bancoDasAssinaturas.assinaturaPorPreapproval(id);
       if (!linha) {
+        registrarUsoAdmin(request, id, "desconhecida");
         response.status(404).json({erro: "assinatura desconhecida"});
         return;
       }
       const resultado = await eventosMp.sincronizar(linha);
-      console.log(`Mercado Pago: reprocessada ${linha.mp_preapproval_id}: ${resultado}`);
+      registrarUsoAdmin(request, id, `reprocessada (${resultado})`);
       response.json({resultado, ...(await diagnosticoDaAssinatura(linha.mp_preapproval_id))});
     } catch (erro) {
-      response.status(502).json({erro: erro instanceof Error ? erro.message : String(erro)});
+      registrarUsoAdmin(request, id, `falhou (${erro instanceof Error ? erro.message : String(erro)})`);
+      response.status(502).json({erro: "não deu para reprocessar (detalhe no log)"});
     }
   });
 
