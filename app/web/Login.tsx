@@ -101,7 +101,7 @@ export const TelaDeLogin: React.FC<{google: boolean; aviso?: string}> = ({google
     <main className="login">
       <div className="login-caixa">
         <div className="marca login-marca">
-          <i aria-hidden="true" />
+          <img src="/icones/favicon-48.png" alt="" aria-hidden="true" />
           Ascent Legendas
         </div>
         {enviado ? (

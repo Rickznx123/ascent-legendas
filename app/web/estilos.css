@@ -350,12 +350,12 @@ h3 {
   white-space: nowrap;
 }
 
-.marca i {
+/* O "A" do ícone (favicon-48.png, fundo transparente) ao lado do nome. */
+.marca img {
   width: 22px;
   height: 22px;
-  border-radius: var(--raio-p);
-  background: var(--acento);
   display: block;
+  flex: none;
 }
 
 .projeto {

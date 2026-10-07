@@ -70,7 +70,7 @@ export const BarraTopo: React.FC<Props> = ({
       ◧
     </button>
     <div className="marca">
-      <i aria-hidden="true" />
+      <img src="/icones/favicon-48.png" alt="" aria-hidden="true" />
       Ascent Legendas
     </div>
     <div className="projeto" aria-live="polite">
