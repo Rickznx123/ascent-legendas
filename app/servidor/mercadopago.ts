@@ -107,7 +107,7 @@ export const apiDoMercadoPago = (config: ConfigDoMercadoPago): ApiDoMercadoPago 
       (
         await chamar<{results?: PagamentoAutorizado[]}>(
           "GET",
-          `/authorized_payments/search?preapproval_id=${encodeURIComponent(preapprovalId)}&limit=50`,
+          `/authorized_payments/search?preapproval_id=${encodeURIComponent(preapprovalId)}`,
         )
       ).results ?? [],
     pagamento: (id) => chamar<Pagamento>("GET", `/v1/payments/${encodeURIComponent(id)}`),
