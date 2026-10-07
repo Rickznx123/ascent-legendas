@@ -33,6 +33,7 @@ import {contasDoAmbiente} from "./contas";
 import {rotasDeEnvio} from "./envio";
 import {previasLeves, tirarCapa} from "./previa-leve";
 import {videosDasContas} from "./videos";
+import {LIMITES_DE_USO, filaComVagas, limiteDePedidos} from "./limites";
 import {rendersNoLambda} from "./renders";
 import type {ExportacaoMontada} from "./renders";
 import type {AwsRegion} from "@remotion/lambda/client";
@@ -164,7 +165,9 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     });
   }
 
-  // Só uma tarefa longa (transcrever ou exportar) por vez nesta máquina.
+  // O que roda neste computador (render local e importação): uma coisa por vez.
+  // Transcrições e exportações no Lambda seguem os limites por conta e a fila geral
+  // (veja limites.ts).
   let tarefaAtual: string | undefined;
   const reservar = (nome: string, response: Response): boolean => {
     if (tarefaAtual) {
@@ -228,6 +231,12 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       response.status(401).json({mensagem: error instanceof Error ? error.message : String(error)});
     }
   });
+
+  // Pedidos por minuto, por conta (sem login, por endereço): veja limites.ts.
+  app.use(
+    "/api",
+    limiteDePedidos((request, response) => (response.locals.espaco as Espaco | undefined)?.usuario?.id ?? request.ip ?? "?"),
+  );
 
   // Envio direto do navegador para o S3, em partes (veja envio.ts).
   if (contas && armazenamento && previas) {
@@ -476,6 +485,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // (efeitos sonoros e sincronia) continuam. A transcrição antiga só é trocada
   // quando a nova fica pronta: se o whisper falhar, ela continua como estava.
   const transcricoes = tarefasSoltas();
+  const filaDeTranscricoes = filaComVagas(LIMITES_DE_USO.transcricoesAoMesmoTempo);
 
   app.post(
     "/api/transcrever",
@@ -500,13 +510,19 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
           return undefined;
         }
       }
-      if (!reservar("transcrição", response)) {
+      // Uma transcrição por conta de cada vez.
+      const daConta = transcricoes.daConta(contaDe(espaco));
+      if (daConta) {
+        response.status(409).json({mensagem: "Você já tem uma transcrição em andamento. Espere ela terminar para começar outra."});
         return undefined;
       }
       return transcricoes.iniciar(
         chave,
         video,
         async (progress) => {
+          // Fila geral: com todas as vagas ocupadas, espera a vez ("Na fila, posição N").
+          const liberar = await filaDeTranscricoes.entrar((posicao) => progress(`Na fila, posição ${posicao}`));
+          try {
           const anterior = await espaco.lerProjeto(video);
           const ajustes = manterAjustes && anterior?.source === video ? anterior : undefined;
           const origem = await videos.entrada(espaco, video);
@@ -549,10 +565,11 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
           });
           // A tela mostra qual reserva foi usada, se não foi o WhisperX.
           return {projeto, avisos};
+          } finally {
+            liberar();
+          }
         },
-        () => {
-          tarefaAtual = undefined;
-        },
+        () => undefined,
       );
     }),
   );
@@ -566,9 +583,6 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // Remover vídeo: sai da lista e a transcrição dele é apagada. O enviado ao S3 é
   // apagado (com a prévia leve e a capa); o antigo, do disco, vai para removidos/.
   app.post("/api/remover-video", async (request, response) => {
-    if (!reservar("remoção de vídeo", response)) {
-      return;
-    }
     try {
       const espaco = espacoDe(response);
       const nome = String((request.body as {nome?: string}).nome ?? "");
@@ -577,8 +591,6 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       response.json({movidoPara, apagouTranscricao});
     } catch (error) {
       response.status(400).json({mensagem: error instanceof Error ? error.message : String(error)});
-    } finally {
-      tarefaAtual = undefined;
     }
   });
 
@@ -601,7 +613,8 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // pedido (veja tarefas-soltas.ts): GET /api/exportacao diz o andamento ou o
   // resultado; com uma do mesmo vídeo em curso, POST devolve a mesma (sem outro render).
   const exportacoes = tarefasSoltas();
-  const chaveDaTarefa = (espaco: Espaco, video: string) => `${espaco.usuario?.id ?? "local"}:${video}`;
+  const contaDe = (espaco: Espaco) => espaco.usuario?.id ?? "local";
+  const chaveDaTarefa = (espaco: Espaco, video: string) => `${contaDe(espaco)}:${video}`;
 
   // O que vai para o render (local ou no Lambda): estilo, efeitos, sincronia e a
   // decisão do plano, com a duração medida no servidor. entrada: o vídeo (caminho no
@@ -689,6 +702,11 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       if (atual) {
         console.log(`Exportar: ${projeto.source} já está sendo exportado; o pedido acompanha o mesmo render.`);
         return atual;
+      }
+      // Uma exportação por conta de cada vez.
+      if (exportacoes.daConta(contaDe(espaco))) {
+        response.status(409).json({mensagem: "Você já tem uma exportação em andamento. Espere ela terminar para começar outra."});
+        return undefined;
       }
       if (!reservar("exportação", response)) {
         return undefined;

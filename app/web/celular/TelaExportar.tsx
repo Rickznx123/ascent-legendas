@@ -23,6 +23,7 @@ const podeCompartilharVideo = (): boolean => {
 export const TelaExportar: React.FC<{e: Editor; onVoltar: () => void}> = ({e, onVoltar}) => {
   const [compartilhando, setCompartilhando] = useState(false);
   const exportando = e.tarefa?.nome === "Exportar";
+  const naFila = exportando && Boolean(e.tarefa?.etapa?.startsWith("Na fila"));
   const pronto = e.exportado;
 
   const {conta} = useConta();
@@ -91,11 +92,12 @@ export const TelaExportar: React.FC<{e: Editor; onVoltar: () => void}> = ({e, on
         ) : exportando ? (
           <>
             <div className="cel-pronto cel-pronto-vazio" aria-hidden="true" />
-            <h2>Exportando…</h2>
-            <progress className="cel-progresso" max={1} value={e.tarefa?.fracao ?? undefined} />
+            {/* Na fila geral (bloco 7): a etapa diz a posição e a tela segue sozinha. */}
+            <h2>{naFila ? "Na fila" : "Exportando…"}</h2>
+            <progress className="cel-progresso" max={1} value={naFila ? undefined : (e.tarefa?.fracao ?? undefined)} />
             <p>
               {e.tarefa?.etapa}
-              {e.tarefa?.fracao !== undefined ? ` ${Math.round(e.tarefa.fracao * 100)}%` : ""}
+              {!naFila && e.tarefa?.fracao !== undefined ? ` ${Math.round(e.tarefa.fracao * 100)}%` : ""}
             </p>
             <p className="suave">O vídeo é gerado na nuvem. Pode sair do app ou bloquear a tela: a exportação continua e aparece aqui quando você voltar.</p>
           </>

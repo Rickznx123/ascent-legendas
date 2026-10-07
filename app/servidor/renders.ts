@@ -5,7 +5,10 @@
 // O vigia acompanha os renders em andamento (inclusive depois de o servidor
 // reiniciar): no sucesso, registra a exportação (o desconto do plano só acontece
 // aqui); na falha, apaga o arquivo parcial e não desconta.
-// Tocar em Exportar com um render do mesmo vídeo em andamento devolve o mesmo.
+// Tocar em Exportar com um render do mesmo vídeo em andamento devolve o mesmo; uma
+// exportação por conta de cada vez. Fila geral (bloco 7): até 20 no Lambda ao mesmo
+// tempo; os outros esperam na tabela (situação "fila"), e o despachante dispara
+// quando abre vaga, também depois de o servidor reiniciar.
 import {mkdtempSync, readFileSync, rmSync} from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -21,6 +24,7 @@ import type {Contas} from "./contas";
 import type {DecisaoDeExportacao} from "./cota";
 import type {Espaco} from "./espaco";
 import type {ArmazenamentoS3} from "./s3";
+import {LIMITES_DE_USO} from "./limites";
 import {siteDaVersao} from "./site-lambda";
 import type {SiteDoLambda} from "./site-lambda";
 
@@ -34,7 +38,9 @@ export const LAMBDA = {
   ladoMenor: 1080,
   // Vigia: de quanto em quanto tempo pergunta o andamento ao Lambda.
   vigiaMs: 3000,
-  // Render que não chegou a começar no Lambda (o servidor caiu no meio): falhou.
+  // Render que saiu da fila e não chegou ao Lambda (o servidor caiu no meio do
+  // disparo): volta para a fila depois de tanto tempo; sem os dados, falhou.
+  voltarParaAFilaMs: 2 * 60 * 1000,
   semComecarMs: 10 * 60 * 1000,
 };
 
@@ -68,8 +74,15 @@ type Linha = {
   usuario_id: string;
   projeto_id: string | null;
   video: string;
-  situacao: "andamento" | "pronto" | "falhou";
+  // fila: esperando vaga (migração 006); andamento: no Lambda (ou começando).
+  situacao: "fila" | "andamento" | "pronto" | "falhou";
   progresso: number;
+  // Para disparar quem está na fila (também depois de um reinício): as props do
+  // render (sem o vídeo), onde está o vídeo e o tamanho dos pedaços.
+  props: Omit<KineticCaptionVideoProps, "videoSrc"> | null;
+  video_chave: string | null;
+  quadros_por_lambda: number | null;
+  atualizado_em: string;
   render_id: string | null;
   funcao: string | null;
   bucket_remotion: string | null;
@@ -159,6 +172,15 @@ export const rendersNoLambda = ({
     if (linha.situacao === "falhou") {
       return {id: linha.id, video: linha.video, estado: "falhou", mensagem: linha.erro ?? "Não deu para exportar. Tente de novo."};
     }
+    if (linha.situacao === "fila") {
+      // Posição: quantos estão na fila antes deste, mais 1.
+      const {count} = await banco
+        .from("renders")
+        .select("id", {count: "exact", head: true})
+        .eq("situacao", "fila")
+        .lt("criado_em", linha.criado_em);
+      return {id: linha.id, video: linha.video, estado: "andamento", etapa: `Na fila, posição ${(count ?? 0) + 1}`, fracao: 0};
+    }
     return {
       id: linha.id,
       video: linha.video,
@@ -190,7 +212,7 @@ export const rendersNoLambda = ({
   };
 
   const falhar = async (linha: Pick<Linha, "id" | "saida_chave">, erro: string, custoUsd?: number) => {
-    await atualizar(linha.id, {situacao: "falhou", erro, terminado_em: new Date().toISOString(), ...(custoUsd === undefined ? {} : {custo_usd: custoUsd})});
+    await atualizar(linha.id, {situacao: "falhou", erro, props: null, terminado_em: new Date().toISOString(), ...(custoUsd === undefined ? {} : {custo_usd: custoUsd})});
     // O arquivo parcial (se o Lambda chegou a gravar algo) sai do bucket.
     await s3.send(new DeleteObjectCommand({Bucket, Key: linha.saida_chave})).catch(() => undefined);
   };
@@ -219,6 +241,76 @@ export const rendersNoLambda = ({
     }
   };
 
+  // Dispara no Lambda um render que saiu da fila (a linha já está em "andamento").
+  const iniciarNoLambda = async (linha: Linha) => {
+    try {
+      if (!linha.props || !linha.video_chave) {
+        throw new Error("faltam os dados do render");
+      }
+      const {site, funcao} = await prontoParaExportar();
+      // O vídeo pelo endereço assinado, valendo o render inteiro (6 h).
+      const entrada = await armazenamento.enderecoDeLeitura(linha.video_chave, 6 * 3600);
+      await enviarSons(linha.props, site);
+      const quadros = linha.quadros_por_lambda ?? LAMBDA.quadrosPorLambda(Number(linha.duracao_s));
+      const {renderId, bucketName} = await renderMediaOnLambda({
+        region: regiao,
+        functionName: funcao,
+        serveUrl: site.serveUrl,
+        composition: "CaptionedVideo",
+        inputProps: {...linha.props, videoSrc: entrada},
+        codec: "h264",
+        audioCodec: "aac",
+        framesPerLambda: quadros,
+        // O bucket dos vídeos não usa ACL (dono único dos arquivos): sem ACL na gravação.
+        privacy: "no-acl",
+        outName: {bucketName: Bucket, key: linha.saida_chave},
+        overwrite: true,
+      });
+      // As props não precisam mais ficar guardadas.
+      await atualizar(linha.id, {render_id: renderId, bucket_remotion: bucketName, funcao, props: null});
+      console.log(`Exportar: ${linha.video} no Lambda (render ${renderId}, ${quadros} quadros por Lambda, ${linha.props.video.width}x${linha.props.video.height}).`);
+    } catch (erro) {
+      console.log(`Exportar: ${linha.video} não começou no Lambda: ${mensagem(erro)}`);
+      await falhar(linha, `Não deu para começar a exportação na nuvem (${mensagem(erro)}). Tente de novo.`);
+    }
+  };
+
+  // Fila geral: com vaga (menos de LIMITES_DE_USO.rendersAoMesmoTempo no Lambda),
+  // tira da fila os mais antigos e dispara. A troca "fila" → "andamento" é feita no
+  // banco só se a linha ainda está na fila, então dois despachos nunca pegam a mesma.
+  let despachando = false;
+  let despacharDeNovo = false;
+  const despachar = async (): Promise<void> => {
+    if (despachando) {
+      despacharDeNovo = true;
+      return;
+    }
+    despachando = true;
+    try {
+      do {
+        despacharDeNovo = false;
+        const {count: rodando, error} = await banco.from("renders").select("id", {count: "exact", head: true}).eq("situacao", "andamento");
+        if (error) return;
+        const vagas = LIMITES_DE_USO.rendersAoMesmoTempo - (rodando ?? 0);
+        if (vagas <= 0) return;
+        const {data: fila} = await banco.from("renders").select("*").eq("situacao", "fila").order("criado_em").limit(vagas);
+        for (const linha of (fila ?? []) as Linha[]) {
+          const {data: pega} = await banco
+            .from("renders")
+            .update({situacao: "andamento", atualizado_em: new Date().toISOString()})
+            .eq("id", linha.id)
+            .eq("situacao", "fila")
+            .select("id");
+          if ((pega ?? []).length === 1) {
+            void iniciarNoLambda(linha);
+          }
+        }
+      } while (despacharDeNovo);
+    } finally {
+      despachando = false;
+    }
+  };
+
   // Pedidos sendo abertos agora (entre o pedido e a linha no banco), por conta e vídeo.
   const abrindo = new Map<string, Promise<ExportacaoNoLambda>>();
 
@@ -238,14 +330,24 @@ export const rendersNoLambda = ({
     if (jaAbrindo) return jaAbrindo;
     const abrir = (async (): Promise<ExportacaoNoLambda> => {
       const atual = await ultimaDoVideo(usuario.id, video);
-      if (atual?.situacao === "andamento") {
+      if (atual?.situacao === "andamento" || atual?.situacao === "fila") {
         console.log(`Exportar: ${video} já está sendo exportado; o pedido acompanha o mesmo render.`);
         return paraTela(atual);
       }
-      const {site, funcao} = await prontoParaExportar();
-      // O vídeo pelo endereço assinado: o ffprobe mede agora; o Lambda lê durante o
-      // render inteiro (vale 6 h).
-      const entrada = await armazenamento.enderecoDeLeitura(chaveDoVideo, 6 * 3600);
+      // Uma exportação por conta de cada vez (na fila ou no Lambda).
+      const {count: daConta} = await banco
+        .from("renders")
+        .select("id", {count: "exact", head: true})
+        .eq("usuario_id", usuario.id)
+        .in("situacao", ["fila", "andamento"]);
+      if ((daConta ?? 0) > 0) {
+        throw new Error("Você já tem uma exportação em andamento. Espere ela terminar para começar outra.");
+      }
+      // Sem o site desta versão, avisa já (antes de entrar na fila).
+      await prontoParaExportar();
+      // O ffprobe mede a duração pelo endereço assinado (o do Lambda é assinado na hora
+      // de disparar, valendo o render inteiro).
+      const entrada = await armazenamento.enderecoDeLeitura(chaveDoVideo, 600);
       let montada: ExportacaoMontada;
       try {
         montada = await montar(entrada);
@@ -266,51 +368,30 @@ export const rendersNoLambda = ({
         .order("atualizado_em", {ascending: false})
         .limit(1)
         .maybeSingle();
+      // Entra na fila (com vaga, o despachante dispara na hora).
       const {data, error} = await banco
         .from("renders")
         .insert({
           usuario_id: usuario.id,
           projeto_id: (projetoNoBanco as {id: string} | null)?.id ?? null,
           video,
-          situacao: "andamento",
+          situacao: "fila",
           progresso: 0,
           saida_chave: saidaChave,
           duracao_s: montada.duracaoS,
           desconto_s: montada.decisao?.descontoS ?? 0,
           com_marca: montada.decisao?.comMarca ?? false,
-          funcao,
-          bucket_remotion: site.bucketDoRemotion,
+          props,
+          video_chave: chaveDoVideo,
+          quadros_por_lambda: LAMBDA.quadrosPorLambda(montada.duracaoS),
         })
         .select("*")
         .single();
-      if (error) throw new Error(`Não foi possível registrar a exportação (a migração 005 já rodou no Supabase?): ${error.message}`);
+      if (error) throw new Error(`Não foi possível registrar a exportação (as migrações 005 e 006 já rodaram no Supabase?): ${error.message}`);
       const linha = data as Linha;
-      // Dispara no Lambda sem segurar o pedido (o vigia acompanha daqui em diante).
-      void (async () => {
-        try {
-          await enviarSons(props, site);
-          const {renderId, bucketName} = await renderMediaOnLambda({
-            region: regiao,
-            functionName: funcao,
-            serveUrl: site.serveUrl,
-            composition: "CaptionedVideo",
-            inputProps: {...props, videoSrc: entrada},
-            codec: "h264",
-            audioCodec: "aac",
-            framesPerLambda: LAMBDA.quadrosPorLambda(montada.duracaoS),
-            // O bucket dos vídeos não usa ACL (dono único dos arquivos): sem ACL na gravação.
-            privacy: "no-acl",
-            outName: {bucketName: Bucket, key: saidaChave},
-            overwrite: true,
-          });
-          await atualizar(linha.id, {render_id: renderId, bucket_remotion: bucketName});
-          console.log(`Exportar: ${video} no Lambda (render ${renderId}, ${LAMBDA.quadrosPorLambda(montada.duracaoS)} quadros por Lambda, ${props.video.width}x${props.video.height}).`);
-        } catch (erro) {
-          console.log(`Exportar: ${video} não começou no Lambda: ${mensagem(erro)}`);
-          await falhar(linha, `Não deu para começar a exportação na nuvem (${mensagem(erro)}). Tente de novo.`);
-        }
-      })();
-      return paraTela(linha);
+      await despachar();
+      const agora = await ultimaDoVideo(usuario.id, video);
+      return paraTela(agora ?? linha);
     })();
     abrindo.set(chave, abrir);
     try {
@@ -336,7 +417,17 @@ export const rendersNoLambda = ({
       if (error) return;
       for (const linha of data as Linha[]) {
         if (!linha.render_id || !linha.funcao || !linha.bucket_remotion) {
-          if (Date.now() - new Date(linha.criado_em).getTime() > LAMBDA.semComecarMs) {
+          // Saiu da fila e não chegou ao Lambda (o servidor caiu no meio do disparo):
+          // volta para a fila; sem os dados para disparar, falhou.
+          const parado = Date.now() - new Date(linha.atualizado_em ?? linha.criado_em).getTime();
+          if (linha.props && parado > LAMBDA.voltarParaAFilaMs) {
+            await banco
+              .from("renders")
+              .update({situacao: "fila", atualizado_em: new Date().toISOString()})
+              .eq("id", linha.id)
+              .eq("situacao", "andamento")
+              .is("render_id", null);
+          } else if (parado > LAMBDA.semComecarMs) {
             await falhar(linha, "A exportação não chegou a começar. Tente de novo.");
           }
           continue;
@@ -358,7 +449,7 @@ export const rendersNoLambda = ({
             // (nunca desconta duas vezes).
             const {data: marcada} = await banco
               .from("renders")
-              .update({situacao: "pronto", progresso: 1, custo_usd: progresso.costs.accruedSoFar, terminado_em: new Date().toISOString(), atualizado_em: new Date().toISOString()})
+              .update({situacao: "pronto", progresso: 1, props: null, custo_usd: progresso.costs.accruedSoFar, terminado_em: new Date().toISOString(), atualizado_em: new Date().toISOString()})
               .eq("id", linha.id)
               .eq("situacao", "andamento")
               .select("id");
@@ -382,6 +473,8 @@ export const rendersNoLambda = ({
           console.log(`Exportar: não deu para ler o andamento do render ${linha.render_id}: ${mensagem(erro)}`);
         }
       }
+      // Vagas que abriram (renders que terminaram) e a fila depois de um reinício.
+      await despachar();
     } finally {
       vigiando = false;
     }

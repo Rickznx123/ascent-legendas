@@ -26,6 +26,10 @@ export const tarefasSoltas = () => {
       const tarefa = tarefas.get(chave);
       return tarefa?.estado === "andamento" ? tarefa : undefined;
     },
+    // Uma tarefa em andamento desta conta, de qualquer vídeo (as chaves começam com
+    // "<conta>:"); uma por conta de cada vez.
+    daConta: (conta: string): TarefaSolta | undefined =>
+      [...tarefas.entries()].find(([chave, tarefa]) => chave.startsWith(`${conta}:`) && tarefa.estado === "andamento")?.[1],
     // Começa a tarefa e devolve na hora (sem esperar terminar). executar recebe o
     // progresso e devolve os campos do resultado; terminar roda no fim, dê certo ou não.
     iniciar: (

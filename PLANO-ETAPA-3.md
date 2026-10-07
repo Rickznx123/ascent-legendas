@@ -244,7 +244,9 @@ Teste no Lambda (06/10/2026, vídeo do iPhone de 27 s): 80 s do pedido ao vídeo
 2. [EU] Exportar = Lambda, com o site já publicado; vigia de renders; desconto só no sucesso; download por endereço assinado; arquivo parcial apagado na falha.
 3. [EU] Teste: exportar, fechar a aba no meio, reabrir e encontrar "pronto"; falha simulada sem desconto.
 
-**Bloco 7 — Limites e fila**
+**Bloco 7 — Limites e fila** — código em 06/10/2026; falta o teste no seu celular.
+
+Como ficou: uma transcrição e uma exportação por conta de cada vez (a segunda é recusada com aviso; o mesmo vídeo de novo acompanha a que está em curso); fila geral de 20 renders no Lambda e 10 transcrições ao mesmo tempo, com "Na fila, posição N" e saída sozinha da fila; 60 pedidos por minuto por conta e 10 nas rotas que custam (transcrever, exportar, abrir envio), com as consultas de andamento fora da conta. A fila de renders fica na tabela `renders` (migração 006) e se recupera depois de um reinício; a de transcrições fica na memória. Atenção: 10 transcrições ao mesmo tempo podem passar dos 512 MB do Starter do Render (cada uma extrai o áudio com o ffmpeg); as vagas mudam em `app/servidor/limites.ts`.
 1. [EU] Uma tarefa por usuário, fila geral e limite de pedidos.
 2. [EU] Teste: dez exportações ao mesmo tempo com contas de teste.
 
