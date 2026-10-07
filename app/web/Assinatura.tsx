@@ -184,11 +184,13 @@ export const JanelaGerenciarAssinatura: React.FC<{onFechar: () => void}> = ({onF
 
 // Volta do checkout (?assinatura=retorno, ou o app reaberto depois do checkout). O
 // retorno não prova o pagamento: a tela pede ao servidor que consulte o Mercado Pago
-// (POST /api/assinatura/confirmar) e mostra o plano que ele decidir.
+// (POST /api/assinatura/confirmar) e mostra o plano que ele decidir, ou a recusa,
+// quando o Mercado Pago confirma que a cobrança foi recusada.
 const ESPERA_MS = 90_000;
 export const RetornoDaAssinatura: React.FC<{onFechar: () => void}> = ({onFechar}) => {
   const {atualizarConta} = useConta();
-  const [situacao, setSituacao] = useState<"confirmando" | "ativa" | "demorando">("confirmando");
+  const [situacao, setSituacao] = useState<"confirmando" | "ativa" | "recusado" | "demorando">("confirmando");
+  const [assinando, setAssinando] = useState(false);
   useEffect(() => {
     let parar = false;
     const inicio = Date.now();
@@ -199,6 +201,11 @@ export const RetornoDaAssinatura: React.FC<{onFechar: () => void}> = ({onFechar}
           marcarCheckout(false);
           setSituacao("ativa");
           atualizarConta();
+          return;
+        }
+        if (resposta?.recusado) {
+          marcarCheckout(false);
+          setSituacao("recusado");
           return;
         }
         if (Date.now() - inicio > ESPERA_MS) {
@@ -214,6 +221,9 @@ export const RetornoDaAssinatura: React.FC<{onFechar: () => void}> = ({onFechar}
       parar = true;
     };
   }, [atualizarConta]);
+  if (assinando) {
+    return <JanelaAssinar onFechar={onFechar} />;
+  }
   return (
     <div className="login janela-fundo" role="dialog" aria-modal="true" aria-labelledby="retorno-titulo">
       <div className="login-caixa">
@@ -227,6 +237,16 @@ export const RetornoDaAssinatura: React.FC<{onFechar: () => void}> = ({onFechar}
             <h1 id="retorno-titulo">Assinatura ativa</h1>
             <p>Pronto! Você já pode exportar sem a marca d'água, com 30 minutos por mês.</p>
           </>
+        ) : situacao === "recusado" ? (
+          <>
+            <h1 id="retorno-titulo">Pagamento recusado</h1>
+            <p className="login-erro" role="alert">
+              Pagamento recusado. Tente outro cartão ou outro meio de pagamento.
+            </p>
+            <button type="button" className="bt primario cheio" onClick={() => setAssinando(true)}>
+              Assinar de novo
+            </button>
+          </>
         ) : (
           <>
             <h1 id="retorno-titulo">Ainda não confirmamos o pagamento</h1>
@@ -238,13 +258,13 @@ export const RetornoDaAssinatura: React.FC<{onFechar: () => void}> = ({onFechar}
         )}
         <button
           type="button"
-          className="bt primario cheio"
+          className={`bt cheio${situacao === "recusado" ? "" : " primario"}`}
           onClick={() => {
             marcarCheckout(false);
             onFechar();
           }}
         >
-          {situacao === "confirmando" ? "Fechar e continuar" : "Continuar"}
+          {situacao === "confirmando" ? "Fechar e continuar" : situacao === "recusado" ? "Agora não" : "Continuar"}
         </button>
       </div>
     </div>

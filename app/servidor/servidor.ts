@@ -461,8 +461,18 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       if (resumo.situacao === "cortesia") throw new Error("A sua conta já é assinante (cortesia), sem cobrança.");
       if (resumo.situacao !== "nenhuma") throw new Error("Você já é assinante. Para mudar, use Gerenciar assinatura.");
       const atual = await bancoDasAssinaturas.assinaturaDaConta(espaco.usuario.id);
-      // Tocou em Assinar de novo logo depois: o mesmo checkout.
-      if (atual?.status === "pendente" && atual.init_point && Date.now() - new Date(atual.criado_em).getTime() < 60 * 60 * 1000) {
+      // Assinar de novo depois de um pagamento recusado: a assinatura recusada é
+      // cancelada no Mercado Pago (para ele não tentar cobrar de novo e a pessoa
+      // pagar duas vezes) e um checkout novo é aberto.
+      if (atual && atual.status !== "cancelada" && atual.cobranca_falhou_em) {
+        const anterior = await apiMp.assinatura(atual.mp_preapproval_id);
+        const pre = anterior.status === "cancelled" ? anterior : await apiMp.cancelarAssinatura(atual.mp_preapproval_id);
+        const efeito = regraDaAssinatura(atual, pre, await bancoDasAssinaturas.perfil(espaco.usuario.id), new Date());
+        await bancoDasAssinaturas.salvarAssinatura(atual.id, efeito.assinatura);
+        if (efeito.perfil) await bancoDasAssinaturas.salvarPerfil(espaco.usuario.id, efeito.perfil);
+        console.log(`Assinatura: recusada cancelada antes do novo checkout de ${espaco.usuario.id} (${atual.mp_preapproval_id}).`);
+      } else if (atual?.status === "pendente" && atual.init_point && Date.now() - new Date(atual.criado_em).getTime() < 60 * 60 * 1000) {
+        // Tocou em Assinar de novo logo depois: o mesmo checkout.
         return {endereco: atual.init_point};
       }
       const pre = await apiMp.criarAssinatura({
@@ -496,7 +506,11 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
         console.log(`Mercado Pago: confirmação de ${espaco.usuario.id}: ${resultado}`);
       }
       const perfil = await contas.perfil(espaco.usuario, response.locals.token as string);
-      return {plano: perfil.plano, assinatura: await resumoDaConta(espaco, response.locals.token as string)};
+      const assinatura = await resumoDaConta(espaco, response.locals.token as string);
+      // Recusado: a cobrança da assinatura atual falhou e o plano não foi ativado.
+      const atual = await bancoDasAssinaturas?.assinaturaDaConta(espaco.usuario.id).catch(() => undefined);
+      const recusado = assinatura.situacao === "nenhuma" && Boolean(atual && atual.status !== "cancelada" && atual.cobranca_falhou_em);
+      return {plano: perfil.plano, assinatura, recusado};
     }),
   );
 

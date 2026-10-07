@@ -117,7 +117,7 @@ export const api = {
   // Assinatura (Etapa 2c): o link do checkout do Mercado Pago; e o cancelamento.
   assinar: () => pedir("/api/assinatura", {method: "POST"}).then((r) => lerJson<{endereco: string}>(r)),
   confirmarAssinatura: () =>
-    pedir("/api/assinatura/confirmar", {method: "POST"}).then((r) => lerJson<{plano: Plano; assinatura: ResumoDaAssinatura}>(r)),
+    pedir("/api/assinatura/confirmar", {method: "POST"}).then((r) => lerJson<{plano: Plano; assinatura: ResumoDaAssinatura; recusado?: boolean}>(r)),
   cancelarAssinatura: () => pedir("/api/assinatura/cancelar", {method: "POST"}).then((r) => lerJson<{assinatura: ResumoDaAssinatura}>(r)),
 
   importacaoLocal: () =>
