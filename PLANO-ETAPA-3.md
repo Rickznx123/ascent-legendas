@@ -250,7 +250,7 @@ Como ficou: uma transcrição e uma exportação por conta de cada vez (a segund
 1. [EU] Uma tarefa por usuário, fila geral (20 renders, 3 transcrições) e limite de pedidos.
 2. [EU] Teste: dez exportações ao mesmo tempo com contas de teste.
 
-**Bloco 8 — PWA** — código em 06/10/2026; falta o teste no seu celular.
+**Bloco 8 — PWA** ✅ concluído em 06/10/2026 (commit `a9d8b7d`), testado no iPhone (app instalado).
 
 Como ficou: manifesto ("Ascent Legendas", nome curto "Legendas", standalone, em pé, cores do tema), ícones provisórios gerados da marca (`scripts/gerar-icones.ts`: 192, 512, maskable 512, apple-touch-icon 180 e favicon), tags da Apple (sem a barra do Safari, barra de status por cima com a área segura respeitada) e service worker mínimo, que não guarda nada em cache (a API, os vídeos, os endereços assinados e a tela vêm sempre da rede; sem internet, um aviso em português). A página, o sw.js e o manifesto vão sem cache; os arquivos da tela têm hash no nome: uma versão nova chega sozinha. Lighthouse 11 (categoria PWA): 100. Os links do e-mail abrem no Safari: a conta é confirmada (ou a senha nova é salva) lá, e a tela avisa para voltar ao app e entrar com o e-mail e a senha.
 1. [EU] Manifesto, ícones, tags da Apple e service worker mínimo.
