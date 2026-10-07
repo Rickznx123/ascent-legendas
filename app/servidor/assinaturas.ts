@@ -4,9 +4,13 @@
 // Fluxo: "Assinar" → POST /api/assinatura cria a assinatura no Mercado Pago (sem
 // plano associado, pagamento pendente) e devolve o checkout (init_point) → a pessoa
 // paga lá e volta ao app (?assinatura=retorno, que NUNCA vale como prova) → o
-// Mercado Pago avisa por webhook → o servidor valida o x-signature, guarda o evento
-// (repetido é ignorado), responde 200 e, depois, CONSULTA o Mercado Pago e aplica as
-// regras abaixo.
+// servidor CONSULTA o Mercado Pago (a assinatura e as cobranças dela) e aplica as
+// regras abaixo. A consulta acontece: no retorno do checkout (POST
+// /api/assinatura/confirmar), na verificação periódica (pendentes há mais de 2
+// minutos, ativas perto da cobrança) e a cada webhook validado (x-signature, evento
+// repetido ignorado, 200 na hora e processamento depois). Nenhum desses depende de um
+// evento de pagamento chegar: a assinatura "authorized" com a cobrança em dia (pelo
+// resumo do Mercado Pago, qualquer meio de pagamento) já ativa o plano.
 //
 // Regras (decisões de 2c):
 //   - pagamento aprovado: assinante; ciclo = do pagamento até a próxima cobrança;
@@ -80,6 +84,9 @@ export type BancoDeAssinaturas = {
   salvarPagamento: (pagamento: PagamentoDaAssinatura & {dados?: unknown}) => Promise<void>;
   perfil: (usuarioId: string) => Promise<PerfilDaAssinatura>;
   salvarPerfil: (usuarioId: string, campos: Partial<PerfilDaAssinatura>) => Promise<void>;
+  // Para a verificação periódica: pendentes criadas no intervalo e autorizadas com a
+  // próxima cobrança no intervalo.
+  assinaturasParaConferir: (limites: {pendentesDe: Date; pendentesAte: Date; cobrancaDe: Date; cobrancaAte: Date}) => Promise<Assinatura[]>;
 };
 
 // ---------- regras (funções puras) ----------
@@ -174,6 +181,43 @@ export const regraDaCobranca = (
   return {assinatura: {}, pagamento: registro};
 };
 
+// A cobrança está em dia pelo resumo do Mercado Pago (summarized): já houve cobrança
+// e o semáforo não está vermelho. Vale para qualquer meio de pagamento (cartão, saldo
+// em conta), sem depender do evento de pagamento.
+export const cobrancaEmDia = (pre: Preapproval): boolean => {
+  const resumo = pre.summarized;
+  if (!resumo || resumo.semaphore === "red") return false;
+  return (resumo.charged_quantity ?? 0) >= 1 || Boolean(resumo.last_charged_date) || (resumo.last_charged_amount ?? 0) > 0;
+};
+
+// Assinatura autorizada com a cobrança em dia: assinante, mesmo sem o evento (ou a
+// consulta) do pagamento. O ciclo vai da última cobrança até a próxima.
+export const regraDaAutorizacao = (
+  pre: Preapproval,
+  perfil: PerfilDaAssinatura,
+  agora: Date,
+): {assinatura: Partial<Assinatura>; perfil: Partial<PerfilDaAssinatura>} | undefined => {
+  if (pre.status !== "authorized" || !cobrancaEmDia(pre)) return undefined;
+  const inicio = new Date(pre.summarized?.last_charged_date ?? pre.date_created ?? agora.toISOString());
+  const proxima = pre.next_payment_date ? new Date(pre.next_payment_date) : undefined;
+  const fim = proxima && proxima > inicio ? proxima : UM_MES(inicio);
+  // O ciclo atual já cobre este (pelo pagamento ou por uma consulta anterior): nada muda.
+  const DIA = 24 * 3600 * 1000;
+  if (perfil.plano === "assinante" && perfil.plano_origem === "assinatura" && perfil.ciclo_fim && new Date(perfil.ciclo_fim).getTime() >= fim.getTime() - DIA) {
+    return undefined;
+  }
+  return {
+    assinatura: {status: "autorizada", pago_ate: fim.toISOString(), proxima_cobranca: pre.next_payment_date ?? fim.toISOString(), cobranca_falhou_em: null},
+    perfil: {
+      plano: "assinante",
+      plano_origem: "assinatura",
+      ciclo_inicio: inicio.toISOString(),
+      ciclo_fim: fim.toISOString(),
+      plano_ate: new Date(fim.getTime() + TOLERANCIA_MS).toISOString(),
+    },
+  };
+};
+
 // Um pagamento já registrado mudou (estorno, chargeback).
 export const ESTORNOS = ["refunded", "charged_back"];
 export const regraDoPagamento = (
@@ -233,28 +277,112 @@ export const processadorDeEventos = ({banco, api, agora = () => new Date()}: {ba
     return assinatura;
   };
 
-  const daAssinatura = async (preapprovalId: string) => {
-    const pre = await api.assinatura(preapprovalId);
-    const assinatura = await assinaturaConferida(preapprovalId, pre);
-    if (!assinatura) return "ignorado: assinatura desconhecida";
-    const perfil = await banco.perfil(assinatura.usuario_id);
-    const efeito = regraDaAssinatura(assinatura, pre, perfil, agora());
-    await banco.salvarAssinatura(assinatura.id, efeito.assinatura);
-    await aplicarNoPerfil(assinatura.usuario_id, efeito.perfil);
-    return `assinatura ${efeito.assinatura.status}`;
-  };
-
-  const daCobranca = async (cobrancaId: string) => {
-    const cobranca = await api.pagamentoAutorizado(cobrancaId);
-    const pre = await api.assinatura(cobranca.preapproval_id).catch(() => undefined);
-    const assinatura = await assinaturaConferida(cobranca.preapproval_id, pre);
-    if (!assinatura) return "ignorado: assinatura desconhecida";
+  // Aplica uma cobrança (vinda do webhook ou da busca das cobranças da assinatura).
+  const aplicarCobranca = async (assinatura: Assinatura, cobranca: PagamentoAutorizado, pre: Preapproval | undefined) => {
     const perfil = await banco.perfil(assinatura.usuario_id);
     const efeito = regraDaCobranca(assinatura, cobranca, pre, perfil, agora());
     if (efeito.pagamento) await banco.salvarPagamento({...efeito.pagamento, dados: cobranca});
     if (Object.keys(efeito.assinatura).length > 0) await banco.salvarAssinatura(assinatura.id, efeito.assinatura);
     await aplicarNoPerfil(assinatura.usuario_id, efeito.perfil);
+    return {...assinatura, ...efeito.assinatura};
+  };
+
+  // Consulta a assinatura no Mercado Pago (o status, as cobranças e o resumo delas) e
+  // aplica as regras. Não depende de nenhum evento: é o que o retorno do checkout, a
+  // verificação periódica e os webhooks usam.
+  const sincronizar = async (inicial: Assinatura): Promise<string> => {
+    const pre = await api.assinatura(inicial.mp_preapproval_id);
+    // Só a assinatura desta conta (o external_reference é o id da conta).
+    if (pre.external_reference !== inicial.usuario_id) return "ignorado: external_reference de outra conta";
+    let assinatura = inicial;
+    const efeito = regraDaAssinatura(assinatura, pre, await banco.perfil(assinatura.usuario_id), agora());
+    await banco.salvarAssinatura(assinatura.id, efeito.assinatura);
+    await aplicarNoPerfil(assinatura.usuario_id, efeito.perfil);
+    assinatura = {...assinatura, ...efeito.assinatura};
+    // As cobranças, da mais antiga para a mais nova (a busca pode falhar: o resumo basta).
+    const cobrancas = await api.cobrancasDaAssinatura(assinatura.mp_preapproval_id).catch(() => [] as PagamentoAutorizado[]);
+    const quando = (cobranca: PagamentoAutorizado) => new Date(cobranca.debit_date ?? cobranca.date_created ?? 0).getTime();
+    for (const cobranca of [...cobrancas].sort((a, b) => quando(a) - quando(b))) {
+      if (cobranca.preapproval_id && cobranca.preapproval_id !== assinatura.mp_preapproval_id) continue;
+      const conhecido = cobranca.payment ? await banco.pagamento(String(cobranca.payment.id)) : undefined;
+      if (conhecido && conhecido.status === cobranca.payment?.status) continue;
+      assinatura = await aplicarCobranca(assinatura, cobranca, pre);
+    }
+    // Autorizada com a cobrança em dia (mesmo sem nenhuma cobrança encontrada).
+    const autorizacao = regraDaAutorizacao(pre, await banco.perfil(assinatura.usuario_id), agora());
+    if (autorizacao) {
+      await banco.salvarAssinatura(assinatura.id, autorizacao.assinatura);
+      await aplicarNoPerfil(assinatura.usuario_id, autorizacao.perfil);
+    }
+    return `assinatura ${pre.status}, ${cobrancas.length} cobrança(s)${autorizacao ? ", plano ativado pelo resumo" : ""}`;
+  };
+
+  const daAssinatura = async (preapprovalId: string) => {
+    const assinatura = await banco.assinaturaPorPreapproval(preapprovalId);
+    if (!assinatura) return "ignorado: assinatura desconhecida";
+    return sincronizar(assinatura);
+  };
+
+  const daCobranca = async (cobrancaId: string) => {
+    let cobranca: PagamentoAutorizado;
+    try {
+      cobranca = await api.pagamentoAutorizado(cobrancaId);
+    } catch (erro) {
+      // O id não é de uma cobrança, mas de uma assinatura nossa (como no simulador do
+      // painel): consulta a assinatura.
+      const assinatura = await banco.assinaturaPorPreapproval(cobrancaId);
+      if (assinatura) return sincronizar(assinatura);
+      throw erro;
+    }
+    const pre = await api.assinatura(cobranca.preapproval_id).catch(() => undefined);
+    const assinatura = await assinaturaConferida(cobranca.preapproval_id, pre);
+    if (!assinatura) return "ignorado: assinatura desconhecida";
+    await aplicarCobranca(assinatura, cobranca, pre);
     return `cobrança ${cobranca.payment?.status ?? cobranca.status}`;
+  };
+
+  // Uma consulta por assinatura dentro do intervalo (para não sobrecarregar a API).
+  const ultimaConsulta = new Map<string, number>();
+  const consultar = async (assinatura: Assinatura, intervaloMs: number): Promise<string | undefined> => {
+    const agoraMs = agora().getTime();
+    const ultima = ultimaConsulta.get(assinatura.id);
+    if (ultima !== undefined && agoraMs - ultima < intervaloMs) return undefined;
+    ultimaConsulta.set(assinatura.id, agoraMs);
+    return sincronizar(assinatura);
+  };
+
+  // Volta do checkout: a conta pede a confirmação; o servidor consulta a assinatura
+  // dela no Mercado Pago (no máximo uma vez a cada 5 segundos).
+  const confirmarDaConta = async (usuarioId: string): Promise<string> => {
+    const assinatura = await banco.assinaturaDaConta(usuarioId);
+    if (!assinatura || assinatura.status === "cancelada") return "sem assinatura para confirmar";
+    return (await consultar(assinatura, 5_000)) ?? "consultada há pouco";
+  };
+
+  // Verificação periódica: pendentes há mais de 2 minutos (até 3 dias) e autorizadas
+  // perto da cobrança (de 10 dias atrás até amanhã). Cada uma é consultada no máximo a
+  // cada 10 minutos (pendente) ou 1 hora (autorizada), e até 5 por rodada.
+  const LIMITE_POR_RODADA = 5;
+  const verificarAssinaturas = async (): Promise<string[]> => {
+    const agoraMs = agora().getTime();
+    const MIN = 60_000;
+    const lista = await banco.assinaturasParaConferir({
+      pendentesDe: new Date(agoraMs - 3 * 24 * 60 * MIN),
+      pendentesAte: new Date(agoraMs - 2 * MIN),
+      cobrancaDe: new Date(agoraMs - 10 * 24 * 60 * MIN),
+      cobrancaAte: new Date(agoraMs + 24 * 60 * MIN),
+    });
+    const resultados: string[] = [];
+    for (const assinatura of lista) {
+      if (resultados.length >= LIMITE_POR_RODADA) break;
+      try {
+        const resultado = await consultar(assinatura, assinatura.status === "pendente" ? 10 * MIN : 60 * MIN);
+        if (resultado) resultados.push(`verificação ${assinatura.mp_preapproval_id}: ${resultado}`);
+      } catch (erro) {
+        resultados.push(`verificação ${assinatura.mp_preapproval_id}: erro ${erro instanceof Error ? erro.message : String(erro)}`);
+      }
+    }
+    return resultados;
   };
 
   const doPagamento = async (pagamentoId: string) => {
@@ -314,7 +442,7 @@ export const processadorDeEventos = ({banco, api, agora = () => new Date()}: {ba
     return resultados;
   };
 
-  return {receber, processar, processarPendentes};
+  return {receber, processar, processarPendentes, sincronizar, confirmarDaConta, verificarAssinaturas};
 };
 
 // ---------- banco no Supabase (chave secreta) ----------
@@ -384,6 +512,27 @@ export const bancoNoSupabase = (admin: SupabaseClient): BancoDeAssinaturas => {
     salvarPerfil: async (usuarioId, campos) => {
       const {error} = await admin.from("perfis").update(campos).eq("id", usuarioId);
       falha("salvar o perfil", error);
+    },
+    assinaturasParaConferir: async ({pendentesDe, pendentesAte, cobrancaDe, cobrancaAte}) => {
+      const pendentes = await admin
+        .from("assinaturas")
+        .select("*")
+        .eq("status", "pendente")
+        .gte("criado_em", pendentesDe.toISOString())
+        .lte("criado_em", pendentesAte.toISOString())
+        .order("criado_em", {ascending: false})
+        .limit(50);
+      falha("ler as assinaturas pendentes", pendentes.error);
+      const ativas = await admin
+        .from("assinaturas")
+        .select("*")
+        .eq("status", "autorizada")
+        .gte("proxima_cobranca", cobrancaDe.toISOString())
+        .lte("proxima_cobranca", cobrancaAte.toISOString())
+        .order("proxima_cobranca")
+        .limit(50);
+      falha("ler as assinaturas ativas", ativas.error);
+      return [...((pendentes.data ?? []) as Assinatura[]), ...((ativas.data ?? []) as Assinatura[])];
     },
   };
 };

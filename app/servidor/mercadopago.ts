@@ -27,8 +27,20 @@ export type Preapproval = {
   status: "pending" | "authorized" | "paused" | "cancelled";
   external_reference?: string;
   init_point?: string;
+  date_created?: string;
+  last_modified?: string;
   next_payment_date?: string;
-  auto_recurring?: {transaction_amount?: number};
+  payment_method_id?: string | null;
+  auto_recurring?: {transaction_amount?: number; frequency?: number; frequency_type?: string; currency_id?: string; start_date?: string};
+  // Resumo das cobranças feito pelo Mercado Pago (vale para qualquer meio de pagamento).
+  summarized?: {
+    charged_quantity?: number | null;
+    pending_charge_quantity?: number | null;
+    charged_amount?: number | null;
+    semaphore?: string | null;
+    last_charged_date?: string | null;
+    last_charged_amount?: number | null;
+  } | null;
 };
 
 // Cobrança de uma assinatura (GET /authorized_payments/{id}).
@@ -57,6 +69,8 @@ export type ApiDoMercadoPago = {
   assinatura: (id: string) => Promise<Preapproval>;
   cancelarAssinatura: (id: string) => Promise<Preapproval>;
   pagamentoAutorizado: (id: string) => Promise<PagamentoAutorizado>;
+  // As cobranças de uma assinatura (sem depender dos webhooks).
+  cobrancasDaAssinatura: (preapprovalId: string) => Promise<PagamentoAutorizado[]>;
   pagamento: (id: string) => Promise<Pagamento>;
 };
 
@@ -70,7 +84,7 @@ export const apiDoMercadoPago = (config: ConfigDoMercadoPago): ApiDoMercadoPago 
     });
     const texto = await resposta.text();
     if (!resposta.ok) {
-      throw new Error(`Mercado Pago ${metodo} ${caminho.split("?")[0]}: ${resposta.status} ${texto.slice(0, 300)}`);
+      throw Object.assign(new Error(`Mercado Pago ${metodo} ${caminho.split("?")[0]}: ${resposta.status} ${texto.slice(0, 300)}`), {status: resposta.status});
     }
     return JSON.parse(texto) as T;
   };
@@ -89,6 +103,13 @@ export const apiDoMercadoPago = (config: ConfigDoMercadoPago): ApiDoMercadoPago 
     assinatura: (id) => chamar<Preapproval>("GET", `/preapproval/${encodeURIComponent(id)}`),
     cancelarAssinatura: (id) => chamar<Preapproval>("PUT", `/preapproval/${encodeURIComponent(id)}`, {status: "cancelled"}),
     pagamentoAutorizado: (id) => chamar<PagamentoAutorizado>("GET", `/authorized_payments/${encodeURIComponent(id)}`),
+    cobrancasDaAssinatura: async (preapprovalId) =>
+      (
+        await chamar<{results?: PagamentoAutorizado[]}>(
+          "GET",
+          `/authorized_payments/search?preapproval_id=${encodeURIComponent(preapprovalId)}&limit=50`,
+        )
+      ).results ?? [],
     pagamento: (id) => chamar<Pagamento>("GET", `/v1/payments/${encodeURIComponent(id)}`),
   };
 };

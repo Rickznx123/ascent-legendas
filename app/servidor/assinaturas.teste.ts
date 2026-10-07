@@ -111,6 +111,12 @@ const montar = (perfilInicial: Partial<PerfilDaAssinatura> = {}, assinaturaInici
     salvarPerfil: async (_conta, campos) => {
       perfil = {...perfil, ...campos};
     },
+    assinaturasParaConferir: async ({pendentesDe, pendentesAte, cobrancaDe, cobrancaAte}) =>
+      [...assinaturas.values()].filter((a) =>
+        a.status === "pendente"
+          ? new Date(a.criado_em) >= pendentesDe && new Date(a.criado_em) <= pendentesAte
+          : a.status === "autorizada" && a.proxima_cobranca !== null && new Date(a.proxima_cobranca) >= cobrancaDe && new Date(a.proxima_cobranca) <= cobrancaAte,
+      ),
   };
   // Respostas simuladas do Mercado Pago (o teste troca conforme o caso).
   const mp = {
@@ -118,10 +124,17 @@ const montar = (perfilInicial: Partial<PerfilDaAssinatura> = {}, assinaturaInici
     cobrancas: new Map<string, PagamentoAutorizado>(),
     pagamentos: new Map<string, Pagamento>(),
     canceladas: [] as string[],
+    // GET /authorized_payments/search e outras assinaturas (por id).
+    busca: [] as PagamentoAutorizado[],
+    porId: new Map<string, Preapproval>(),
+    consultas: [] as string[],
   };
   const api: ApiDoMercadoPago = {
     criarAssinatura: async () => mp.pre,
-    assinatura: async () => mp.pre,
+    assinatura: async (id) => {
+      mp.consultas.push(id);
+      return mp.porId.get(id) ?? mp.pre;
+    },
     cancelarAssinatura: async (id) => {
       mp.canceladas.push(id);
       mp.pre = {...mp.pre, status: "cancelled"};
@@ -132,6 +145,7 @@ const montar = (perfilInicial: Partial<PerfilDaAssinatura> = {}, assinaturaInici
       if (!c) throw new Error(`cobrança ${id} não existe`);
       return c;
     },
+    cobrancasDaAssinatura: async (id) => mp.busca.filter((c) => c.preapproval_id === id),
     pagamento: async (id) => mp.pagamentos.get(id)!,
   };
   const processador = processadorDeEventos({banco, api, agora: () => relogio});
@@ -145,6 +159,7 @@ const montar = (perfilInicial: Partial<PerfilDaAssinatura> = {}, assinaturaInici
   return {
     banco,
     mp,
+    processador,
     webhook,
     perfil: () => perfil,
     assinatura: () => assinaturas.get("a1")!,
@@ -318,5 +333,123 @@ describe("regras de cada caso", () => {
     const desconhecida = await t.webhook("payment", "p-que-nao-e-de-assinatura");
     assert.match(desconhecida.resultados[0], /ignorado/u);
     assert.equal(t.perfil().plano, "gratis");
+  });
+});
+
+// Saldo em conta: a assinatura fica "authorized" e o Mercado Pago resume a cobrança
+// (summarized), sem que chegue nenhum evento de pagamento.
+const pago = (pre: Preapproval): Preapproval => ({
+  ...pre,
+  status: "authorized",
+  payment_method_id: "account_money",
+  summarized: {charged_quantity: 1, pending_charge_quantity: 0, charged_amount: 30, semaphore: "green", last_charged_date: "2026-10-07T03:20:00Z", last_charged_amount: 30},
+});
+
+describe("ativação pela consulta (sem o evento de pagamento)", () => {
+  it("authorized sem evento de pagamento, com a cobrança em dia: assinante", async () => {
+    const t = montar();
+    t.mp.pre = pago(t.mp.pre);
+    const resultado = await t.processador.sincronizar(t.assinatura());
+    assert.match(resultado, /ativado/u);
+    assert.equal(t.perfil().plano, "assinante");
+    assert.equal(t.perfil().plano_origem, "assinatura");
+    assert.equal(t.perfil().ciclo_inicio, "2026-10-07T03:20:00.000Z");
+    assert.equal(t.perfil().ciclo_fim, "2026-11-07T12:00:00.000Z");
+    assert.equal(t.perfil().plano_ate, new Date(new Date("2026-11-07T12:00:00Z").getTime() + TOLERANCIA_MS).toISOString());
+    assert.equal(t.assinatura().status, "autorizada");
+    assert.equal(t.resumo().situacao, "ativa");
+    // Consultar de novo não muda nada.
+    const antes = t.perfil();
+    await t.processador.sincronizar(t.assinatura());
+    assert.deepEqual(t.perfil(), antes);
+  });
+
+  it("o simulador (cobrança com o id da assinatura) consulta a assinatura em vez de falhar", async () => {
+    const t = montar();
+    t.mp.pre = pago(t.mp.pre);
+    const {resultados} = await t.webhook("subscription_authorized_payment", PRE);
+    assert.doesNotMatch(resultados[0], /erro/u);
+    assert.equal(t.perfil().plano, "assinante");
+  });
+
+  it("a cobrança aprovada achada na busca ativa o plano e fica registrada", async () => {
+    const t = montar();
+    t.mp.busca = [cobranca("c1", "approved", "p1")];
+    await t.processador.sincronizar(t.assinatura());
+    assert.equal(t.perfil().plano, "assinante");
+    assert.equal(t.pagamentos.get("p1")?.status, "approved");
+  });
+
+  it("sem cobrança, com semáforo vermelho, pendente ou de outra conta: continua grátis", async () => {
+    for (const pre of [
+      {id: PRE, status: "authorized", external_reference: CONTA, summarized: {charged_quantity: 0, semaphore: "green"}},
+      {...pago({id: PRE, status: "authorized", external_reference: CONTA}), summarized: {charged_quantity: 1, semaphore: "red"}},
+      {...pago({id: PRE, status: "authorized", external_reference: CONTA}), status: "pending"},
+      pago({id: PRE, status: "authorized", external_reference: "outra-conta"}),
+    ] as Preapproval[]) {
+      const t = montar();
+      t.mp.pre = pre;
+      await t.processador.sincronizar(t.assinatura());
+      assert.equal(t.perfil().plano, "gratis", JSON.stringify(pre));
+    }
+  });
+
+  it("cortesia (npm run plano) não é tocada pela consulta sem assinatura", async () => {
+    const t = montar({plano: "assinante", plano_origem: "manual"});
+    assert.equal(await t.processador.confirmarDaConta("conta-sem-assinatura"), "sem assinatura para confirmar");
+    assert.equal(t.perfil().plano_origem, "manual");
+  });
+});
+
+describe("confirmação no retorno do checkout", () => {
+  it("consulta a assinatura da conta e ativa, mesmo sem webhook", async () => {
+    const t = montar();
+    t.mp.pre = pago(t.mp.pre);
+    await t.processador.confirmarDaConta(CONTA);
+    assert.equal(t.perfil().plano, "assinante");
+    assert.equal(t.resumo().situacao, "ativa");
+  });
+
+  it("no máximo uma consulta a cada 5 segundos por assinatura", async () => {
+    const t = montar();
+    await t.processador.confirmarDaConta(CONTA);
+    assert.equal(await t.processador.confirmarDaConta(CONTA), "consultada há pouco");
+    assert.equal(t.mp.consultas.length, 1);
+  });
+});
+
+describe("verificação periódica", () => {
+  it("pendente há mais de 2 minutos é consultada e ativa", async () => {
+    const t = montar();
+    t.mp.pre = pago(t.mp.pre);
+    assert.deepEqual(await t.processador.verificarAssinaturas(), []);
+    t.avancar(3 / (24 * 60));
+    const resultados = await t.processador.verificarAssinaturas();
+    assert.equal(resultados.length, 1);
+    assert.equal(t.perfil().plano, "assinante");
+  });
+
+  it("até 5 por rodada, e cada uma no máximo a cada 10 minutos", async () => {
+    const t = montar();
+    for (let i = 0; i < 7; i++) {
+      const nova = await t.banco.criarAssinatura({usuario_id: `conta-${i}`, mp_preapproval_id: `pre-x${i}`, status: "pendente", valor: 30, init_point: null});
+      t.mp.porId.set(nova.mp_preapproval_id, {id: nova.mp_preapproval_id, status: "pending", external_reference: `conta-${i}`});
+    }
+    t.mp.porId.set(PRE, {id: PRE, status: "pending", external_reference: CONTA});
+    t.avancar(5 / (24 * 60));
+    assert.equal((await t.processador.verificarAssinaturas()).length, 5);
+    assert.equal((await t.processador.verificarAssinaturas()).length, 3);
+    assert.equal((await t.processador.verificarAssinaturas()).length, 0);
+    assert.equal(t.mp.consultas.length, 8);
+    t.avancar(11 / (24 * 60));
+    assert.equal((await t.processador.verificarAssinaturas()).length, 5);
+  });
+
+  it("ativa perto da cobrança é consultada; longe da cobrança, não", async () => {
+    const t = montar({}, {status: "autorizada", proxima_cobranca: "2026-11-07T12:00:00Z"});
+    assert.deepEqual(await t.processador.verificarAssinaturas(), []);
+    t.avancar(30.5);
+    assert.equal((await t.processador.verificarAssinaturas()).length, 1);
+    assert.deepEqual(t.mp.consultas, [PRE]);
   });
 });

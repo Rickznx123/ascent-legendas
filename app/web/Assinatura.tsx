@@ -1,6 +1,28 @@
 // Telas da assinatura (Etapa 2c): "Assinar", o retorno do checkout do Mercado Pago,
-// "Gerenciar assinatura" e os avisos. Quem decide o plano é o servidor (pelos
-// webhooks do Mercado Pago, veja app/servidor/assinaturas.ts); aqui só se mostra.
+// "Gerenciar assinatura" e os avisos. Quem decide o plano é o servidor (consultando o
+// Mercado Pago, veja app/servidor/assinaturas.ts); aqui só se mostra.
+
+// Checkout aberto neste navegador há menos de 1 hora. No app instalado do iPhone, o
+// Mercado Pago abre e volta numa janela do Safari (outro armazenamento, sem a sessão):
+// a volta ao app instalado não traz ?assinatura=retorno, então a marca abaixo é que
+// mostra a confirmação.
+const CHAVE_DO_CHECKOUT = "assinatura-checkout-aberto";
+export const checkoutRecente = (): boolean => {
+  try {
+    const quando = Number(localStorage.getItem(CHAVE_DO_CHECKOUT));
+    return Number.isFinite(quando) && quando > 0 && Date.now() - quando < 60 * 60 * 1000;
+  } catch {
+    return false;
+  }
+};
+const marcarCheckout = (aberto: boolean) => {
+  try {
+    if (aberto) localStorage.setItem(CHAVE_DO_CHECKOUT, String(Date.now()));
+    else localStorage.removeItem(CHAVE_DO_CHECKOUT);
+  } catch {
+    // Sem localStorage: só o ?assinatura=retorno e a verificação do servidor.
+  }
+};
 import {useEffect, useState} from "react";
 import {api} from "./api";
 import type {ResumoDaAssinatura} from "./api";
@@ -42,6 +64,7 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
     try {
       const {endereco} = await api.assinar();
       // O checkout é do Mercado Pago; a volta é para /?assinatura=retorno.
+      marcarCheckout(true);
       window.location.href = endereco;
     } catch (error) {
       setErro(error instanceof Error ? error.message : String(error));
@@ -159,8 +182,9 @@ export const JanelaGerenciarAssinatura: React.FC<{onFechar: () => void}> = ({onF
   );
 };
 
-// Volta do checkout (?assinatura=retorno). O retorno não prova o pagamento: a tela
-// só espera o servidor confirmar (pelo webhook do Mercado Pago) e mostra o plano.
+// Volta do checkout (?assinatura=retorno, ou o app reaberto depois do checkout). O
+// retorno não prova o pagamento: a tela pede ao servidor que consulte o Mercado Pago
+// (POST /api/assinatura/confirmar) e mostra o plano que ele decidir.
 const ESPERA_MS = 90_000;
 export const RetornoDaAssinatura: React.FC<{onFechar: () => void}> = ({onFechar}) => {
   const {atualizarConta} = useConta();
@@ -170,17 +194,19 @@ export const RetornoDaAssinatura: React.FC<{onFechar: () => void}> = ({onFechar}
     const inicio = Date.now();
     const conferir = async () => {
       while (!parar) {
-        const conta = await api.conta().catch(() => null);
-        if (conta?.plano === "assinante" && conta.assinatura?.situacao !== "nenhuma") {
+        const resposta = await api.confirmarAssinatura().catch(() => null);
+        if (resposta?.plano === "assinante" && resposta.assinatura.situacao !== "nenhuma") {
+          marcarCheckout(false);
           setSituacao("ativa");
           atualizarConta();
           return;
         }
         if (Date.now() - inicio > ESPERA_MS) {
+          marcarCheckout(false);
           setSituacao("demorando");
           return;
         }
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        await new Promise((resolve) => setTimeout(resolve, 4000));
       }
     };
     void conferir();
@@ -210,7 +236,14 @@ export const RetornoDaAssinatura: React.FC<{onFechar: () => void}> = ({onFechar}
             </p>
           </>
         )}
-        <button type="button" className="bt primario cheio" onClick={onFechar}>
+        <button
+          type="button"
+          className="bt primario cheio"
+          onClick={() => {
+            marcarCheckout(false);
+            onFechar();
+          }}
+        >
           {situacao === "confirmando" ? "Fechar e continuar" : "Continuar"}
         </button>
       </div>

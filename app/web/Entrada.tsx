@@ -9,7 +9,7 @@ import type {Andamento, Conta} from "./api";
 import {ContaContexto} from "./conta";
 import {TelaDeLogin} from "./Login";
 import {FormularioDeSenhaNova} from "./Senha";
-import {RetornoDaAssinatura} from "./Assinatura";
+import {RetornoDaAssinatura, checkoutRecente} from "./Assinatura";
 import {iniciarSessao, lerConfig, ouvirSessao, pedeSenhaNova, sair} from "./sessao";
 import type {ConfigDoLogin} from "./sessao";
 
@@ -103,7 +103,16 @@ const voltouDoCheckout = (() => {
 })();
 
 export const Entrada: React.FC = () => {
-  const [mostrarRetorno, setMostrarRetorno] = useState(voltouDoCheckout);
+  const [mostrarRetorno, setMostrarRetorno] = useState(() => voltouDoCheckout || checkoutRecente());
+  // App instalado: o checkout abre e volta numa janela do Safari; ao voltar para o app
+  // (que fica aberto por baixo), a confirmação aparece.
+  useEffect(() => {
+    const aoVoltar = () => {
+      if (document.visibilityState === "visible" && checkoutRecente()) setMostrarRetorno(true);
+    };
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => document.removeEventListener("visibilitychange", aoVoltar);
+  }, []);
   const [config, setConfig] = useState<ConfigDoLogin>();
   const [estado, setEstado] = useState<Estado>({tela: "carregando"});
   const telaAtual = useRef<Estado["tela"]>("carregando");

@@ -1,4 +1,5 @@
 import {spawn} from "node:child_process";
+import {createHash, timingSafeEqual} from "node:crypto";
 import {createWriteStream, existsSync, writeFileSync} from "node:fs";
 import {copyFile, mkdir, rename, rm, stat} from "node:fs/promises";
 import type {Server} from "node:http";
@@ -168,7 +169,87 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       .then((resultados) => resultados.forEach((linha) => console.log(`Mercado Pago: ${linha}`)))
       .catch((erro: unknown) => console.log(`Mercado Pago: ${erro instanceof Error ? erro.message : String(erro)}`));
   // Os que falharam são tentados de novo (e os que chegaram com o servidor ocupado).
-  if (eventosMp) setInterval(processarEventosMp, 60_000).unref();
+  // Junto, a verificação periódica: pendentes há mais de 2 minutos e ativas perto da
+  // cobrança são consultadas no Mercado Pago (com limite, veja assinaturas.ts).
+  const verificarAssinaturasMp = () =>
+    void eventosMp
+      ?.verificarAssinaturas()
+      .then((resultados) => resultados.forEach((linha) => console.log(`Mercado Pago: ${linha}`)))
+      .catch((erro: unknown) => console.log(`Mercado Pago: verificação: ${erro instanceof Error ? erro.message : String(erro)}`));
+  if (eventosMp) {
+    setInterval(() => {
+      processarEventosMp();
+      verificarAssinaturasMp();
+    }, 60_000).unref();
+  }
+
+  // Diagnóstico da assinatura (só com a chave secreta do Supabase no cabeçalho
+  // x-chave-admin): o que o Mercado Pago devolve, sem dados pessoais, e reprocessar.
+  const chaveAdminConfere = (request: Request) => {
+    const chave = process.env.SUPABASE_SECRET_KEY?.trim();
+    const recebida = request.header("x-chave-admin");
+    if (!chave || !recebida) return false;
+    const resumo = (texto: string) => createHash("sha256").update(texto).digest();
+    return timingSafeEqual(resumo(chave), resumo(recebida));
+  };
+  const diagnosticoDaAssinatura = async (preapprovalId: string) => {
+    const pre = await apiMp!.assinatura(preapprovalId);
+    const linha = await bancoDasAssinaturas!.assinaturaPorPreapproval(preapprovalId);
+    const cobrancas = await apiMp!.cobrancasDaAssinatura(preapprovalId).catch((erro: unknown) => (erro instanceof Error ? erro.message : String(erro)));
+    const perfil = linha ? await bancoDasAssinaturas!.perfil(linha.usuario_id) : undefined;
+    return {
+      mercadoPago: {
+        status: pre.status,
+        external_reference: pre.external_reference,
+        external_reference_confere: Boolean(linha && pre.external_reference === linha.usuario_id),
+        date_created: pre.date_created,
+        next_payment_date: pre.next_payment_date,
+        auto_recurring: pre.auto_recurring,
+        summarized: pre.summarized,
+        payment_method_id: pre.payment_method_id,
+      },
+      cobrancas: Array.isArray(cobrancas)
+        ? cobrancas.map((cobranca) => ({
+            id: cobranca.id,
+            status: cobranca.status,
+            valor: cobranca.transaction_amount,
+            debit_date: cobranca.debit_date,
+            pagamento: cobranca.payment ? {status: cobranca.payment.status, status_detail: cobranca.payment.status_detail} : undefined,
+          }))
+        : {erro: cobrancas},
+      banco: linha ? {status: linha.status, pago_ate: linha.pago_ate, proxima_cobranca: linha.proxima_cobranca, cobranca_falhou_em: linha.cobranca_falhou_em} : null,
+      perfil,
+    };
+  };
+  app.get("/admin/assinatura/:id", async (request: Request, response: Response) => {
+    if (!apiMp || !bancoDasAssinaturas || !chaveAdminConfere(request)) {
+      response.status(404).json({ok: false});
+      return;
+    }
+    try {
+      response.json(await diagnosticoDaAssinatura(String(request.params.id)));
+    } catch (erro) {
+      response.status(502).json({erro: erro instanceof Error ? erro.message : String(erro)});
+    }
+  });
+  app.post("/admin/assinatura/:id/sincronizar", async (request: Request, response: Response) => {
+    if (!apiMp || !bancoDasAssinaturas || !eventosMp || !chaveAdminConfere(request)) {
+      response.status(404).json({ok: false});
+      return;
+    }
+    try {
+      const linha = await bancoDasAssinaturas.assinaturaPorPreapproval(String(request.params.id));
+      if (!linha) {
+        response.status(404).json({erro: "assinatura desconhecida"});
+        return;
+      }
+      const resultado = await eventosMp.sincronizar(linha);
+      console.log(`Mercado Pago: reprocessada ${linha.mp_preapproval_id}: ${resultado}`);
+      response.json({resultado, ...(await diagnosticoDaAssinatura(linha.mp_preapproval_id))});
+    } catch (erro) {
+      response.status(502).json({erro: erro instanceof Error ? erro.message : String(erro)});
+    }
+  });
 
   // Webhook do Mercado Pago: público (sem login, fora do limite de pedidos). Valida o
   // x-signature (e recusa ts antigo), guarda o evento (o repetido é ignorado),
@@ -386,6 +467,22 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       });
       console.log(`Assinatura: checkout aberto para ${espaco.usuario.id} (${pre.id}).`);
       return {endereco: pre.init_point};
+    }),
+  );
+
+  // Volta do checkout: o servidor consulta a assinatura desta conta no Mercado Pago
+  // (o retorno em si não prova nada) e aplica as mesmas regras do webhook.
+  app.post(
+    "/api/assinatura/confirmar",
+    handle(async (_request, response) => {
+      const espaco = espacoDe(response);
+      if (!contas || !espaco.usuario) throw new Error("Entre na sua conta.");
+      if (eventosMp) {
+        const resultado = await eventosMp.confirmarDaConta(espaco.usuario.id).catch((erro: unknown) => `erro ${erro instanceof Error ? erro.message : String(erro)}`);
+        console.log(`Mercado Pago: confirmação de ${espaco.usuario.id}: ${resultado}`);
+      }
+      const perfil = await contas.perfil(espaco.usuario, response.locals.token as string);
+      return {plano: perfil.plano, assinatura: await resumoDaConta(espaco, response.locals.token as string)};
     }),
   );
 
