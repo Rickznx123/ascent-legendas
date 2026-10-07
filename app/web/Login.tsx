@@ -13,6 +13,9 @@ type Enviado = {tipo: "confirmacao" | "redefinicao"; email: string};
 
 const mensagem = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
+// Nas telas de e-mail enviado e de "Esqueci minha senha".
+const AVISO_DE_SPAM = "Não achou? Veja a pasta de spam ou lixo eletrônico. O e-mail vem de login@ascentstudio.com.br.";
+
 const CampoDeEmail: React.FC<{valor: string; desativado: boolean; onMudar: (valor: string) => void}> = ({valor, desativado, onMudar}) => (
   <>
     <label htmlFor="login-email" className="rotulo">
@@ -119,6 +122,7 @@ export const TelaDeLogin: React.FC<{google: boolean; aviso?: string}> = ({google
                   : null}
               </p>
             )}
+            <p className="suave">{AVISO_DE_SPAM}</p>
             {enviado.tipo === "confirmacao" ? (
               <button
                 type="button"
@@ -159,7 +163,10 @@ export const TelaDeLogin: React.FC<{google: boolean; aviso?: string}> = ({google
             ) : null}
             <h1>{titulo}</h1>
             {vista === "esqueci" ? (
-              <p className="suave">Enviamos um link para o seu e-mail; ele abre o app pedindo a senha nova. Serve também para criar a senha de uma conta antiga, que entrava pelo link.</p>
+              <>
+                <p className="suave">Enviamos um link para o seu e-mail; ele abre o app pedindo a senha nova. Serve também para criar a senha de uma conta antiga, que entrava pelo link.</p>
+                <p className="suave">{AVISO_DE_SPAM}</p>
+              </>
             ) : null}
             <form onSubmit={enviar}>
               <CampoDeEmail valor={email} desativado={ocupado} onMudar={setEmail} />

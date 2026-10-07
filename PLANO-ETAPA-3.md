@@ -266,7 +266,11 @@ Ordem: (1) `npm run nuvem:site`; (2) criar o serviço no Render (Docker, Ohio, S
 3. [VOCÊ] No Supabase, colocar `https://legendas.ascentstudio.com.br` em Site URL e Redirect URLs.
 4. [EU] Teste completo no endereço público: login, envio, transcrição, edição, exportação e download, no celular e no computador.
 
-**Bloco 10 — Antes dos testadores** (seção 8)
+**Bloco 10 — Antes dos testadores** (seção 8) — em andamento.
+
+Feito (06/10/2026, testado): e-mail do login pelo Resend no domínio (`login@ascentstudio.com.br`); modelos de e-mail em português (`supabase/emails/`); termos de uso e política de privacidade no ar, em rascunho (`/termos.html`, `/privacidade.html`); vídeos antigos da conta enviados ao S3 (`scripts/enviar-videos-antigos.ts`); registros de diagnóstico do envio removidos.
+
+Falta: trocar o Render para o plano Starter; crédito no Replicate (US$ 20–25); alertas de orçamento da AWS (Budgets e Cost Anomaly Detection); CNPJ e endereço nos termos e na política (antes do lançamento pago).
 
 ---
 
