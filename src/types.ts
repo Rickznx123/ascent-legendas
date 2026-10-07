@@ -63,6 +63,7 @@ export type CaptionStructure =
   | "dois-rotulos" // palavras de cima nas duas pontas, palavra-chave, complemento
   | "pilha" // duas linhas antes da palavra-chave (a de baixo é a última palavra antes dela)
   | "dupla" // dois blocos seguidos na tela ao mesmo tempo (veja CaptionTemplate.pair)
+  | "papeis" // linhas com papéis: etiqueta em caixa, destaque na cor, corpo, leve, miudinho (veja src/papeis.ts)
   | "linear"; // palavras em sequência
 
 // Entrada de cada palavra, equivalente a um @keyframes do CSS.
@@ -78,6 +79,9 @@ export type EntranceAnimation = {
   fromScale: number;
   // Deslocamento horizontal inicial, em em (negativo: vem da esquerda).
   fromTranslateXEm?: number;
+  // Revelação da esquerda para a direita: fração escondida à direita no início
+  // (1 = tudo escondido), aberta pela mesma curva (a etiqueta do pacote C).
+  fromClipRight?: number;
   // Quadros-chave, como um @keyframes do CSS: [posição de 0 a 1, valor].
   // A curva (easing) vale em cada trecho entre dois quadros. Com quadros-chave de
   // opacidade, fromOpacity é ignorado. Brilho 1 = normal.
@@ -135,6 +139,9 @@ export type Palette = {
   shadow: {
     color: string;
   };
+  // Caixa da etiqueta (pacote C): fundo e texto. Sem ela, o fundo é a cor da
+  // palavra-chave e o texto, claro ou escuro conforme o fundo.
+  caixa?: {fundo: string; texto: string};
 };
 
 // Uma parte de um layout composto (cada grupo da dupla).
@@ -189,6 +196,19 @@ export type CaptionTemplate = {
   };
   // Só para o linear: acima de quantos caracteres a linha é quebrada em duas.
   maxCharactersPerLine?: number;
+  // Só para o linear: sempre numa linha só, reduzida se não couber na largura.
+  linhaUnica?: boolean;
+  // Só para o linear: aceita a entrada letra por letra (Projeto.entradaLinear).
+  porLetra?: {atrasoPorLetraMs: number};
+  // Só na estrutura "papeis": como as palavras viram linhas e o estilo de cada papel.
+  papeis?: ConfigDosPapeis;
+  // Lugar próprio do layout (centro em %, ou a borda esquerda com ancora "esquerda").
+  // A posição geral do vídeo desloca este lugar; a posição de um bloco o substitui.
+  // Sem valor: a posição geral do vídeo (src/posicao.ts).
+  posicao?: {x: number; y: number; ancora?: "centro" | "esquerda"};
+  // Saída do bloco: depois de sair da linha do tempo, sobe e some (na mesma hora em
+  // que o seguinte entra). Sem valor: some de uma vez.
+  saida?: {duracaoMs: number; sobeCqw: number; escala: number};
   // Só na estrutura "dupla": o desenho de cada bloco e de cada grupo.
   pair?: {
     first: TemplatePart;
@@ -223,6 +243,12 @@ export type PackageConfig = {
   // Máximo de palavras do linear (opcional). Um linear maior é dividido em dois;
   // no modo misto, ele não sorteia este pacote.
   maxLinearWords?: number;
+  // Máximo de caracteres do linear (opcional). Um linear maior vira mais blocos lineares.
+  maxLinearCaracteres?: number;
+  // Ritmo próprio do pacote (opcional; vale quando o vídeo usa só este pacote): um
+  // destaque a cada `aCada` blocos, nunca dois seguidos; com primeiroDestaque, o
+  // primeiro bloco do vídeo é destaque. Sem valor: o ritmo comum (rhythm-config.ts).
+  ritmo?: {aCada: number; primeiroDestaque?: boolean};
   // Texto de exemplo das miniaturas da galeria (opcional): as palavras e qual
   // delas é a palavra-chave.
   exemplo?: {texto: string; palavraChave: string};
@@ -266,4 +292,44 @@ export type KineticCaptionVideoProps = {
   // Marca d'água do plano grátis (veja src/marca-dagua.tsx). No vídeo exportado,
   // definida pelo servidor conforme o plano; na prévia, só mostra o que vai sair.
   marcaDagua?: boolean;
+  // Entrada dos lineares que aceitam letra por letra (pacote C). Vazio: por palavra.
+  entradaLinear?: EntradaLinear;
 };
+
+// Entrada do linear: palavra por palavra ou letra por letra.
+export type EntradaLinear = "palavra" | "letra";
+
+// Papéis das palavras na estrutura "papeis" (pacote C):
+//   etiqueta  começo da frase em caixa colorida, texto claro
+//   destaque  a palavra (ou linha) mais importante, na cor da palavra-chave
+//   gigante   o destaque enorme, com brilho
+//   corpo     texto branco pesado
+//   leve      fecho sem peso nem itálico
+//   mini      conectivos empilhados em letra miúda
+export type Papel = "etiqueta" | "destaque" | "gigante" | "corpo" | "leve" | "mini";
+
+// Como as palavras viram linhas (veja linhasDosPapeis em src/papeis.ts):
+//   gigante   apoio com a etiqueta no fim, palavra-chave gigante, fecho leve
+//   pilha     etiqueta, corpo, linha na cor (da palavra-chave ao fim)
+//   miudinho  etiqueta, linha na cor, miudinho empilhado ao lado da última palavra
+export type ArranjoDosPapeis = "gigante" | "pilha" | "miudinho";
+
+export type ConfigDosPapeis = {
+  arranjo: ArranjoDosPapeis;
+  // Estilo de cada papel, sem cor e sem tamanho (as cores vêm da paleta).
+  estilos: Record<Papel, CSSProperties>;
+  // Tamanho de cada papel, em % da largura do vídeo (cqw).
+  tamanhosCqw: Record<Papel, number>;
+  // Uma linha (as partes lado a lado) e o espaço entre as linhas.
+  linha: CSSProperties;
+  // Entrada de cada linha, em % da largura: quanto sobe e o desfoque inicial.
+  // A duração, a curva, a escala e a opacidade vêm de animations.word; a etiqueta
+  // sozinha na linha usa animations.top (abre da esquerda para a direita).
+  sobeCqw: number;
+  desfoqueCqw: number;
+  // Largura máxima de uma linha, em % da largura do vídeo (acima disso ela encolhe).
+  larguraMaximaCqw: number;
+};
+
+// Limites do linear de um pacote (palavras e caracteres).
+export type PalavrasDoLinear = Pick<PackageConfig, "maxLinearWords" | "maxLinearCaracteres">;

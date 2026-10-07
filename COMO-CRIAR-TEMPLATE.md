@@ -59,10 +59,11 @@ const pacote: PackageConfig = {
 - `before` e `after` contam as palavras antes e depois da palavra-chave; `words` conta as palavras do bloco.
 - `protectedExpression: true` faz a regra valer só para blocos com expressão protegida.
 - `dupla` (opcional): o layout de dupla do pacote (ex.: `"d6"`). Dois blocos seguidos ficam na tela ao mesmo tempo quando cada um tem até 4 palavras e o silêncio entre eles é menor que 0,4 s, no máximo uma dupla a cada 6 blocos (valores em `dupla` no `src/agrupamento-config.ts`). A dupla conta como um destaque no ritmo.
-- `maxLinearWords` (opcional): máximo de palavras do linear. Um linear maior é dividido em dois no ponto de menor penalidade do agrupador; um bloco com layout escolhido à mão não é dividido, só fica marcado "revisar". No modo misto, um linear maior não sorteia esse pacote.
+- `maxLinearWords` e `maxLinearCaracteres` (opcionais): máximo de palavras e de caracteres do linear. Um linear maior é dividido em quantos blocos lineares forem precisos, nos pontos de menor penalidade do agrupador; um bloco com layout escolhido à mão não é dividido, só fica marcado "revisar". No modo misto, um linear maior não sorteia esse pacote.
+- `ritmo` (opcional): ritmo próprio do pacote, quando o vídeo usa só ele. `aCada: 2` põe um destaque a cada 2 blocos (o mais forte da janela), nunca dois seguidos; `primeiroDestaque: true` faz o primeiro bloco do vídeo ser destaque. As partes de um linear dividido contam como um bloco só. Sem `ritmo`, vale o ritmo comum.
 - Com mais de um layout na lista, eles se alternam entre os blocos.
 
-O ritmo é comum a todos os pacotes e fica em `src/rhythm-config.ts`: dois lineares e um destaque, nunca dois destaques seguidos. Blocos de uma palavra só ou com expressão protegida sempre viram destaque, a menos que o bloco anterior já seja destaque.
+Sem `ritmo` no pacote (e sempre no modo misto), o ritmo é comum e fica em `src/rhythm-config.ts`: dois lineares e um destaque, nunca dois destaques seguidos. Blocos de uma palavra só ou com expressão protegida sempre viram destaque, a menos que o bloco anterior já seja destaque.
 
 ### Linha de cima dos destaques
 
@@ -95,6 +96,7 @@ A linha de cima depende da estrutura do layout. Em `escada` e `pilha`, a última
   - `dois-rotulos`: palavras de cima nas duas pontas, palavra-chave, complemento.
   - `pilha`: duas linhas antes da palavra-chave (a de baixo é a última palavra antes dela).
   - `dupla`: dois blocos seguidos na tela ao mesmo tempo. O layout descreve cada parte em `pair` (`first`, `second`, cada uma com sua estrutura, estilos e ajuste da palavra-chave) e onde fica cada grupo (`firstGroup`, `secondGroup`).
+  - `papeis` (pacote C): até 3 linhas com papéis — etiqueta em caixa, destaque na cor, gigante, corpo, leve e miudinho. Como as palavras viram linhas fica em `papeis.arranjo` (`gigante`, `pilha` ou `miudinho`, veja `src/papeis.ts`); o estilo e o tamanho de cada papel, em `papeis.estilos` e `papeis.tamanhosCqw`. Cada linha entra inteira no instante da sua primeira palavra (`animations.word`, com o deslocamento e o desfoque de `papeis`); a etiqueta sozinha na linha abre da esquerda para a direita (`animations.top` com `fromClipRight: 1`). Uma linha mais larga que `papeis.larguraMaximaCqw` encolhe por inteiro.
   - `linear`: palavras em sequência.
 - `styles`: CSS de cada papel (`block`, `support`, `supportBelow`, `keyword`, `keywordOuter`, `emphasis`, `complement`). As medidas em `cqw` equivalem a % da largura do vídeo; `em` é relativo ao tamanho da letra do próprio elemento.
 - Posição: o `block` não define `position`, `left`, `top` nem `transform` (se definir, é ignorado). O centro do bloco vai para a posição escolhida na interface (padrão: 50% da largura e 68% da altura), dentro da margem segura de 5% a 95% da largura e 8% a 92% da altura. O alinhamento do texto (`textAlign`) continua sendo do layout.
@@ -106,6 +108,9 @@ A linha de cima depende da estrutura do layout. Em `escada` e `pilha`, a última
 - `emphasis`: estilo da última palavra do rodapé (`rotulo-rodape`) ou do topo (`topo-selo`), quando a linha tem 2 palavras ou mais.
 - Caixa-alta e minúsculas: use `textTransform` no estilo, nunca altere o texto do JSON. Inclinações (`rotate`) ficam na linha ou em `keywordOuter`, nunca na palavra animada.
 - `maxCharactersPerLine` (só no linear): acima desse número de caracteres, a linha é quebrada em duas.
+- `linhaUnica` (só no linear): sempre uma linha, reduzida se não couber. `porLetra` aceita a entrada letra por letra (escolhida por projeto em Geral → Entrada do linear), com `atrasoPorLetraMs` entre as letras.
+- `posicao` (opcional): o lugar próprio do layout (`x`, `y` em %; com `ancora: "esquerda"`, `x` é a borda esquerda). A posição geral do vídeo desloca esse lugar pelo quanto ela saiu da padrão; a posição de um bloco o substitui.
+- `saida` (opcional): depois de sair da linha do tempo, o bloco sobe `sobeCqw`, encolhe até `escala` e some em `duracaoMs`, junto com a entrada do seguinte.
 
 **Layouts nunca definem cor.** Use as variáveis que o motor preenche a partir da paleta:
 
@@ -114,6 +119,8 @@ A linha de cima depende da estrutura do layout. Em `escada` e `pilha`, a última
 - `var(--brilho-1)` e `var(--brilho-2)`: brilho perto da letra e brilho espalhado.
 - `var(--chave)`: preenchimento da palavra-chave (o motor aplica sozinho).
 - `var(--sombra)` e `var(--brilho)`: sombra e brilho prontos, com a geometria do pacote A.
+- `var(--destaque)`: a cor da palavra-chave numa cor só (com degradê, a parada mais perto do meio).
+- `var(--caixa-fundo)` e `var(--caixa-texto)`: a caixa da etiqueta (pacote C).
 
 ## Paletas
 
@@ -131,10 +138,13 @@ const palette: Palette = {
     intensity: 1,                                   // 1 = como definido; 0 = sem brilho
   },
   shadow: {color: "#000000"},                       // sombra de todo o texto
+  caixa: {fundo: "#D7141A", texto: "#FFFFFF"},     // opcional: caixa da etiqueta do pacote C
 };
 
 export default palette;
 ```
+
+Sem `caixa`, a etiqueta do pacote C usa a cor da palavra-chave de fundo e texto claro ou escuro, conforme o fundo. As paletas da prancha do C (neon, ascent, oceano, fogo, menta, ouro e mono) têm as três cores e valem em todos os pacotes; fora do C, a caixa não aparece.
 
 `intensity` vai de 0 a 1 e multiplica a transparência das duas cores do brilho. Para um brilho mais forte, aumente a opacidade das cores.
 

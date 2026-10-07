@@ -54,6 +54,23 @@ export const centroDentroDaMargem = (
   };
 };
 
-// Posição de um bloco: a própria, senão a geral do vídeo, senão a padrão.
-export const posicaoDoBloco = (propria: Posicao | undefined, geral: Posicao | undefined): Posicao =>
-  propria ?? geral ?? POSICAO_PADRAO;
+// Posição de um bloco: a própria; senão, o lugar do layout (se ele tiver um),
+// deslocado pela posição geral do vídeo (o quanto ela saiu da padrão); senão, a
+// geral do vídeo, senão a padrão.
+export const posicaoDoBloco = (propria: Posicao | undefined, geral: Posicao | undefined, doLayout?: Posicao): Posicao => {
+  if (propria) {
+    return propria;
+  }
+  if (doLayout) {
+    const deslocamento = geral ? {x: geral.x - POSICAO_PADRAO.x, y: geral.y - POSICAO_PADRAO.y} : {x: 0, y: 0};
+    return {
+      x: arredondar(limitar(doLayout.x + deslocamento.x, MARGEM_SEGURA.xMin, MARGEM_SEGURA.xMax)),
+      y: arredondar(limitar(doLayout.y + deslocamento.y, MARGEM_SEGURA.yMin, MARGEM_SEGURA.yMax)),
+    };
+  }
+  return geral ?? POSICAO_PADRAO;
+};
+
+// Centro de um bloco ancorado pela borda esquerda (x é a borda), para caber na margem.
+export const centroDaAncora = (posicao: Posicao, ancora: "centro" | "esquerda" | undefined, larguraPx: number, videoLargura: number): Posicao =>
+  ancora === "esquerda" ? {x: posicao.x + (larguraPx / 2 / videoLargura) * 100, y: posicao.y} : posicao;

@@ -17,7 +17,8 @@ import {measureText} from "@remotion/layout-utils";
 import {findKeywordIndex, findProtectedSpans, isBlockEndingFunctionWord} from "./captions";
 import {blocosNaTela, entradaAjustada} from "./entrada";
 import {MarcaDagua} from "./marca-dagua";
-import {centroDentroDaMargem, posicaoDoBloco} from "./posicao";
+import {linhasDosPapeis, soEtiqueta} from "./papeis";
+import {centroDaAncora, centroDentroDaMargem, posicaoDoBloco} from "./posicao";
 import type {Posicao} from "./posicao";
 import {waitForFonts} from "./fontes";
 import {somTocado} from "./sons";
@@ -26,6 +27,7 @@ import type {BlockTiming} from "./tempos";
 import type {
   AssignedCaptionBlock,
   CaptionTemplate,
+  EntradaLinear,
   EntranceAnimation,
   KeywordFit,
   KineticCaptionVideoProps,
@@ -72,7 +74,31 @@ const paletteVariables = (palette: Palette): Record<string, string> => {
     // Versões em filtro, usadas quando a palavra-chave tem degradê na pintura "texto".
     "--sombra-filtro": asFilter(shadowParts),
     "--brilho-filtro": asFilter(glowParts),
+    // Pacote C: a cor de destaque (uma cor só, mesmo com degradê) e a caixa da etiqueta.
+    "--destaque": corDeDestaque(palette),
+    "--caixa-fundo": palette.caixa?.fundo ?? corDeDestaque(palette),
+    "--caixa-texto": palette.caixa?.texto ?? textoSobre(corDeDestaque(palette)),
   };
+};
+
+// Uma cor só para a palavra-chave: a sólida, ou a parada do degradê mais perto do meio.
+export const corDeDestaque = (palette: Palette): string => {
+  const fill = palette.keywordFill;
+  if (fill.type === "solida") {
+    return fill.color;
+  }
+  return [...fill.stops].sort((a, b) => Math.abs(a.position - 50) - Math.abs(b.position - 50))[0].color;
+};
+
+// Texto legível sobre uma cor (#rgb ou #rrggbb): escuro sobre cor clara, branco sobre escura.
+export const textoSobre = (fundo: string): string => {
+  const hex = /^#([\da-f]{3}|[\da-f]{6})$/iu.exec(fundo.trim())?.[1];
+  if (!hex) {
+    return "#ffffff";
+  }
+  const cheio = hex.length === 3 ? [...hex].map((c) => c + c).join("") : hex;
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(cheio.slice(i, i + 2), 16) / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.6 ? "#111111" : "#ffffff";
 };
 
 // Preenchimento recortado no texto (o .tx do pacote B).
@@ -206,7 +232,8 @@ const fitFontSize = (
 };
 
 const AnimatedWord: React.FC<{
-  text: string;
+  // Uma palavra, ou uma linha inteira (estrutura "papeis") que entra junta.
+  text: ReactNode;
   startMs: number;
   // Sincronia precisa: quando a palavra é falada (a entrada acelera se o bloco
   // entrou com antecedência reduzida, veja entradaAjustada).
@@ -234,13 +261,16 @@ const AnimatedWord: React.FC<{
   const brightness = animation.keyframes?.brightness
     ? sampleKeyframes(animation.keyframes.brightness, linear, ease)
     : 1;
+  // Revelação da esquerda para a direita (a etiqueta do pacote C).
+  const clipRight = animation.fromClipRight !== undefined ? Math.max(0, animation.fromClipRight * (1 - progress)) : undefined;
 
   return (
     <span
       style={{
         ...style,
-        display: "inline-block",
+        display: style?.display ?? "inline-block",
         opacity,
+        ...(clipRight !== undefined ? {clipPath: `inset(0 ${(clipRight * 100).toFixed(1)}% 0 0)`} : {}),
         transform: `translate(${translateX}em, ${translateY}em) scale(${scale})`,
         filter:
           [blur > 0 ? `blur(${blur}em)` : "", brightness !== 1 ? `brightness(${brightness})` : "", filter ?? ""]
@@ -310,12 +340,124 @@ const splitIntoTwoLines = (words: Word[]): Word[][] => {
   return best ? [words.slice(0, best.cut), words.slice(best.cut)] : [words];
 };
 
+// Medida em cqw ("6.67cqw") para px na largura do vídeo (sem cqw: o número em px).
+const emPx = (valor: unknown, videoWidth: number): number => {
+  const texto = String(valor ?? "").trim();
+  const cqw = /^(-?[\d.]+)cqw$/u.exec(texto);
+  return cqw ? (Number(cqw[1]) / 100) * videoWidth : Number.parseFloat(texto) || 0;
+};
+
+// Largura de um texto em px no tamanho pedido, com o estilo dado (caixa alta, itálico,
+// espaçamento), como o navegador mostra.
+const larguraDoTexto = (texto: string, estilo: CSSProperties, tamanhoPx: number): number =>
+  (measureText({
+    text: texto,
+    fontFamily: String(estilo.fontFamily ?? ""),
+    fontSize: 100,
+    fontWeight: estilo.fontWeight as number | string | undefined,
+    letterSpacing: estilo.letterSpacing === undefined ? undefined : String(estilo.letterSpacing),
+    additionalStyles: {fontStyle: String(estilo.fontStyle ?? "normal")},
+    textTransform: estilo.textTransform as Parameters<typeof measureText>[0]["textTransform"],
+    validateFontIsLoaded: false,
+  }).width *
+    tamanhoPx) /
+  100;
+
+// Pintura de uma parte na cor de destaque: cor sólida com sombra; com degradê, o
+// preenchimento recortado no texto e a sombra (ou o brilho) em filtro.
+const pinturaDoDestaque = (palette: Palette, estilo: CSSProperties): CSSProperties =>
+  palette.keywordFill.type === "solida"
+    ? estilo
+    : {
+        ...estilo,
+        ...CLIPPED_FILL,
+        textShadow: "none",
+        padding: "0 .08em",
+        margin: "0 -.08em",
+        filter: String(estilo.textShadow ?? "")
+          .split(/,(?![^(]*\))/u)
+          .filter((sombra) => sombra.trim())
+          .map((sombra) => `drop-shadow(${sombra.trim()})`)
+          .join(" "),
+      };
+
+// Estrutura "papeis" (pacote C): até 3 linhas com papéis (src/papeis.ts). Cada linha
+// entra inteira no instante da sua primeira palavra; a etiqueta sozinha na linha abre
+// da esquerda para a direita. Uma linha mais larga que o máximo encolhe por inteiro.
+const BlocoDePapeis: React.FC<{block: AssignedCaptionBlock; template: CaptionTemplate; palette: Palette; videoWidth: number}> = ({
+  block,
+  template,
+  palette,
+  videoWidth,
+}) => {
+  const config = template.papeis!;
+  const words = block.words;
+  const linhas = linhasDosPapeis(config.arranjo, words.length, findKeywordIndex(words, block.keyword));
+  const texto = (indices: number[]) => indices.map((indice) => cleanWord(words[indice].text));
+  const folgaDaCaixaPx = (estilo: CSSProperties, tamanhoPx: number) =>
+    horizontalPaddingEm(estilo) * tamanhoPx;
+  return (
+    <>
+      {linhas.map((linha, indiceDaLinha) => {
+        const espacoPx = emPx(config.linha.columnGap ?? config.linha.gap, videoWidth);
+        // Largura da linha no tamanho normal, para saber se precisa encolher.
+        const largura =
+          linha.partes.reduce((soma, parte) => {
+            const estilo = config.estilos[parte.papel];
+            const tamanhoPx = (config.tamanhosCqw[parte.papel] / 100) * videoWidth;
+            const larguraDaParte =
+              parte.papel === "mini"
+                ? Math.max(...texto(parte.palavras).map((palavra) => larguraDoTexto(palavra, estilo, tamanhoPx)))
+                : larguraDoTexto(texto(parte.palavras).join(" "), estilo, tamanhoPx) + folgaDaCaixaPx(estilo, tamanhoPx);
+            return soma + larguraDaParte;
+          }, 0) +
+          espacoPx * (linha.partes.length - 1);
+        const escala = Math.min(1, ((config.larguraMaximaCqw / 100) * videoWidth) / Math.max(1, largura));
+        const principal = Math.max(...linha.partes.map((parte) => config.tamanhosCqw[parte.papel])) * escala;
+        const primeira = words[Math.min(...linha.partes.flatMap((parte) => parte.palavras))];
+        const animacao: EntranceAnimation = soEtiqueta(linha)
+          ? (template.animations.top ?? template.animations.word)
+          : {...template.animations.word, fromTranslateYEm: config.sobeCqw / principal, fromBlurEm: config.desfoqueCqw / principal};
+        const partes = linha.partes.map((parte, indiceDaParte) => {
+          const tamanho = `${(config.tamanhosCqw[parte.papel] * escala).toFixed(3)}cqw`;
+          const base: CSSProperties = {...config.estilos[parte.papel], fontSize: tamanho};
+          const estilo = parte.papel === "destaque" || parte.papel === "gigante" ? pinturaDoDestaque(palette, base) : base;
+          return parte.papel === "mini" ? (
+            <span key={indiceDaParte} style={estilo}>
+              {texto(parte.palavras).map((palavra, i) => (
+                <span key={i}>{palavra}</span>
+              ))}
+            </span>
+          ) : (
+            <span key={indiceDaParte} style={estilo}>
+              {texto(parte.palavras).join(" ")}
+            </span>
+          );
+        });
+        return (
+          <div key={`${primeira.startMs}-${indiceDaLinha}`}>
+            <AnimatedWord
+              text={partes}
+              startMs={primeira.startMs}
+              faladaMs={primeira.faladaMs}
+              animation={animacao}
+              style={{...config.linha, fontSize: `${principal.toFixed(3)}cqw`}}
+            />
+          </div>
+        );
+      })}
+    </>
+  );
+};
+
 const BlockContent: React.FC<{
   block: AssignedCaptionBlock;
   template: CaptionTemplate;
   palette: Palette;
   videoWidth: number;
-}> = ({block, template, palette, videoWidth}) => {
+  // Entrada dos lineares que aceitam letra por letra (template.porLetra).
+  entradaLinear?: EntradaLinear;
+}> = ({block, template, palette, videoWidth, entradaLinear}) => {
   const {styles, animations, keywordFit} = template;
   const words = block.words;
   // Entrada de cada parte do layout (sem animação própria, usa a das palavras).
@@ -361,6 +503,36 @@ const BlockContent: React.FC<{
     part.length > 0 ? (
       <div style={styles.supportBelow ?? styles.support}>{spacedWords(part, anim.below)}</div>
     ) : null;
+
+  if (template.structure === "papeis" && template.papeis) {
+    return <BlocoDePapeis block={block} template={template} palette={palette} videoWidth={videoWidth} />;
+  }
+
+  if (template.structure === "linear" && template.linhaUnica) {
+    // Uma linha só, reduzida se não couber; palavra por palavra ou letra por letra.
+    const text = words.map((word) => cleanWord(word.text)).join(" ");
+    const tamanhoPx = emPx(styles.block.fontSize, videoWidth);
+    const maximoPx = (Number.parseFloat(String(styles.block.maxWidth ?? "90")) / 100) * videoWidth;
+    const escala = tamanhoPx > 0 ? Math.min(1, maximoPx / Math.max(1, larguraDoTexto(text, styles.block, tamanhoPx))) : 1;
+    const porLetra = template.porLetra && entradaLinear === "letra" ? template.porLetra : undefined;
+    const conteudo = porLetra
+      ? words.flatMap((word, index) => [
+          index > 0 ? " " : null,
+          <span key={`${word.startMs}-${index}`} style={{display: "inline-block", whiteSpace: "pre"}}>
+            {[...cleanWord(word.text)].map((letra, i) => (
+              <AnimatedWord
+                key={i}
+                text={letra}
+                startMs={word.startMs + i * porLetra.atrasoPorLetraMs}
+                faladaMs={word.faladaMs === undefined ? undefined : word.faladaMs + i * porLetra.atrasoPorLetraMs}
+                animation={animations.word}
+              />
+            ))}
+          </span>,
+        ])
+      : spacedWords(words, animations.word);
+    return escala < 1 ? <span style={{fontSize: `${escala.toFixed(3)}em`}}>{conteudo}</span> : <>{conteudo}</>;
+  }
 
   if (template.structure === "linear") {
     const text = words.map((word) => cleanWord(word.text)).join(" ");
@@ -522,7 +694,8 @@ const semPosicao = (style: CSSProperties): CSSProperties =>
 // Bloco (ou dupla) com o centro no ponto escolhido, empurrado para dentro da margem
 // segura se não couber. O tamanho é medido no próprio bloco (offsetWidth não muda
 // com a escala do Player).
-const Posicionado: React.FC<{posicao: Posicao; children: ReactNode}> = ({posicao, children}) => {
+// Com ancora "esquerda" (layouts alinhados à esquerda), x é a borda esquerda do bloco.
+const Posicionado: React.FC<{posicao: Posicao; ancora?: "centro" | "esquerda"; children: ReactNode}> = ({posicao, ancora, children}) => {
   const {width, height} = useVideoConfig();
   const ref = useRef<HTMLDivElement>(null);
   const [tamanho, setTamanho] = useState<{largura: number; altura: number}>();
@@ -532,7 +705,9 @@ const Posicionado: React.FC<{posicao: Posicao; children: ReactNode}> = ({posicao
       setTamanho({largura: elemento.offsetWidth, altura: elemento.offsetHeight});
     }
   });
-  const centro = tamanho ? centroDentroDaMargem(posicao, tamanho.largura, tamanho.altura, width, height) : posicao;
+  const centro = tamanho
+    ? centroDentroDaMargem(centroDaAncora(posicao, ancora, tamanho.largura, width), tamanho.largura, tamanho.altura, width, height)
+    : posicao;
   return (
     <div
       ref={ref}
@@ -578,6 +753,7 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
   posicao,
   cortesMs,
   marcaDagua,
+  entradaLinear,
 }) => {
   const frame = useCurrentFrame();
   const {fps, width} = useVideoConfig();
@@ -588,9 +764,28 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
     [blocosDaFala, templates, sincroniaMs, precisa],
   );
   const timeline = useMemo(() => computeTimeline(blocks, cortesMs, fps), [blocks, cortesMs, fps]);
-  const active = findActiveBlocks(blocks, timeline, (frame / fps) * 1000);
+  const currentMs = (frame / fps) * 1000;
+  const active = findActiveBlocks(blocks, timeline, currentMs);
   const activeBlock = active?.block;
   const template = activeBlock ? templates[activeBlock.template] : undefined;
+  // O último bloco que já saiu da linha do tempo, se o layout dele tem saída e ela
+  // ainda não acabou (fica na tela junto com a entrada do seguinte).
+  const exiting = (() => {
+    let index = -1;
+    for (let i = timeline.length - 1; i >= 0; i--) {
+      if (timeline[i].hideMs <= currentMs) {
+        index = i;
+        break;
+      }
+    }
+    const block = blocks[index];
+    const exitTemplate = block ? templates[block.template] : undefined;
+    if (!block || !exitTemplate?.saida || block.dupla) {
+      return undefined;
+    }
+    const progress = (currentMs - timeline[index].hideMs) / exitTemplate.saida.duracaoMs;
+    return progress < 1 ? {block: withEntry(block, timeline[index].showMs), template: exitTemplate, progress: Math.max(0.001, progress)} : undefined;
+  })();
   const paletteOf = (block: AssignedCaptionBlock) => (block.paleta ? palettes?.[block.paleta] : undefined);
   const blockPalette = activeBlock ? paletteOf(activeBlock) : undefined;
   // Uma parte da dupla vira um template simples para desenhar cada bloco no seu grupo.
@@ -606,6 +801,32 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
       <div style={own ? {...groupStyle, ...paletteVariables(own)} : groupStyle}>
         <BlockContent block={block} template={partTemplate(part)} palette={own ?? palette} videoWidth={width} />
       </div>
+    );
+  };
+
+  // Um bloco (não dupla) no lugar dele: a posição do bloco, senão o lugar do layout
+  // deslocado pela posição geral, senão a geral. saindo: 0 na tela; de 0 a 1, a
+  // saída (sobe, encolhe de leve e some).
+  const simpleBlock = (block: AssignedCaptionBlock, blockTemplate: CaptionTemplate, saindo: number) => {
+    const own = paletteOf(block);
+    const lugar = blockTemplate.posicao;
+    const saida = blockTemplate.saida;
+    const style: CSSProperties = {...semPosicao(blockTemplate.styles.block), ...(own ? paletteVariables(own) : {})};
+    if (saida && saindo > 0) {
+      style.transform = `translateY(${(-saindo * saida.sobeCqw).toFixed(3)}cqw) scale(${(1 - (1 - saida.escala) * saindo).toFixed(4)})`;
+      style.opacity = 1 - saindo;
+    }
+    return (
+      <Posicionado
+        key={`${block.startMs}`}
+        posicao={posicaoDoBloco(block.posicao, posicao, lugar)}
+        ancora={lugar?.ancora}
+      >
+        {/* Bloco com paleta própria: as variáveis dela valem só dentro deste bloco. */}
+        <div style={style}>
+          <BlockContent block={block} template={blockTemplate} palette={own ?? palette} videoWidth={width} entradaLinear={entradaLinear} />
+        </div>
+      </Posicionado>
     );
   };
 
@@ -648,34 +869,22 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
       <AbsoluteFill
         style={{containerType: "inline-size", overflow: "hidden", ...paletteVariables(palette)}}
       >
+        {/* O bloco que acabou de sair, ainda subindo e sumindo (layouts com saída). */}
+        {fontsReady && exiting ? simpleBlock(exiting.block, exiting.template, exiting.progress) : null}
         {fontsReady && activeBlock && template ? (
-          // Centro do bloco no ponto escolhido (o do bloco, senão o geral). Na dupla,
-          // o conjunto se move junto, pela posição do primeiro bloco.
-          <Posicionado key={`${activeBlock.startMs}`} posicao={posicaoDoBloco(activeBlock.posicao, posicao)}>
-            {template.structure === "dupla" && template.pair ? (
-              // Dupla: o primeiro bloco num grupo, o segundo no outro, os dois na tela.
+          template.structure === "dupla" && template.pair ? (
+            // Centro do bloco no ponto escolhido (o do bloco, senão o geral). Na dupla,
+            // o conjunto se move junto, pela posição do primeiro bloco.
+            <Posicionado key={`${activeBlock.startMs}`} posicao={posicaoDoBloco(activeBlock.posicao, posicao)}>
+              {/* Dupla: o primeiro bloco num grupo, o segundo no outro, os dois na tela. */}
               <div style={semPosicao(template.styles.block)}>
                 {pairGroup(activeBlock, template.pair.first, template.pair.firstGroup)}
                 {active?.partner ? pairGroup(active.partner, template.pair.second, template.pair.secondGroup) : null}
               </div>
-            ) : (
-              // Bloco com paleta própria: as variáveis dela valem só dentro deste bloco.
-              <div
-                style={
-                  blockPalette
-                    ? {...semPosicao(template.styles.block), ...paletteVariables(blockPalette)}
-                    : semPosicao(template.styles.block)
-                }
-              >
-                <BlockContent
-                  block={activeBlock}
-                  template={template}
-                  palette={blockPalette ?? palette}
-                  videoWidth={width}
-                />
-              </div>
-            )}
-          </Posicionado>
+            </Posicionado>
+          ) : (
+            simpleBlock(activeBlock, template, 0)
+          )
         ) : null}
       </AbsoluteFill>
       {/* Por cima de tudo, com as fontes já carregadas (a marca usa a Inter Tight). */}

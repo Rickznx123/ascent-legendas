@@ -1,6 +1,6 @@
 // Edições de blocos. Funções puras (sem Node): servem ao terminal e à interface.
 import {chooseKeyword, findKeywordIndex, groupWords, normalizeForKeyword} from "../captions";
-import {assignMixed, assignRhythmAndTemplates, layoutForKeywordIn} from "../rhythm";
+import {assignMixed, assignRhythmAndTemplates, layoutForKeywordIn, linearCabe} from "../rhythm";
 import type {PackageRules} from "../rhythm";
 import {shortBlockIndexes} from "../tempos";
 import type {AssignedCaptionBlock, CaptionBlock, CaptionTemplate, Word} from "../types";
@@ -38,12 +38,29 @@ export const assignForStyle = (
   return markLongLinears(assigned, estilo);
 };
 
-// Linear acima do máximo de palavras do pacote que não foi dividido (layout escolhido
+// Layouts do pacote C antigo (c1 a c6, trocados pelo C versão 2 em 07/10/2026).
+const LAYOUT_DO_C_ANTIGO = /^(c\/)?c[1-6]$/u;
+
+// O projeto ainda usa layouts do pacote C antigo?
+export const temPacoteCAntigo = (blocks: CaptionBlock[]): boolean => blocks.some((block) => LAYOUT_DO_C_ANTIGO.test(block.template ?? ""));
+
+// Passa um projeto do pacote C antigo para o novo: os layouts são escolhidos de novo
+// com o ritmo e os layouts do C versão 2 (no modo misto, com a mesma semente). Os
+// blocos de outros pacotes escolhidos à mão continuam como estão.
+export const migrarPacoteC = (projeto: {blocks: CaptionBlock[]; semente?: number}, estilo: Estilo): AssignedCaptionBlock[] =>
+  assignForStyle(
+    projeto.blocks.map((block) => (LAYOUT_DO_C_ANTIGO.test(block.template ?? "") ? {...block, layoutManual: undefined} : block)),
+    estilo,
+    {semente: projeto.semente ?? 0, preserveAssignments: true},
+  );
+
+// Linear acima do máximo de palavras (ou de caracteres) do pacote que não foi dividido (layout escolhido
 // à mão ou blocos salvos mantidos como estão): só fica marcado como "revisar".
 const markLongLinears = (blocks: AssignedCaptionBlock[], estilo: Estilo): AssignedCaptionBlock[] =>
   blocks.map((block) => {
-    const max = block.family === "linear" ? rulesForBlock(estilo, block)?.config.maxLinearWords : undefined;
-    return max !== undefined && block.words.length > max && !block.review ? {...block, review: true} : block;
+    const config = block.family === "linear" ? rulesForBlock(estilo, block)?.config : undefined;
+    const longo = config !== undefined && !linearCabe(config, block.words.map((word) => word.text));
+    return longo && !block.review ? {...block, review: true} : block;
   });
 
 const blockSignature = (block: CaptionBlock): string =>

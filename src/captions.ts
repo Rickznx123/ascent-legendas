@@ -379,6 +379,41 @@ export const splitInTwo = (words: Word[], maxWords: number): [Word[], Word[]] =>
   return [words.slice(0, cut), words.slice(cut)];
 };
 
+// Divide um linear em quantos blocos forem precisos para cada um ter até maxWords
+// palavras e até maxChars caracteres (uma palavra mais longa que isso fica sozinha).
+// Usa o menor número de blocos e, entre as divisões com esse número, a de menor
+// penalidade do agrupador (sem a de linha de cima, que um linear não tem).
+export const dividirLinear = (words: Word[], maxWords: number, maxChars = Number.POSITIVE_INFINITY): Word[][] => {
+  const n = words.length;
+  if (n === 0) {
+    return [];
+  }
+  const {protectedCut} = findProtectedSpans(words.map((word) => word.text));
+  const naturalCut = findNaturalCuts(words);
+  const caracteres = (de: number, ate: number) => words.slice(de, ate).map((word) => displayText(word.text)).join(" ").length;
+  const cabe = (de: number, ate: number) => ate - de === 1 || (ate - de <= maxWords && caracteres(de, ate) <= maxChars);
+  const pontos = (de: number, ate: number) =>
+    sumPoints(blockPenalties(words, de, ate, protectedCut, naturalCut).filter((penalty) => penalty.reason !== TOP_LINE_REASON));
+  // melhor[i]: [blocos, pontos] para dividir words[i..n); proximo[i]: fim do primeiro bloco.
+  const melhor: [number, number][] = Array.from({length: n + 1}, () => [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY]);
+  const proximo = Array<number>(n + 1).fill(n);
+  melhor[n] = [0, 0];
+  for (let de = n - 1; de >= 0; de--) {
+    for (let ate = de + 1; ate <= n && cabe(de, ate); ate++) {
+      const candidato: [number, number] = [melhor[ate][0] + 1, melhor[ate][1] + pontos(de, ate)];
+      if (candidato[0] < melhor[de][0] || (candidato[0] === melhor[de][0] && candidato[1] < melhor[de][1])) {
+        melhor[de] = candidato;
+        proximo[de] = ate;
+      }
+    }
+  }
+  const partes: Word[][] = [];
+  for (let de = 0; de < n; de = proximo[de]) {
+    partes.push(words.slice(de, proximo[de]));
+  }
+  return partes;
+};
+
 export const explainGrouping = (words: Word[]): {text: string; penalties: BlockPenalty[]}[] =>
   partitionWords(prepareGroupingWords(words)).map(({chunk, penalties}) => ({
     text: chunk.map((word) => word.text).join(" "),

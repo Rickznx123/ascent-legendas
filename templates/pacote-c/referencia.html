@@ -3,203 +3,277 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Layouts de legenda, pacote C</title>
+<title>Pacote C v2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Kaushan+Script&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,400;0,800;1,400;1,800;1,900&display=swap" rel="stylesheet">
 <style>
-:root{
-  --pagina:#16161a; --texto:#f2f0ec; --suave:#9a968f;
-  --anton:'Anton','Arial Narrow',Impact,sans-serif;
-  --script:'Kaushan Script','Brush Script MT',cursive;
-  --ui:Helvetica,Arial,sans-serif;
-  --sombra:0 .5cqw 3cqw rgba(0,0,0,.55);
-  /* paleta branco */
-  --chave:linear-gradient(180deg,#ffffff,#ffffff);
-  --g1:rgba(255,255,255,.5); --g2:rgba(255,255,255,.25);
-}
-body.vermelho{--chave:linear-gradient(180deg,#ff3b2f 0%,#c40d0d 100%);--g1:rgba(255,40,30,.75);--g2:rgba(255,0,0,.45)}
-body.amarelo{--chave:linear-gradient(180deg,#fff2a8 0%,#ffc21a 55%,#ff9d00 100%);--g1:rgba(255,190,40,.6);--g2:rgba(255,150,0,.35)}
-*{box-sizing:border-box}
-body{margin:0;background:var(--pagina);color:var(--texto);font-family:var(--ui);padding:32px 20px 56px}
-header{max-width:1100px;margin:0 auto 28px;display:flex;flex-wrap:wrap;gap:16px;align-items:end;justify-content:space-between}
-h1{font:400 34px/1 var(--anton);letter-spacing:.01em;text-transform:uppercase;margin:0 0 8px}
-header p{margin:0;color:var(--suave);font-size:15px;max-width:56ch;line-height:1.5}
-.botoes{display:flex;flex-wrap:wrap;gap:8px}
-button{font:600 14px var(--ui);color:var(--texto);background:transparent;border:1px solid #4a4a54;border-radius:8px;padding:10px 14px;cursor:pointer}
-button:hover{background:#24242b}
-button[aria-pressed="true"]{background:#f2f0ec;color:#16161a;border-color:#f2f0ec}
-button:focus-visible{outline:2px solid #fff;outline-offset:2px}
-main{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:28px 20px}
-figure{margin:0}
-.q{position:relative;aspect-ratio:9/16;container-type:inline-size;overflow:hidden;border-radius:10px;background:#1b1a19}
-body.cena .q{background:linear-gradient(180deg,#d8cdbf 0%,#cbbba8 30%,#6a4a35 44%,#553a29 66%,#e6e2dc 76%,#d9d4cc 100%)}
-body.claro .q{background:#efece6}
+  :root{ --fundo:#f4f4f7; --painel:#fff; --linha:#dcdde5; --texto:#17181d; --fraco:#666878; --marca:#6a48f2; --codigo:#ececf2; }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --fundo:#0f1013; --painel:#17181d; --linha:#2a2c34; --texto:#e9e9ee; --fraco:#9a9cab; --marca:#7c5cff; --codigo:#22242c; } }
+  :root[data-theme="dark"]{ --fundo:#0f1013; --painel:#17181d; --linha:#2a2c34; --texto:#e9e9ee; --fraco:#9a9cab; --marca:#7c5cff; --codigo:#22242c; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--fundo);color:var(--texto);font:15px/1.5 "Inter Tight",system-ui,sans-serif}
+  .pagina{max-width:1060px;margin:0 auto;padding:20px 16px 40px;display:grid;grid-template-columns:auto 1fr;gap:28px;align-items:start}
+  @media (max-width:820px){.pagina{grid-template-columns:1fr}}
+  h1{font-size:20px;margin:0 0 2px;font-weight:800;letter-spacing:-.02em}
+  .sub{color:var(--fraco);margin:0 0 16px}
+  h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--fraco);margin:22px 0 8px;font-weight:800}
 
-/* ---------- peças comuns do pacote C ---------- */
-.b{position:absolute;left:50%;top:68%;transform:translate(-50%,-50%);width:max-content;max-width:90cqw;
-  color:#fff;text-align:center;text-shadow:var(--sombra);white-space:nowrap}
-.esq{text-align:left}
-/* condensada em caixa-alta */
-.anton{font-family:var(--anton);font-weight:400;text-transform:uppercase;letter-spacing:.005em;line-height:1}
-/* manuscrita, sempre em minúsculas */
-.script{font-family:var(--script);font-weight:400;text-transform:lowercase;letter-spacing:0;line-height:1}
-/* rótulo pequeno: condensada espaçada */
-.rot{font:400 4.8cqw/1 var(--anton);text-transform:uppercase;letter-spacing:.08em;position:relative;z-index:1}
-.dois{display:flex;justify-content:space-between;padding:0 .3em}
+  .moldura{width:360px;height:640px;position:relative;margin:0 auto}
+  .palco{width:360px;height:640px;position:absolute;left:0;top:0;transform-origin:0 0;overflow:hidden;border-radius:14px;
+    background:linear-gradient(180deg,#1a1917 0%,#26231f 45%,#12110f 100%)}
+  .cena{position:absolute;inset:0}
+  .aviso{position:absolute;left:10px;bottom:8px;font-size:10px;color:rgba(255,255,255,.45)}
 
-/* palavra-chave: preenchimento da paleta + brilho no elemento de fora */
-.kw{display:block;filter:drop-shadow(0 0 1.4cqw var(--g1)) drop-shadow(0 0 5cqw var(--g2)) drop-shadow(0 .5cqw 2cqw rgba(0,0,0,.4))}
-.tx{display:inline-block;padding:.1em .16em;margin:-.1em -.16em;text-shadow:none;
-  background:var(--chave);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
-/* a manuscrita precisa de mais folga para o degradê não cortar as pontas */
-.tx.script{padding:.22em .28em;margin:-.22em -.28em}
+  /* bloco de legenda */
+  .bloco{position:absolute;display:flex;flex-direction:column;gap:1px;text-transform:uppercase;font-style:italic;line-height:1}
+  .bloco.centro{left:0;right:0;align-items:center;text-align:center}
+  .bloco.esq{left:26px;align-items:flex-start;text-align:left}
+  .ln{display:flex;align-items:center;gap:7px;white-space:nowrap;will-change:transform,opacity,filter;opacity:0}
+  .t{display:inline-block}
+  .branco{color:var(--c-texto);font-weight:800;text-shadow:0 2px 8px rgba(0,0,0,.55)}
+  .leve{color:var(--c-texto);font-weight:400;font-style:normal;text-shadow:0 2px 8px rgba(0,0,0,.55)}
+  .cor{color:var(--c-dest);font-weight:900;text-shadow:0 2px 8px rgba(0,0,0,.5)}
+  .brilho{text-shadow:0 0 18px color-mix(in srgb,var(--c-dest) 65%,transparent),0 2px 8px rgba(0,0,0,.5)}
+  .caixa{background:var(--c-caixa);color:var(--c-caixa-texto);font-weight:800;padding:2px 7px 3px;border-radius:2px}
+  .mini{display:inline-flex;flex-direction:column;font-size:9px;font-weight:800;line-height:1.05;color:var(--c-texto);text-align:left}
+  .pal-lin{white-space:pre}
+  .s1{font-size:19px} .s2{font-size:24px} .s3{font-size:30px} .s4{font-size:42px;letter-spacing:-.02em}
 
-/* animações */
-.w{display:inline-block;animation:sobe .45s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--d,0s)}
-.w.bate{animation-name:bate;animation-duration:.38s;animation-timing-function:cubic-bezier(.2,.9,.25,1)}
-.w.foco{animation-name:foco;animation-duration:.55s}
-@keyframes sobe{from{opacity:0;transform:translateY(.35em)}to{opacity:1;transform:none}}
-@keyframes bate{from{opacity:0;filter:blur(.05em);transform:scale(1.22)}to{opacity:1;filter:none;transform:none}}
-@keyframes foco{from{opacity:0;filter:blur(.12em);transform:scale(.94)}to{opacity:1;filter:none;transform:none}}
-@media (prefers-reduced-motion:reduce){.w{animation:none}}
+  .controles{display:flex;flex-wrap:wrap;gap:8px;margin:14px auto 0;justify-content:center;max-width:360px}
+  .controles .rotulo{width:100%;font-size:11px;color:var(--fraco);text-transform:uppercase;letter-spacing:.08em;margin-top:6px}
+  button{font:inherit;font-size:13px;color:var(--texto);background:var(--painel);border:1px solid var(--linha);border-radius:999px;padding:7px 13px;cursor:pointer}
+  button.on{background:var(--marca);border-color:var(--marca);color:#fff}
+  .pal{display:inline-flex;align-items:center;gap:6px;padding:6px 10px}
+  .pal i{width:14px;height:14px;border-radius:50%;display:inline-block;border:1px solid rgba(128,128,128,.5)}
+  .quadro{font-variant-numeric:tabular-nums;color:var(--fraco);font-size:12px;text-align:center;margin-top:8px}
 
-/* ---------- C1: manuscrita em cima, condensada gigante, rodapé ---------- */
-.c1 .cima{font-size:10cqw;margin:0 0 -.42em .15em;transform:rotate(-5deg);transform-origin:left bottom;position:relative;z-index:1}
-.c1 .rod{text-align:right;font-size:8cqw;margin-top:-.04em;position:relative}
-.c1 .rod .anton{letter-spacing:.02em}
-/* ---------- C2: condensada com dois rótulos e manuscrita embaixo ---------- */
-.c2 .dois{margin-bottom:.12em}
-.c2 .baixo{font-size:15cqw;margin-top:-.46em;transform:rotate(-4deg);position:relative}
-/* ---------- C3: pilha crescente ---------- */
-.c3 .l1{font-size:7cqw}
-.c3 .l2{font-size:14cqw;margin-top:.02em}
-.c3 .kw{margin-top:.02em}
-/* ---------- C4: manuscrita gigante ---------- */
-.c4 .dois{margin-bottom:-.2em}
-.c4 .kw{transform:rotate(-3deg)}
-/* ---------- C5: esquerda mista ---------- */
-.c5 .l1{font-size:8cqw}
-.c5 .l2{font-size:13cqw;margin-top:.02em}
-.c5 .kw{margin-top:-.12em;transform:rotate(-3deg);transform-origin:left center}
-/* ---------- C6: condensada com selo ---------- */
-.c6 .topo{font:400 4.8cqw/1 var(--anton);text-transform:uppercase;letter-spacing:.08em;margin-bottom:-.15em;position:relative;z-index:1}
-.c6 .topo .script{font-size:9cqw;margin-left:.1em}
-.c6 .selo{text-align:right;font:400 5cqw/1 var(--anton);text-transform:uppercase;letter-spacing:.1em;margin-top:.14em;padding-right:.1em;position:relative}
-/* ---------- linear ---------- */
-.lin{font-size:8cqw;line-height:1.08;letter-spacing:.01em}
-
-figcaption{padding:12px 2px 0}
-figcaption b{display:block;font:700 16px/1.2 var(--ui);margin-bottom:6px}
-figcaption span{display:block;color:var(--suave);font-size:13.5px;line-height:1.5}
+  .ficha{background:var(--painel);border:1px solid var(--linha);border-radius:14px;padding:18px 20px}
+  .ficha ul{margin:0;padding-left:18px} .ficha li{margin:4px 0}
+  table{border-collapse:collapse;width:100%;font-size:14px}
+  td,th{border-bottom:1px solid var(--linha);padding:6px 8px 6px 0;text-align:left;vertical-align:top}
+  th{color:var(--fraco);font-weight:400;white-space:nowrap}
+  .amostra{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:4px;border:1px solid rgba(128,128,128,.5)}
+  code{background:var(--codigo);padding:1px 5px;border-radius:5px;font-size:13px}
 </style>
 </head>
-<body class="vermelho">
-<header>
+<body>
+<div class="pagina">
   <div>
-    <h1>Pacote C</h1>
-    <p>Seis composições com condensada em caixa-alta (Anton) e manuscrita (Kaushan Script), mais o linear. A paleta pinta só a palavra-chave e o brilho. A palavra-chave condensada entra batendo; a manuscrita entra em foco.</p>
+    <div class="moldura" id="moldura">
+      <div class="palco" id="palco">
+        <svg class="cena" viewBox="0 0 360 640" aria-hidden="true">
+          <g opacity=".35" fill="#3a352e"><rect x="20" y="0" width="6" height="420"/><rect x="60" y="0" width="6" height="420"/><rect x="100" y="0" width="6" height="420"/><rect x="250" y="0" width="6" height="420"/><rect x="290" y="0" width="6" height="420"/><rect x="330" y="0" width="6" height="420"/></g>
+          <g fill="#0b0a09"><circle cx="180" cy="200" r="46"/><path d="M92 300 q88 -52 176 0 l26 340 h-228 z"/></g>
+        </svg>
+        <div id="legenda"></div>
+        <div class="aviso">vídeo de exemplo</div>
+      </div>
+    </div>
+    <div class="quadro" id="quadro">quadro 0</div>
+    <div class="controles">
+      <button id="tocar" class="on">Pausar</button>
+      <button data-vel="1" class="on">1x</button>
+      <button data-vel="0.5">0,5x</button>
+      <button data-vel="0.2">0,2x</button>
+      <div class="rotulo">Linear: entrada</div>
+      <button data-lin="palavra" class="on">Por palavra</button>
+      <button data-lin="letra">Por letra</button>
+      <div class="rotulo">Paleta</div>
+      <span id="paletas" style="display:contents"></span>
+    </div>
   </div>
-  <div class="botoes">
-    <button data-paleta="branco" aria-pressed="false">Branco</button>
-    <button data-paleta="vermelho" aria-pressed="true">Vermelho</button>
-    <button data-paleta="amarelo" aria-pressed="false">Amarelo</button>
-    <button id="fundo">Trocar fundo</button>
-    <button id="repetir">Repetir animação</button>
+
+  <div>
+    <h1>Pacote C · versão 2</h1>
+    <p class="sub">Itálico pesado em caixa alta, etiqueta em caixa colorida, uma linha de destaque na cor da paleta.</p>
+    <div class="ficha">
+      <h2 style="margin-top:0">Ritmo: dinâmico, linear, dinâmico</h2>
+      <p style="margin:0 0 10px">Um layout dinâmico marca a frase forte. Entre um dinâmico e outro, a fala segue em blocos lineares, simples, até o próximo dinâmico.</p>
+      <h2>Layouts dinâmicos</h2>
+      <table>
+        <tr><th>1 · Destaque gigante</th><td>Linha branca com etiqueta, palavra-chave enorme com brilho, fecho leve. Embaixo, centralizado.</td></tr>
+        <tr><th>2 · Pilha à esquerda</th><td>Etiqueta, linha branca, linha na cor. Em cima, alinhado à esquerda.</td></tr>
+        <tr><th>3 · Com miudinho</th><td>Etiqueta, linha na cor, e palavras de apoio empilhadas em letra miúda ao lado da última palavra.</td></tr>
+                <tr><th>4 · Pilha central</th><td>Igual ao 2, embaixo e centralizado.</td></tr>
+      </table>
+
+      <h2>Linear</h2>
+      <ul>
+        <li>Frase sozinha em uma linha: até 3 palavras ou 20 caracteres. Passou disso, quebra em outro bloco linear.</li>
+        <li>Branco, sem caixa e sem cor de destaque. Mesma fonte, tamanho de corpo.</li>
+        <li>Cada palavra desliza para cima ao ser falada (ou letra por letra, no botão ao lado).</li>
+        <li>Fica sempre no mesmo lugar, embaixo e centralizado.</li>
+      </ul>
+
+      <h2>Papéis das palavras (dinâmicos)</h2>
+      <ul>
+        <li><b>Etiqueta:</b> o começo da frase (1 a 2 palavras), em caixa colorida com texto claro.</li>
+        <li><b>Destaque:</b> a palavra ou linha mais importante, na cor da paleta, peso 900. No layout 1 ganha brilho.</li>
+        <li><b>Corpo:</b> branco, peso 800.</li>
+        <li><b>Leve e miudinho:</b> fechos e conectivos, sem itálico ou em letra miúda.</li>
+        <li>Tudo em caixa alta. Máximo de 3 linhas por bloco.</li>
+      </ul>
+
+      <h2>Movimento (30 quadros por segundo, base 360 x 640)</h2>
+      <table>
+        <tr><th>Entrada da linha</th><td>no instante da fala da primeira palavra · 7 quadros · sobe 22 px · escala 0,90 a 1 · curva back-out · desfoque de 6 px a 0</td></tr>
+        <tr><th>Etiqueta</th><td>a caixa abre da esquerda para a direita em 6 quadros, com o texto junto</td></tr>
+        <tr><th>Linear</th><td>cada palavra no instante da fala · 5 quadros · sobe 14 px · curva cúbica-out · por letra: 1 quadro de atraso entre letras</td></tr>
+        <tr><th>Saída do bloco</th><td>5 quadros · sobe 10 px · escala 0,96 · some</td></tr>
+        <tr><th>Tamanhos</th><td>etiqueta 19 · corpo 24 · destaque 30 · gigante 42 · miudinho 9</td></tr>
+        <tr><th>Fonte</th><td>Inter Tight itálica 800 e 900; leve em 400 sem itálico</td></tr>
+      </table>
+
+      <h2>Paletas novas</h2>
+      <table id="tabela-paletas"></table>
+
+      <h2>Fora do alcance</h2>
+      <p style="margin:0">As faixas neon atrás da pessoa e os cartões flutuantes das referências dependem de recortar a pessoa do fundo. Não entram neste pacote; aqui é só a legenda.</p>
+    </div>
   </div>
-</header>
-
-<main>
-  <figure>
-    <div class="q"><div class="b esq c1">
-      <div class="script cima"><span class="w">contar</span> <span class="w" style="--d:.1s">com</span></div>
-      <span class="kw"><span class="tx anton w bate" data-w="86" data-max="34" style="--d:.24s">depilação</span></span>
-      <div class="rod"><span class="w script" style="--d:.42s">a</span> <span class="w anton" style="--d:.5s">laser</span></div>
-    </div></div>
-    <figcaption><b>C1. Manuscrita, condensada e rodapé</b><span>Manuscrita de 10% inclinada 5°, entrando no topo da palavra-chave. Palavra-chave condensada com 86% da largura (teto 34%). Rodapé à direita, 8%: palavras em manuscrita, a última em condensada.</span></figcaption>
-  </figure>
-
-  <figure>
-    <div class="q"><div class="b c2">
-      <div class="rot dois"><span class="w">estaremos</span><span class="w" style="--d:.1s">com</span></div>
-      <span class="kw"><span class="tx anton w bate" data-w="80" data-max="34" style="--d:.22s">preços</span></span>
-      <div class="script baixo"><span class="w" style="--d:.44s">imperdíveis</span></div>
-    </div></div>
-    <figcaption><b>C2. Condensada com dois rótulos</b><span>Dois rótulos de 4,8% nas pontas de cima. Palavra-chave condensada com 80% da largura (teto 34%). Manuscrita branca de 15% embaixo, inclinada 4° e subindo 46% sobre a palavra-chave.</span></figcaption>
-  </figure>
-
-  <figure>
-    <div class="q"><div class="b c3">
-      <div class="anton l1"><span class="w">clique</span></div>
-      <div class="anton l2"><span class="w" style="--d:.12s">no link</span></div>
-      <span class="kw"><span class="tx anton w bate" data-w="70" data-max="36" style="--d:.28s">da bio</span></span>
-    </div></div>
-    <figcaption><b>C3. Pilha crescente</b><span>Três linhas condensadas centralizadas, crescendo: 7%, 14% e a palavra-chave com 70% da largura (teto 36%). A linha de 14% é a última palavra antes da chave.</span></figcaption>
-  </figure>
-
-  <figure>
-    <div class="q"><div class="b c4">
-      <div class="rot dois"><span class="w">lidar</span><span class="w" style="--d:.1s">com</span></div>
-      <span class="kw"><span class="tx script w foco" data-w="84" data-max="30" style="--d:.22s">irritações</span></span>
-    </div></div>
-    <figcaption><b>C4. Manuscrita gigante</b><span>Palavra-chave em manuscrita com 84% da largura (teto 30%), inclinada 3°. Dois rótulos pequenos nas pontas de cima, sobrepostos ao topo dela.</span></figcaption>
-  </figure>
-
-  <figure>
-    <div class="q"><div class="b esq c5">
-      <div class="anton l1"><span class="w">faz a</span></div>
-      <div class="anton l2"><span class="w" style="--d:.12s">diminuição</span></div>
-      <span class="kw"><span class="tx script w foco" data-w="72" data-max="26" style="--d:.3s">gradual</span></span>
-    </div></div>
-    <figcaption><b>C5. Esquerda mista</b><span>Alinhado à esquerda: duas linhas condensadas (8% e 13%) e a palavra-chave em manuscrita com 72% da largura (teto 26%), inclinada 3° e subindo 12%.</span></figcaption>
-  </figure>
-
-  <figure>
-    <div class="q"><div class="b c6">
-      <div class="topo"><span class="w">assim</span> <span class="w script" style="--d:.1s">uma</span></div>
-      <span class="kw"><span class="tx anton w bate" data-w="84" data-max="34" style="--d:.24s">praticidade</span></span>
-      <div class="selo"><span class="w" style="--d:.46s">e conforto</span></div>
-    </div></div>
-    <figcaption><b>C6. Condensada com selo</b><span>Topo com rótulo de 4,8% e a última palavra em manuscrita de 9%. Palavra-chave condensada com 84% da largura (teto 34%). Selo condensado espaçado de 5% embaixo à direita.</span></figcaption>
-  </figure>
-
-  <figure>
-    <div class="q"><div class="b anton lin">
-      <span class="w">agora</span> <span class="w" style="--d:.08s">você</span><br><span class="w" style="--d:.16s">também</span> <span class="w" style="--d:.24s">pode</span>
-    </div></div>
-    <figcaption><b>Linear do pacote C</b><span>Respiro entre os destaques: condensada em caixa-alta de 8%, entrelinha 1,08, sem palavra-chave pintada. Acima de 22 caracteres, quebra em duas linhas.</span></figcaption>
-  </figure>
-</main>
+</div>
 
 <script>
-function ajustar(){
-  document.querySelectorAll('[data-w]').forEach(function(el){
-    var W=el.closest('.q').clientWidth;
-    el.style.fontSize='100px';
-    var larg=el.offsetWidth||1;
-    var alvo=100*(parseFloat(el.dataset.w)/100*W)/larg;
-    var teto=parseFloat(el.dataset.max)/100*W;
-    el.style.fontSize=Math.min(alvo,teto).toFixed(1)+'px';
+const PALETAS = {
+  Neon:    { texto:'#FFFFFF', dest:'#EFFF1A', caixa:'#D7141A', caixaTexto:'#FFFFFF' },
+  Ascent:  { texto:'#FFFFFF', dest:'#FF4FD8', caixa:'#6A3DFF', caixaTexto:'#FFFFFF' },
+  Oceano:  { texto:'#FFFFFF', dest:'#3DE0FF', caixa:'#0B4DDB', caixaTexto:'#FFFFFF' },
+  Fogo:    { texto:'#FFFFFF', dest:'#FFB21F', caixa:'#D9361A', caixaTexto:'#FFFFFF' },
+  Menta:   { texto:'#FFFFFF', dest:'#5CFFB0', caixa:'#0E7C55', caixaTexto:'#FFFFFF' },
+  Ouro:    { texto:'#FFFFFF', dest:'#FFD166', caixa:'#FFD166', caixaTexto:'#17130A' },
+  Mono:    { texto:'#FFFFFF', dest:'#FFFFFF', caixa:'#FFFFFF', caixaTexto:'#0B0B0B' },
+};
+
+// dinâmico: linhas com papéis. linear: palavras simples entre os dinâmicos.
+const BLOCOS = [
+  { pos:'centro', topo:420, sai:2.3, linhas:[
+    { em:0.20, partes:[['branco s1','Se você é'],['caixa s1','personal']] },
+    { em:0.75, partes:[['cor brilho s4','trainer']] },
+    { em:1.25, partes:[['leve s3','online']] } ] },
+  { linear:true, sai:3.5, palavras:[['e',2.45],['quer',2.70],['crescer',2.95]] },
+  { linear:true, sai:4.5, palavras:[['de',3.60],['verdade',3.85]] },
+  { pos:'esq', topo:96, sai:6.5, linhas:[
+    { em:4.70, partes:[['caixa s1','um dos']] },
+    { em:5.05, partes:[['branco s2','maiores']] },
+    { em:5.50, partes:[['cor s2','desafios']] } ] },
+  { linear:true, sai:7.8, palavras:[['todo',6.65],['mundo',6.95],['sabe',7.20]] },
+  { pos:'centro', topo:430, sai:10.0, linhas:[
+    { em:8.00, partes:[['caixa s1','hoje é']] },
+    { em:8.40, partes:[['cor s3','se destacar']] },
+    { em:9.00, partes:[['mini','dos|outros'],['branco s3','coaches']] } ] },
+  { linear:true, sai:11.2, palavras:[['é',10.15],['só',10.35],['olhar',10.60]] },
+  { linear:true, sai:12.1, palavras:[['os',11.30],['perfis',11.55]] },
+  { pos:'centro', topo:430, sai:14.2, linhas:[
+    { em:12.30, partes:[['caixa s1','que postam']] },
+    { em:12.75, partes:[['branco s2','o mesmo']] },
+    { em:13.20, partes:[['cor s2','antes e depois']] } ] },
+];
+const CICLO = 14.6, FPS = 30, ENT = 7, SAI = 5, ENT_LIN = 5, SOBE_LIN = 14, PASSO_LETRA = 1;
+
+const legenda = document.getElementById('legenda');
+const linhas = [], pecas = [];   // pecas = palavras (ou letras) dos lineares
+let modoLinear = 'palavra';
+BLOCOS.forEach((b, bi) => {
+  const d = document.createElement('div');
+  if (b.linear) {
+    d.className = 'bloco centro linear'; d.style.top = '452px';
+    const ln = document.createElement('div'); ln.className = 'ln'; ln.style.opacity = 1;
+    b.palavras.forEach(([txt, em]) => {
+      const w = document.createElement('span'); w.className = 't branco s2 pal-lin';
+      [...txt].forEach((c, i) => { const l = document.createElement('span'); l.className = 't'; l.textContent = c; w.appendChild(l); pecas.push({ el: l, em, i, bloco: bi, letra: true }); });
+      pecas.push({ el: w, em, i: 0, bloco: bi, letra: false });
+      ln.appendChild(w);
+    });
+    d.appendChild(ln); legenda.appendChild(d); return;
+  }
+  d.className = 'bloco ' + b.pos; d.style.top = b.topo + 'px';
+  b.linhas.forEach(l => {
+    const ln = document.createElement('div'); ln.className = 'ln';
+    let temCaixa = false;
+    l.partes.forEach(([cls, txt]) => {
+      const s = document.createElement('span'); s.className = 't ' + cls;
+      if (cls === 'mini') txt.split('|').forEach(p => { const i = document.createElement('span'); i.textContent = p; s.appendChild(i); });
+      else s.textContent = txt;
+      if (cls.includes('caixa')) temCaixa = true;
+      ln.appendChild(s);
+    });
+    d.appendChild(ln);
+    linhas.push({ el: ln, em: l.em, bloco: bi, caixa: temCaixa && l.partes.length === 1 });
   });
-}
-function repetir(){
-  document.querySelectorAll('.w').forEach(function(el){
-    el.style.animation='none';void el.offsetWidth;el.style.animation='';
-  });
-}
-var paleta='vermelho',fundos=['','cena','claro'],fundo=0;
-function aplicar(){document.body.className=(paleta+' '+fundos[fundo]).trim();}
-document.querySelectorAll('[data-paleta]').forEach(function(bt){
-  bt.addEventListener('click',function(){
-    paleta=bt.dataset.paleta;aplicar();
-    document.querySelectorAll('[data-paleta]').forEach(function(o){o.setAttribute('aria-pressed',o===bt?'true':'false');});
-  });
+  legenda.appendChild(d);
 });
-document.getElementById('fundo').addEventListener('click',function(){fundo=(fundo+1)%fundos.length;aplicar();});
-document.getElementById('repetir').addEventListener('click',repetir);
-ajustar();
-if(document.fonts&&document.fonts.ready){document.fonts.ready.then(ajustar);}
-window.addEventListener('resize',ajustar);
+
+const lim = (v, a, b) => Math.max(a, Math.min(b, v));
+const backOut = p => { const c = 1.70158; const x = p - 1; return 1 + (c + 1) * x * x * x + c * x * x; };
+const cubOut = p => 1 - Math.pow(1 - p, 3);
+
+let tocando = true, vel = 1, tempo = 0, anterior = performance.now();
+function desenhar(q) {
+  for (const l of linhas) {
+    const b = BLOCOS[l.bloco];
+    const qe = q - Math.round(l.em * FPS), qs = q - Math.round(b.sai * FPS);
+    if (qe < 0 || qs >= SAI) { l.el.style.opacity = 0; continue; }
+    const p = lim(qe / ENT, 0, 1);
+    let y, esc, op = lim(qe / 3, 0, 1), blur = (1 - p) * 6, clip = 'none';
+    if (l.caixa) { const w = cubOut(lim(qe / 6, 0, 1)); clip = `inset(0 ${((1 - w) * 100).toFixed(1)}% 0 0)`; y = 0; esc = 1; blur = 0; op = 1; }
+    else { const e = backOut(p); y = (1 - e) * 22; esc = 0.9 + 0.1 * e; }
+    if (qs > 0) { const s = qs / SAI; y -= s * 10; esc *= 1 - 0.04 * s; op *= 1 - s; }
+    l.el.style.transform = `translateY(${y.toFixed(1)}px) scale(${esc.toFixed(3)})`;
+    l.el.style.opacity = op.toFixed(3);
+    l.el.style.filter = blur > 0.3 ? `blur(${blur.toFixed(1)}px)` : 'none';
+    l.el.style.clipPath = clip;
+  }
+  for (const k of pecas) {
+    const ativo = (modoLinear === 'letra') === k.letra;
+    if (!ativo) { k.el.style.transform = 'none'; k.el.style.opacity = k.letra ? 1 : (modoLinear === 'letra' ? 1 : 0); if (!k.letra && modoLinear === 'letra') k.el.style.opacity = 1; continue; }
+    const b = BLOCOS[k.bloco];
+    const qe = q - Math.round(k.em * FPS) - (k.letra ? k.i * PASSO_LETRA : 0), qs = q - Math.round(b.sai * FPS);
+    if (qe < 0 || qs >= SAI) { k.el.style.opacity = 0; continue; }
+    const e = cubOut(lim(qe / ENT_LIN, 0, 1));
+    let y = (1 - e) * SOBE_LIN, op = lim(qe / 3, 0, 1);
+    if (qs > 0) { const s = qs / SAI; y -= s * 8; op *= 1 - s; }
+    k.el.style.transform = `translateY(${y.toFixed(1)}px)`; k.el.style.opacity = op.toFixed(3);
+  }
+  document.getElementById('quadro').textContent = 'quadro ' + q + ' de ' + Math.round(CICLO * FPS);
+}
+function passo(agora) {
+  if (tocando) tempo = (tempo + (agora - anterior) / 1000 * vel) % CICLO;
+  anterior = agora; desenhar(Math.floor(tempo * FPS)); requestAnimationFrame(passo);
+}
+requestAnimationFrame(passo);
+
+function aplicar(nome) {
+  const p = PALETAS[nome], s = document.getElementById('palco').style;
+  s.setProperty('--c-texto', p.texto); s.setProperty('--c-dest', p.dest);
+  s.setProperty('--c-caixa', p.caixa); s.setProperty('--c-caixa-texto', p.caixaTexto);
+  document.querySelectorAll('.pal').forEach(b => b.classList.toggle('on', b.dataset.pal === nome));
+}
+const cont = document.getElementById('paletas'), tab = document.getElementById('tabela-paletas');
+Object.entries(PALETAS).forEach(([nome, p]) => {
+  const b = document.createElement('button'); b.className = 'pal'; b.dataset.pal = nome;
+  b.innerHTML = `<i style="background:${p.dest}"></i><i style="background:${p.caixa}"></i>${nome}`;
+  b.addEventListener('click', () => aplicar(nome)); cont.appendChild(b);
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<th>${nome}</th><td><span class="amostra" style="background:${p.dest}"></span>destaque ${p.dest} · <span class="amostra" style="background:${p.caixa}"></span>caixa ${p.caixa} · texto da caixa ${p.caixaTexto}</td>`;
+  tab.appendChild(tr);
+});
+aplicar('Neon');
+
+document.querySelectorAll('[data-vel]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-vel]').forEach(o => o.classList.toggle('on', o === b)); vel = parseFloat(b.dataset.vel);
+}));
+document.querySelectorAll('[data-lin]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-lin]').forEach(o => o.classList.toggle('on', o === b)); modoLinear = b.dataset.lin;
+}));
+const bt = document.getElementById('tocar');
+bt.addEventListener('click', () => { tocando = !tocando; bt.textContent = tocando ? 'Pausar' : 'Tocar'; bt.classList.toggle('on', tocando); });
+
+function ajustar() {
+  const larg = Math.min(360, document.documentElement.clientWidth - 32), e = larg / 360, m = document.getElementById('moldura');
+  m.style.width = larg + 'px'; m.style.height = 640 * e + 'px'; document.getElementById('palco').style.transform = `scale(${e})`;
+}
+addEventListener('resize', ajustar); ajustar();
 </script>
 </body>
 </html>

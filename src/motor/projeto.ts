@@ -9,7 +9,7 @@ import {
 } from "../template-loader";
 import type {PackageRules} from "../rhythm";
 import type {ConfigEfeitos} from "../sons";
-import type {CaptionBlock, CaptionTemplate, Palette, VozDoAudio, Word} from "../types";
+import type {CaptionBlock, CaptionTemplate, EntradaLinear, Palette, VozDoAudio, Word} from "../types";
 import {PACOTE_MISTO} from "./blocos";
 
 export const WHISPER_MODEL = "small";
@@ -40,6 +40,8 @@ export type Projeto = {
   // Posição geral das legendas: centro do bloco em % da largura e da altura.
   // Sem valor: 50% × 68% (POSICAO_PADRAO).
   posicao?: {x: number; y: number};
+  // Entrada dos lineares que aceitam letra por letra (pacote C). Sem valor: por palavra.
+  entradaLinear?: EntradaLinear;
   // Blocos excluídos na interface (fora do vídeo; podem ser restaurados).
   excluidos?: CaptionBlock[];
   words: Word[];

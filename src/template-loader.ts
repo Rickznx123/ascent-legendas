@@ -112,10 +112,11 @@ export const loadPalette = async (palettesDirectory: string, paletteName: string
     typeof palette.glow?.inner !== "string" ||
     typeof palette.glow?.outer !== "string" ||
     !Number.isFinite(palette.glow?.intensity) ||
-    typeof palette.shadow?.color !== "string"
+    typeof palette.shadow?.color !== "string" ||
+    (palette.caixa !== undefined && (typeof palette.caixa.fundo !== "string" || typeof palette.caixa.texto !== "string"))
   ) {
     throw new Error(
-      `A paleta '${paletteName}' está incompleta. Ela precisa de supportColor, keywordFill (solida ou degrade com ao menos 2 paradas), glow {inner, outer, intensity} e shadow {color}.`,
+      `A paleta '${paletteName}' está incompleta. Ela precisa de supportColor, keywordFill (solida ou degrade com ao menos 2 paradas), glow {inner, outer, intensity} e shadow {color} (e, se tiver caixa, caixa {fundo, texto}).`,
     );
   }
   return palette;

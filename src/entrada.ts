@@ -5,6 +5,7 @@ import {Easing} from "remotion";
 import {AGRUPAMENTO_CONFIG} from "./agrupamento-config";
 import {findKeywordIndex} from "./captions";
 import {encaixarNoAudio} from "./encaixe";
+import {linhaDeCadaPalavra, linhasDosPapeis, soEtiqueta} from "./papeis";
 import type {
   AssignedCaptionBlock,
   CaptionBlock,
@@ -166,6 +167,12 @@ export const animacaoDaPalavra = (block: AssignedCaptionBlock, template: Caption
   const {animations} = template;
   if (template.structure === "linear") {
     return block.words.length === 2 && animations.linearPair ? animations.linearPair[indice] : animations.word;
+  }
+  if (template.structure === "papeis" && template.papeis) {
+    // A linha inteira entra junto; a etiqueta sozinha na linha abre da esquerda.
+    const linhas = linhasDosPapeis(template.papeis.arranjo, block.words.length, findKeywordIndex(block.words, block.keyword));
+    const linha = linhas[linhaDeCadaPalavra(linhas, block.words.length)[indice]];
+    return linha && soEtiqueta(linha) ? (animations.top ?? animations.word) : animations.word;
   }
   return indice === findKeywordIndex(block.words, block.keyword) ? animations.keyword : animations.word;
 };

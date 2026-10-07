@@ -3,6 +3,7 @@
 import {useEffect, useState} from "react";
 import {AvisoDoPlano} from "./AvisoDoPlano";
 import {posicaoArrastada} from "../../src/posicao";
+import {PACOTE_MISTO} from "../../src/motor/blocos";
 import {Abas, PainelDaAba, abaGuardada, guardarAba} from "./Abas";
 import type {Aba} from "./Abas";
 import {AjustesDoBloco} from "./AjustesDoBloco";
@@ -152,6 +153,7 @@ export const LayoutComputador: React.FC<{e: Editor}> = ({e}) => {
               onQuadro={e.aoMudarQuadro}
               posicao={projetoDoVideo?.posicao}
               cortesMs={e.cortesMs}
+              entradaLinear={projetoDoVideo?.entradaLinear}
               mover={
                 e.moverLegenda && projetoDoVideo
                   ? {
@@ -249,6 +251,9 @@ export const LayoutComputador: React.FC<{e: Editor}> = ({e}) => {
               sincroniaPrecisa={e.sincroniaPrecisa}
               detectandoVoz={e.detectandoVoz}
               onSincroniaPrecisa={e.alternarSincroniaPrecisa}
+              mostrarEntradaLinear={estilo?.pacote === "c" || estilo?.pacote === PACOTE_MISTO}
+              entradaLinear={projetoDoVideo?.entradaLinear ?? "palavra"}
+              onEntradaLinear={(entradaLinear) => e.atualizarProjeto({entradaLinear})}
               posicao={e.posicaoGeral}
               onInicioPosicao={e.inicioDeAjuste}
               onPosicao={(posicao) => e.atualizarProjeto({posicao})}

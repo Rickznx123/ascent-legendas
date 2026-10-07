@@ -350,7 +350,7 @@ Todas tomadas em 05/10/2026 (veja "Decisões tomadas", no começo). O domínio s
 - **Pix de 30 dias (Etapa 2d):** migração 008, chave Pix na conta do Mercado Pago e teste no app publicado; e-mail faltando 3 dias para depois (veja o bloco da 2d).
 - **Origem dos efeitos sonoros** (`sons/ORIGEM.md`): os sete arquivos estão sem origem nem licença comprovadas.
 - **Retomada da transcrição ao sair do app** (Bloco 5): falta teste no iPhone.
-- **Pacote C: refazer no estilo imobiliário (dois grupos, âncora + trilho, variações e templates lineares).** As duas versões de 06/10/2026 foram desfeitas (dois grupos com motion blur, `31f6b06`; âncora e trilho, `a349932`): o C voltou ao desenho de antes (c1 a c6 e linear, Anton e Kaushan Script). A prancha de referência está em `pacote-c-referencia.html`, na raiz.
+- **Pacote C versão 2** ✅ feito em 07/10/2026 (prancha em `templates/pacote-c/referencia.html`): ritmo próprio (dinâmico a cada 2 blocos, o primeiro dinâmico), quatro layouts dinâmicos (destaque gigante, pilha à esquerda, com miudinho, pilha central), linear de até 3 palavras ou 20 caracteres com entrada por palavra ou por letra (por projeto), saída do bloco e 7 paletas novas de três cores, em todos os pacotes. Projetos antigos no C passam para o novo ao abrir ou exportar.
 
 ---
 

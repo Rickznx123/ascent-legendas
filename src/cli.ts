@@ -217,6 +217,7 @@ const main = async () => {
       precisa,
       posicao: saved?.posicao,
       cortesMs,
+      entradaLinear: saved?.entradaLinear,
     },
     (etapa) => {
       if (etapa !== lastStage) {

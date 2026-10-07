@@ -2,6 +2,7 @@
 // conteúdo da aba ativa e as abas embaixo. A folha do bloco sobe por cima das abas.
 import {useEffect, useState} from "react";
 import {PREDEFINICOES, posicaoArrastada} from "../../../src/posicao";
+import {PACOTE_MISTO} from "../../../src/motor/blocos";
 import {abaGuardada, guardarAba} from "../Abas";
 import {SelosDoBloco} from "../ListaDeBlocos";
 import {PainelGeral} from "../PainelGeral";
@@ -149,6 +150,7 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
               onQuadro={e.aoMudarQuadro}
               posicao={projetoDoVideo?.posicao}
               cortesMs={e.cortesMs}
+              entradaLinear={projetoDoVideo?.entradaLinear}
             />
             {projetoDoVideo ? (
               <ArrastoCelular
@@ -268,6 +270,9 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
                 sincroniaPrecisa={e.sincroniaPrecisa}
                 detectandoVoz={e.detectandoVoz}
                 onSincroniaPrecisa={e.alternarSincroniaPrecisa}
+                mostrarEntradaLinear={estilo?.pacote === "c" || estilo?.pacote === PACOTE_MISTO}
+                entradaLinear={projetoDoVideo?.entradaLinear ?? "palavra"}
+                onEntradaLinear={(entradaLinear) => e.atualizarProjeto({entradaLinear})}
                 posicao={e.posicaoGeral}
                 onInicioPosicao={e.inicioDeAjuste}
                 onPosicao={(posicao) => e.atualizarProjeto({posicao})}

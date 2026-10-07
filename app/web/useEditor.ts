@@ -27,7 +27,7 @@ import type {Estilo, Projeto} from "../../src/motor/projeto";
 import {configDosEfeitos, planejarEfeitos} from "../../src/sons";
 import type {ArquivoSom, ConfigEfeitos} from "../../src/sons";
 import {blocosNaTela, cortesDosExcluidos, precisaoDoProjeto, sincroniaDoProjeto} from "../../src/entrada";
-import {POSICAO_PADRAO} from "../../src/posicao";
+import {POSICAO_PADRAO, posicaoDoBloco} from "../../src/posicao";
 import type {Posicao} from "../../src/posicao";
 import {computeTimeline, findActiveBlockIndex} from "../../src/tempos";
 import type {AssignedCaptionBlock, VideoMetadata} from "../../src/types";
@@ -393,7 +393,12 @@ export const useEditor = () => {
     }
   };
   const blocoQueMove = soEsteBloco && blocos[blocoSelecionado] ? blocoSelecionado : -1;
-  const posicaoQueMove = blocoQueMove >= 0 ? (blocos[blocoQueMove].posicao ?? posicaoGeral) : posicaoGeral;
+  // Um bloco começa a ser arrastado de onde ele está: a posição dele, senão o lugar do
+  // layout (deslocado pela posição geral), senão a geral.
+  const posicaoQueMove =
+    blocoQueMove >= 0
+      ? posicaoDoBloco(blocos[blocoQueMove].posicao, projetoDoVideo?.posicao, estilo?.templates[blocos[blocoQueMove].template]?.posicao)
+      : posicaoGeral;
   // Posição de um bloco (indice >= 0) ou a geral (-1), sem entrar no histórico (o
   // começo do arrasto já entrou).
   const moverPosicao = (indice: number, posicao: Posicao) => {

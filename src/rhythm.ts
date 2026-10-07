@@ -1,10 +1,10 @@
 import {
   chooseKeyword,
+  dividirLinear,
   endsSentence,
   findKeywordIndex,
   findProtectedSpans,
   isCommonPortugueseWord,
-  splitInTwo,
   isStrongWord,
   isValidTopLine,
   keywordCandidates,
@@ -21,6 +21,7 @@ import type {
   CountRange,
   LayoutRule,
   PackageConfig,
+  PalavrasDoLinear,
   TemplateFamily,
   Word,
 } from "./types";
@@ -84,6 +85,11 @@ const inRange = (value: number, range: CountRange | undefined): boolean =>
   range === undefined ||
   (value >= (range.min ?? Number.NEGATIVE_INFINITY) && value <= (range.max ?? Number.POSITIVE_INFINITY));
 
+// O linear cabe nos limites do pacote (palavras e caracteres)?
+export const linearCabe = (config: PalavrasDoLinear, texts: string[]): boolean =>
+  (config.maxLinearWords === undefined || texts.length <= config.maxLinearWords) &&
+  (config.maxLinearCaracteres === undefined || texts.length === 1 || texts.join(" ").length <= config.maxLinearCaracteres);
+
 // Primeira regra de destaque do pacote que vale para a palavra-chave em keywordIndex.
 const matchingRule = (
   config: PackageConfig,
@@ -116,7 +122,7 @@ export const layoutServeParaBloco = (
   }
   const texts = textsOf(block);
   if (template.family === "linear") {
-    return config.maxLinearWords === undefined || texts.length <= config.maxLinearWords;
+    return linearCabe(config, texts);
   }
   if (template.structure === "dupla") {
     return temBlocoSeguinte;
@@ -210,8 +216,13 @@ const createLayoutPicker = (
       }
       const name = peek(rule.templates);
       const top = topLineOf(templates[name].structure, texts, keywordIndex);
+      // Na estrutura "papeis", a etiqueta pode ter uma palavra só: não há linha de cima a validar.
       const acceptable =
-        keywordIndex === current ? isValidTopLine(top) : top.length > 0 && isValidTopLine(top);
+        templates[name].structure === "papeis"
+          ? true
+          : keywordIndex === current
+            ? isValidTopLine(top)
+            : top.length > 0 && isValidTopLine(top);
       if (acceptable && keywordVisibleEnough(block, keywordIndex, nextStartMs)) {
         commit(rule.templates);
         return {template: name, keywordIndex};
@@ -249,7 +260,10 @@ const mergeBlocks = (first: CaptionBlock, second: CaptionBlock): CaptionBlock =>
 // Define a família de cada bloco. Blocos que precisam de destaque viram destaque
 // primeiro; depois cada ciclo do padrão de ritmo ganha no máximo um destaque.
 // Dois destaques nunca ficam seguidos: quem sobra fica linear.
-const assignFamilies = (blocks: CaptionBlock[]): TemplateFamily[] => {
+const assignFamilies = (blocks: CaptionBlock[], ritmo?: PackageConfig["ritmo"]): TemplateFamily[] => {
+  if (ritmo) {
+    return familiasDoRitmo(blocks, ritmo);
+  }
   const families = Array<TemplateFamily>(blocks.length).fill("linear");
   const isHighlight = (index: number): boolean => families[index] === "destaque";
   const canHighlight = (index: number): boolean =>
@@ -287,6 +301,40 @@ const assignFamilies = (blocks: CaptionBlock[]): TemplateFamily[] => {
     }
   }
 
+  return families;
+};
+
+// Ritmo próprio de um pacote: um destaque a cada `aCada` blocos (o mais forte da
+// janela), nunca dois seguidos; com primeiroDestaque, o primeiro bloco é destaque.
+// Um destaque escolhido à mão dentro da janela conta como o destaque dela, e os
+// blocos com família escolhida à mão não mudam.
+const familiasDoRitmo = (blocks: CaptionBlock[], ritmo: NonNullable<PackageConfig["ritmo"]>): TemplateFamily[] => {
+  const aCada = Math.max(2, Math.floor(ritmo.aCada));
+  const fixa = (index: number): TemplateFamily | undefined =>
+    blocks[index]?.layoutManual && blocks[index]?.family ? blocks[index].family : undefined;
+  const families = blocks.map((_, index) => fixa(index) ?? "linear");
+  const intervaloDe = (de: number, ate: number) => Array.from({length: Math.max(0, ate - de + 1)}, (_, i) => de + i);
+  let de = 0;
+  let ate = ritmo.primeiroDestaque ? 0 : aCada - 1;
+  while (de < blocks.length) {
+    const janela = intervaloDe(de, Math.min(blocks.length - 1, ate));
+    let escolhido = janela.find((index) => fixa(index) === "destaque");
+    if (escolhido === undefined) {
+      [escolhido] = janela
+        .filter((index) => !fixa(index) && families[index - 1] !== "destaque" && families[index + 1] !== "destaque")
+        .sort((left, right) => blockStrength(blocks[right]) - blockStrength(blocks[left]) || left - right);
+      if (escolhido !== undefined) {
+        families[escolhido] = "destaque";
+      }
+    }
+    if (escolhido === undefined) {
+      de = ate + 1;
+      ate += aCada;
+      continue;
+    }
+    de = escolhido + 2;
+    ate = escolhido + aCada;
+  }
   return families;
 };
 
@@ -329,8 +377,8 @@ const arrangeBlock = (
   block: AssignedCaptionBlock;
   // Segundo bloco de uma dupla.
   partner?: AssignedCaptionBlock;
-  // Segunda metade de um linear dividido (acima de maxLinearWords).
-  rest?: AssignedCaptionBlock;
+  // Demais partes de um linear dividido (acima de maxLinearWords ou maxLinearCaracteres).
+  rest?: AssignedCaptionBlock[];
   consumed: number;
 } => {
   const block = blocks[index];
@@ -351,9 +399,13 @@ const arrangeBlock = (
   });
 
   if (families[index] === "linear") {
-    const maxWords = rules.config.maxLinearWords;
-    if (maxWords !== undefined && block.words.length > maxWords) {
-      const [firstWords, secondWords] = splitInTwo(block.words, maxWords);
+    const {maxLinearWords, maxLinearCaracteres} = rules.config;
+    if (!linearCabe(rules.config, textsOf(block))) {
+      const [firstWords, ...others] = dividirLinear(
+        block.words,
+        maxLinearWords ?? Number.POSITIVE_INFINITY,
+        maxLinearCaracteres ?? Number.POSITIVE_INFINITY,
+      );
       const part = (words: Word[]): AssignedCaptionBlock => ({
         ...linear(),
         words,
@@ -361,7 +413,7 @@ const arrangeBlock = (
         endMs: words[words.length - 1].endMs,
         keyword: chooseKeyword(words),
       });
-      return {block: part(firstWords), rest: part(secondWords), consumed: 1};
+      return {block: part(firstWords), rest: others.map(part), consumed: 1};
     }
     return {block: linear(), consumed: 1};
   }
@@ -480,8 +532,10 @@ const distribute = (
   isKnownTemplate: (name: string) => boolean,
   // Avisa qual pacote foi usado (pode não ser o primeiro candidato).
   onUsed: (rules: PackageRules) => void = () => undefined,
+  // Ritmo próprio do pacote (só no modo de um pacote).
+  ritmo?: PackageConfig["ritmo"],
 ): AssignedCaptionBlock[] => {
-  const families = assignFamilies(blocks);
+  const families = assignFamilies(blocks, ritmo);
   const pickers = new Map<string, Picker>();
   const pickerOf = (rules: PackageRules): Picker => {
     let picker = pickers.get(rules.name);
@@ -531,7 +585,7 @@ const distribute = (
       lastPairIndex = index;
     }
     if (result.rest) {
-      assigned.push(result.rest);
+      assigned.push(...result.rest);
     }
     index += result.consumed;
   }
@@ -585,7 +639,7 @@ export const assignRhythmAndTemplates = (
   }
 
   const rules: PackageRules = {name: options.packageName ?? "", prefix: "", templates, config: packageConfig};
-  return distribute(blocks, () => [rules], (name) => Boolean(templates[name])).map((block) =>
+  return distribute(blocks, () => [rules], (name) => Boolean(templates[name]), undefined, packageConfig.ritmo).map((block) =>
     options.packageName ? block : {...block, pacote: undefined},
   );
 };
@@ -633,9 +687,7 @@ export const assignMixed = (
   let drawn: PackageRules | undefined;
   // Um linear com mais palavras que o máximo de um pacote não sorteia esse pacote.
   const accepts = (rules: PackageRules, block: CaptionBlock, family: TemplateFamily): boolean =>
-    family !== "linear" ||
-    rules.config.maxLinearWords === undefined ||
-    block.words.length <= rules.config.maxLinearWords;
+    family !== "linear" || linearCabe(rules.config, textsOf(block));
   const candidatesFor = (block: CaptionBlock, family: TemplateFamily): PackageRules[] => {
     if (bag.length === 0) {
       bag = shuffled();

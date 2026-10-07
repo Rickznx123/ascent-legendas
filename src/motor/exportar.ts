@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import {bundle} from "@remotion/bundler";
 import {renderMedia, selectComposition} from "@remotion/renderer";
-import type {AssignedCaptionBlock, CaptionTemplate, EfeitoSonoro, Palette, SincroniaPrecisa, VideoMetadata} from "../types";
+import type {AssignedCaptionBlock, CaptionTemplate, EfeitoSonoro, EntradaLinear, Palette, SincroniaPrecisa, VideoMetadata} from "../types";
 import {prepararSons} from "./pasta-sons";
 import type {Progresso} from "./transcrever";
 
@@ -29,11 +29,13 @@ export type Exportacao = {
   cortesMs?: number[];
   // Marca d'água do plano grátis (o servidor decide pelo plano da conta).
   marcaDagua?: boolean;
+  // Entrada dos lineares que aceitam letra por letra (pacote C).
+  entradaLinear?: EntradaLinear;
 };
 
 // Renderiza o MP4 final com as legendas.
 export const renderVideo = async (
-  {root, inputPath, outputPath, blocks, templates, palette, palettes, video, efeitos, volumeEfeitos, sincroniaMs, precisa, posicao, cortesMs, marcaDagua}: Exportacao,
+  {root, inputPath, outputPath, blocks, templates, palette, palettes, video, efeitos, volumeEfeitos, sincroniaMs, precisa, posicao, cortesMs, marcaDagua, entradaLinear}: Exportacao,
   onProgress: Progresso = () => undefined,
 ): Promise<void> => {
   const tempDirectory = mkdtempSync(path.join(os.tmpdir(), "legendas-dinamicas-"));
@@ -59,6 +61,7 @@ export const renderVideo = async (
       posicao,
       cortesMs,
       marcaDagua,
+      entradaLinear,
     };
 
     onProgress("Preparando a composição...", 0);

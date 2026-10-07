@@ -54,5 +54,6 @@ export const montarProps = async (
     precisa,
     posicao: saved.posicao,
     cortesMs,
+    entradaLinear: saved.entradaLinear,
   };
 };

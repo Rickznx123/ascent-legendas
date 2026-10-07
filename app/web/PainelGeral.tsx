@@ -1,6 +1,6 @@
 import {useState} from "react";
 import type {Posicao} from "../../src/posicao";
-import type {AssignedCaptionBlock} from "../../src/types";
+import type {AssignedCaptionBlock, EntradaLinear} from "../../src/types";
 import {ControlesDePosicao} from "./ControlesDePosicao";
 import {tempoDoBloco} from "./quadro";
 
@@ -15,6 +15,10 @@ type Props = {
   // Detectando a voz do áudio (projeto transcrito antes da detecção).
   detectandoVoz: boolean;
   onSincroniaPrecisa: (ligar: boolean) => void;
+  // Entrada do linear do pacote C (só aparece com o pacote C ou o modo misto).
+  mostrarEntradaLinear: boolean;
+  entradaLinear: EntradaLinear;
+  onEntradaLinear: (entrada: EntradaLinear) => void;
   posicao: Posicao;
   // Controles deslizantes da posição geral (o mesmo valor do arrasto na prévia).
   onInicioPosicao: () => void;
@@ -36,6 +40,9 @@ export const PainelGeral: React.FC<Props> = ({
   sincroniaPrecisa,
   detectandoVoz,
   onSincroniaPrecisa,
+  mostrarEntradaLinear,
+  entradaLinear,
+  onEntradaLinear,
   posicao,
   onInicioPosicao,
   onPosicao,
@@ -92,6 +99,21 @@ export const PainelGeral: React.FC<Props> = ({
           <button type="button" className="bt bt-p" disabled={ocupado || !temProjeto} onClick={() => onSincronia(0)}>
             Zerar
           </button>
+        </div>
+      ) : null}
+      {mostrarEntradaLinear ? (
+        <div className="campo" title="Como entram os blocos lineares do pacote C: cada palavra sobe ao ser falada, ou letra por letra">
+          <label htmlFor="geral-entrada-linear">Entrada do linear (pacote C)</label>
+          <select
+            id="geral-entrada-linear"
+            className="sel"
+            value={entradaLinear}
+            disabled={ocupado || !temProjeto}
+            onChange={(event) => onEntradaLinear(event.target.value === "letra" ? "letra" : "palavra")}
+          >
+            <option value="palavra">Por palavra</option>
+            <option value="letra">Por letra</option>
+          </select>
         </div>
       ) : null}
       <div className="campo" title="Também muda com as predefinições ou com Mover legenda, embaixo da prévia">

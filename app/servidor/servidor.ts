@@ -9,7 +9,7 @@ import {pipeline} from "node:stream/promises";
 import express from "express";
 import type {NextFunction, Request, Response} from "express";
 import {groupWords} from "../../src/captions";
-import {assignForStyle, novaSemente, wordsOfBlocks} from "../../src/motor/blocos";
+import {assignForStyle, migrarPacoteC, novaSemente, temPacoteCAntigo, wordsOfBlocks} from "../../src/motor/blocos";
 import {renderVideo} from "../../src/motor/exportar";
 import {caminhoDoSom, listarSons, somTocadoEmCache} from "../../src/motor/pasta-sons";
 import {getVideoMetadata} from "../../src/motor/ferramentas";
@@ -663,13 +663,21 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     response.sendFile(arquivo);
   });
 
+  // Projeto ainda com layouts do pacote C antigo (c1 a c6): os layouts são escolhidos
+  // de novo com o C versão 2 (o editor salva na próxima edição; o render usa já).
+  const comPacoteCNovo = async (projeto: Projeto): Promise<Projeto> =>
+    temPacoteCAntigo(projeto.blocks)
+      ? {...projeto, blocks: migrarPacoteC(projeto, await loadStyle(root, {pacote: projeto.pacote, paleta: projeto.paleta}, projeto))}
+      : projeto;
+
   // O projeto de um vídeo (?video=); sem vídeo, o último editado. No modo local,
   // o do transcricao.json (a tela confere se é do vídeo aberto).
   app.get(
     "/api/projeto",
     handle(async (request, response) => {
       const video = typeof request.query.video === "string" && request.query.video ? request.query.video : undefined;
-      return {projeto: (await espacoDe(response).lerProjeto(video)) ?? null};
+      const projeto = await espacoDe(response).lerProjeto(video);
+      return {projeto: projeto ? await comPacoteCNovo(projeto) : null};
     }),
   );
 
@@ -953,7 +961,8 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // O que vai para o render (local ou no Lambda): estilo, efeitos, sincronia e a
   // decisão do plano, com a duração medida no servidor. entrada: o vídeo (caminho no
   // disco ou endereço assinado do S3).
-  const montarExportacao = async (espaco: Espaco, projeto: Projeto, entrada: string): Promise<ExportacaoMontada> => {
+  const montarExportacao = async (espaco: Espaco, salvo: Projeto, entrada: string): Promise<ExportacaoMontada> => {
+    const projeto = await comPacoteCNovo(salvo);
     const style = await loadStyle(root, {pacote: projeto.pacote, paleta: projeto.paleta}, projeto);
     const missing = projeto.blocks.findIndex((block) => !style.templates[block.template]);
     if (missing >= 0) {
@@ -995,6 +1004,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
         posicao: projeto.posicao,
         cortesMs,
         marcaDagua: decisao?.comMarca ?? false,
+        entradaLinear: projeto.entradaLinear,
       },
       decisao,
       duracaoS,
