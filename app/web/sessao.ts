@@ -91,6 +91,12 @@ export const pedeSenhaNova = (): boolean => {
   return pede;
 };
 
+// Aberto como app instalado (Tela de Início), e não no navegador. Os links do e-mail
+// (confirmação e redefinição de senha) abrem no Safari, não no app instalado: a tela
+// avisa para voltar ao app e entrar com a senha.
+export const noAppInstalado = (): boolean =>
+  window.matchMedia?.("(display-mode: standalone)").matches || (navigator as Navigator & {standalone?: boolean}).standalone === true;
+
 // Erros do Supabase em português claro (pelo código; sem código, pela mensagem).
 export const SENHA_MINIMA = 8;
 const traduzir = (erro: {code?: string; status?: number; message?: string}): Error => {

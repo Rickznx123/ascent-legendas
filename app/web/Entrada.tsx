@@ -212,6 +212,7 @@ export const Entrada: React.FC = () => {
             </div>
             <h1>Definir senha nova</h1>
             <p className="suave">{estado.sessao.user.email}</p>
+            <p className="suave">Se você usa o app na Tela de Início, depois de salvar volte para ele e entre com a senha nova.</p>
             <FormularioDeSenhaNova
               email={estado.sessao.user.email}
               textoDoBotao="Salvar e entrar"

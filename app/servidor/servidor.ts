@@ -808,8 +808,25 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     if (!existsSync(dist)) {
       throw new Error("A tela ainda não foi montada. Rode: npm run app:montar");
     }
-    app.use(express.static(dist));
-    app.get("*", (_request, response) => response.sendFile(path.join(dist, "index.html")));
+    // Cache: a página, o service worker e o manifesto sempre conferidos com o servidor
+    // (uma versão nova do app chega sozinha); os arquivos da tela têm o hash no nome
+    // (assets/), então podem ficar guardados por um ano.
+    const SEM_CACHE = "no-cache";
+    app.use(
+      express.static(dist, {
+        setHeaders: (response, caminho) => {
+          const relativo = path.relative(dist, caminho).replaceAll("\\", "/");
+          response.setHeader(
+            "Cache-Control",
+            relativo.startsWith("assets/") ? "public, max-age=31536000, immutable" : relativo.startsWith("icones/") ? "public, max-age=86400" : SEM_CACHE,
+          );
+        },
+      }),
+    );
+    app.get("*", (_request, response) => {
+      response.setHeader("Cache-Control", SEM_CACHE);
+      response.sendFile(path.join(dist, "index.html"));
+    });
   }
 
   return new Promise((resolve) => {

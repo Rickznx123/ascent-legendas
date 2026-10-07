@@ -5,7 +5,7 @@
 // O botão do Google só aparece com LOGIN_GOOGLE=1 no .env do servidor.
 import {useState} from "react";
 import {CampoDeSenha, problemaDaSenhaNova} from "./Senha";
-import {SENHA_MINIMA, criarConta, entrar, entrarComGoogle, pedirRedefinicao, reenviarConfirmacao} from "./sessao";
+import {SENHA_MINIMA, criarConta, entrar, entrarComGoogle, noAppInstalado, pedirRedefinicao, reenviarConfirmacao} from "./sessao";
 
 type Vista = "entrar" | "criar" | "esqueci";
 // Depois de enviar um e-mail: qual e para quem.
@@ -107,11 +107,15 @@ export const TelaDeLogin: React.FC<{google: boolean; aviso?: string}> = ({google
               <p className="suave">
                 Enviamos um link de confirmação para <b>{enviado.email}</b>. Toque no link para ativar a conta; depois,
                 você entra com o e-mail e a senha.
+                {noAppInstalado() ? " O link abre no Safari: depois de tocar nele, volte para este app e entre com o e-mail e a senha." : null}
               </p>
             ) : (
               <p className="suave">
                 Se <b>{enviado.email}</b> tem conta, enviamos um link para criar uma senha nova. Toque no link: o app abre
                 pedindo a senha nova.
+                {noAppInstalado()
+                  ? " O link abre no Safari: defina a senha nova lá e depois volte para este app para entrar com ela."
+                  : null}
               </p>
             )}
             {enviado.tipo === "confirmacao" ? (

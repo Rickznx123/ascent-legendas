@@ -1365,6 +1365,9 @@ h3 {
   display: grid;
   place-items: center;
   padding: var(--esp-5);
+  /* App instalado no iPhone: a barra de status fica por cima (área segura). */
+  padding-top: max(var(--esp-5), env(safe-area-inset-top));
+  padding-bottom: max(var(--esp-5), env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 
