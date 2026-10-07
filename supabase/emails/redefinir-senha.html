@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="supported-color-schemes" content="light dark" />
+    <title>Crie uma senha nova</title>
+  </head>
+  <body style="margin:0;padding:0;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:480px;font-family:Helvetica,Arial,sans-serif;font-size:16px;line-height:1.5;">
+            <tr>
+              <td style="padding:0 0 24px 0;font-size:18px;font-weight:bold;">Ascent Legendas</td>
+            </tr>
+            <tr>
+              <td style="padding:0 0 8px 0;font-size:22px;font-weight:bold;">Crie uma senha nova</td>
+            </tr>
+            <tr>
+              <td style="padding:0 0 24px 0;">Recebemos um pedido para criar uma senha nova para <b>{{ .Email }}</b>. Toque no botão abaixo: o Ascent Legendas abre pedindo a senha nova.</td>
+            </tr>
+            <tr>
+              <td style="padding:0 0 24px 0;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td align="center" bgcolor="#7c5cff" style="border-radius:8px;">
+                      <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px;background-color:#7c5cff;">Criar senha nova</a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 0 8px 0;font-size:14px;">Se o botão não funcionar, copie este endereço e abra no navegador:</td>
+            </tr>
+            <tr>
+              <td style="padding:0 0 24px 0;font-size:13px;word-break:break-all;"><a href="{{ .ConfirmationURL }}" style="color:#7c5cff;">{{ .ConfirmationURL }}</a></td>
+            </tr>
+            <tr>
+              <td style="padding:16px 0 0 0;font-size:13px;border-top:1px solid #8d8d9a;">O link vale por pouco tempo e só pode ser usado uma vez. No app instalado no iPhone, ele abre no Safari: salve a senha nova lá e depois volte ao app para entrar com ela.<br /><br />Se você não pediu uma senha nova, ignore este e-mail: a sua senha continua a mesma.</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

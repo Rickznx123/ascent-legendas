@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="supported-color-schemes" content="light dark" />
+    <title>Confirme seu cadastro</title>
+  </head>
+  <body style="margin:0;padding:0;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:480px;font-family:Helvetica,Arial,sans-serif;font-size:16px;line-height:1.5;">
+            <tr>
+              <td style="padding:0 0 24px 0;font-size:18px;font-weight:bold;">Ascent Legendas</td>
+            </tr>
+            <tr>
+              <td style="padding:0 0 8px 0;font-size:22px;font-weight:bold;">Confirme seu cadastro</td>
+            </tr>
+            <tr>
+              <td style="padding:0 0 24px 0;">Olá! Toque no botão abaixo para confirmar o e-mail <b>{{ .Email }}</b> e ativar a sua conta no Ascent Legendas. Depois, é só entrar com o e-mail e a senha.</td>
+            </tr>
+            <tr>
+              <td style="padding:0 0 24px 0;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td align="center" bgcolor="#7c5cff" style="border-radius:8px;">
+                      <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px;background-color:#7c5cff;">Confirmar meu e-mail</a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 0 8px 0;font-size:14px;">Se o botão não funcionar, copie este endereço e abra no navegador:</td>
+            </tr>
+            <tr>
+              <td style="padding:0 0 24px 0;font-size:13px;word-break:break-all;"><a href="{{ .ConfirmationURL }}" style="color:#7c5cff;">{{ .ConfirmationURL }}</a></td>
+            </tr>
+            <tr>
+              <td style="padding:16px 0 0 0;font-size:13px;border-top:1px solid #8d8d9a;">No app instalado no iPhone, o link abre no Safari: depois de confirmar, volte ao app e entre com o e-mail e a senha.<br /><br />Se você não criou uma conta no Ascent Legendas, ignore este e-mail.</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
