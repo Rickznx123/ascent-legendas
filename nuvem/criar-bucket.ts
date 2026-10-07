@@ -1,7 +1,10 @@
 // npx tsx nuvem/criar-bucket.ts
 // Cria (ou atualiza) o bucket S3 dos vídeos dos usuários, em us-east-2. Pode rodar
 // de novo sem estragar nada: rode de novo quando o endereço do app mudar
-// (ENDERECO_DO_APP), para o S3 liberar o navegador desse endereço.
+// (ENDERECO_DO_APP), para o S3 liberar o navegador desse endereço. Cada vez, o CORS
+// é trocado inteiro: ENDERECOS_EXTRAS (separados por vírgula) libera também outros
+// endereços, como o provisório do Render, enquanto ele ainda for usado.
+//   PowerShell: $env:ENDERECO_DO_APP="https://legendas.ascentstudio.com.br"; npx tsx nuvem/criar-bucket.ts
 // - Privado: nada público, dono único dos arquivos, criptografado.
 // - CORS: o navegador do app pode enviar (em partes) e ler os vídeos por endereço
 //   assinado; só do endereço do app, do computador e dos túneis trycloudflare.
@@ -34,9 +37,14 @@ const s3 = new S3Client({
   },
 });
 
-// Endereços cujo navegador pode usar o bucket: o do app, o próprio computador em
-// qualquer porta (desenvolvimento e testes) e os túneis trycloudflare.
-const origens = [...new Set([enderecoDoApp, "http://localhost:*", "http://127.0.0.1:*", "https://*.trycloudflare.com"])];
+// Endereços cujo navegador pode usar o bucket: o do app, os extras (ex.: o endereço
+// provisório do Render), o próprio computador em qualquer porta (desenvolvimento e
+// testes) e os túneis trycloudflare.
+const extras = (process.env.ENDERECOS_EXTRAS ?? "")
+  .split(",")
+  .map((endereco) => endereco.trim().replace(/\/+$/u, ""))
+  .filter(Boolean);
+const origens = [...new Set([enderecoDoApp, ...extras, "http://localhost:*", "http://127.0.0.1:*", "https://*.trycloudflare.com"])];
 
 const existe = await s3
   .send(new HeadBucketCommand({Bucket}))

@@ -256,7 +256,10 @@ Como ficou: manifesto ("Ascent Legendas", nome curto "Legendas", standalone, em 
 1. [EU] Manifesto, ícones, tags da Apple e service worker mínimo.
 2. [VOCÊ] Adicionar à Tela de Início no seu iPhone ou Android e entrar com o e-mail e a senha.
 
-**Bloco 9 — Publicar**
+**Bloco 9 — Publicar** — preparação em 06/10/2026: site do Lambda da versão publicado; modo público conferido no computador (porta do PORT, 0.0.0.0, /saude, tela montada, S3 e Lambda); variáveis em `.env.example`. A imagem Docker não foi montada aqui (sem Docker no computador): a primeira montagem é a do Render.
+
+Ordem: (1) `npm run nuvem:site`; (2) criar o serviço no Render (Docker, Ohio, Starter, branch main, health check `/saude`) com as variáveis; (3) com o endereço provisório no ar, rodar `criar-bucket.ts` com `ENDERECOS_EXTRAS=<endereço .onrender.com>` e pôr esse endereço nas Redirect URLs do Supabase, para testar antes do domínio; (4) domínio no Render e CNAME na Hostinger; (5) com o HTTPS do domínio ativo, `criar-bucket.ts` de novo (domínio, sem o extra) e Site URL / Redirect URLs do Supabase com o domínio; (6) teste completo.
+
 0. [VOCÊ/EU] **Obrigatório antes de cada publicação que mude `src/`, `fontes/` ou `sons/`: rodar `npm run nuvem:site`** (publica o site do Lambda da versão do código; sem ele, a exportação recusa com aviso).
 1. [VOCÊ] Criar a conta no Render, conectar o repositório e colar as variáveis de ambiente (eu entrego a lista).
 2. [VOCÊ] No painel de DNS da Hostinger, criar o registro de `legendas.ascentstudio.com.br` apontando para o Render (eu digo qual).
