@@ -3,12 +3,16 @@
 // roda no modo local, sem login (contasDoAmbiente devolve undefined).
 import {createClient} from "@supabase/supabase-js";
 import type {SupabaseClient} from "@supabase/supabase-js";
+import {planoEfetivo} from "./assinaturas";
+import type {PerfilDaAssinatura} from "./assinaturas";
 
 export type Plano = "gratis" | "assinante";
 
 export type Usuario = {id: string; email: string};
 
-export type Perfil = {nome: string | null; plano: Plano};
+// plano: o que vale agora (o assinante por assinatura acaba em plano_ate; veja
+// assinaturas.ts). assinatura: os campos da assinatura no perfil (migração 007).
+export type Perfil = {nome: string | null; plano: Plano; assinatura: PerfilDaAssinatura};
 
 // O que a tela pode saber (a chave publicável é pública por definição).
 export type ConfigDoLogin = {
@@ -75,12 +79,29 @@ export const contasDoAmbiente = (): Contas | undefined => {
     createClient(url, chavePublica, {...semSessao, global: {headers: {Authorization: `Bearer ${token}`}}});
 
   const perfil = async (usuario: Usuario, token: string): Promise<Perfil> => {
-    const {data, error} = await doUsuario(token).from("perfis").select("nome, plano").eq("id", usuario.id).maybeSingle();
+    const banco = doUsuario(token);
+    let {data, error} = await banco
+      .from("perfis")
+      .select("nome, plano, plano_origem, plano_ate, ciclo_inicio, ciclo_fim")
+      .eq("id", usuario.id)
+      .maybeSingle();
+    // Sem as colunas da assinatura (a migração 007 ainda não rodou): o plano de sempre.
+    if (error && /column|coluna/iu.test(error.message)) {
+      ({data, error} = await banco.from("perfis").select("nome, plano").eq("id", usuario.id).maybeSingle());
+    }
     if (error) {
       throw new Error(`Não foi possível ler o perfil: ${error.message}`);
     }
     if (data) {
-      return data as Perfil;
+      const linha = data as {nome: string | null; plano: Plano} & Partial<PerfilDaAssinatura>;
+      const assinatura: PerfilDaAssinatura = {
+        plano: linha.plano,
+        plano_origem: linha.plano_origem ?? "manual",
+        plano_ate: linha.plano_ate ?? null,
+        ciclo_inicio: linha.ciclo_inicio ?? null,
+        ciclo_fim: linha.ciclo_fim ?? null,
+      };
+      return {nome: linha.nome, plano: planoEfetivo(assinatura, new Date()), assinatura};
     }
     // O trigger de cadastro não criou o perfil (veja 002_perfil_sem_travar_cadastro.sql):
     // cria agora, no plano grátis.
@@ -89,7 +110,11 @@ export const contasDoAmbiente = (): Contas | undefined => {
     if (erroAoCriar) {
       throw new Error(`Não foi possível criar o perfil: ${erroAoCriar.message}`);
     }
-    return {nome: novo.nome, plano: "gratis"};
+    return {
+      nome: novo.nome,
+      plano: "gratis",
+      assinatura: {plano: "gratis", plano_origem: "manual", plano_ate: null, ciclo_inicio: null, ciclo_fim: null},
+    };
   };
 
   return {

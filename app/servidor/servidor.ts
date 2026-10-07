@@ -33,6 +33,9 @@ import {contasDoAmbiente} from "./contas";
 import {rotasDeEnvio} from "./envio";
 import {previasLeves, tirarCapa} from "./previa-leve";
 import {videosDasContas} from "./videos";
+import {apiDoMercadoPago, mercadoPagoDoAmbiente, validarWebhook} from "./mercadopago";
+import {bancoNoSupabase, processadorDeEventos, regraDaAssinatura, resumoDaAssinatura} from "./assinaturas";
+import type {ResumoDaAssinatura} from "./assinaturas";
 import {LIMITES_DE_USO, filaComVagas, limiteDePedidos} from "./limites";
 import {rendersNoLambda} from "./renders";
 import type {ExportacaoMontada} from "./renders";
@@ -150,6 +153,56 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // Saúde, para o Render saber que o servidor subiu (sem login, sem dados).
   app.get("/saude", (_request, response) => {
     response.json({ok: true});
+  });
+
+  // Assinatura pelo Mercado Pago (Etapa 2c, veja assinaturas.ts). Sem
+  // MERCADOPAGO_ACCESS_TOKEN, não há assinatura: o "Assinar" não aparece.
+  const mercadoPago = contas ? mercadoPagoDoAmbiente() : undefined;
+  const apiMp = mercadoPago ? apiDoMercadoPago(mercadoPago) : undefined;
+  const bancoDasAssinaturas = contas ? bancoNoSupabase(contas.admin) : undefined;
+  const eventosMp = apiMp && bancoDasAssinaturas ? processadorDeEventos({banco: bancoDasAssinaturas, api: apiMp}) : undefined;
+  console.log(mercadoPago ? `Assinatura: Mercado Pago ligado (R$ ${mercadoPago.valor} por mês).` : "Assinatura: desligada (sem MERCADOPAGO_ACCESS_TOKEN).");
+  const processarEventosMp = () =>
+    void eventosMp
+      ?.processarPendentes()
+      .then((resultados) => resultados.forEach((linha) => console.log(`Mercado Pago: ${linha}`)))
+      .catch((erro: unknown) => console.log(`Mercado Pago: ${erro instanceof Error ? erro.message : String(erro)}`));
+  // Os que falharam são tentados de novo (e os que chegaram com o servidor ocupado).
+  if (eventosMp) setInterval(processarEventosMp, 60_000).unref();
+
+  // Webhook do Mercado Pago: público (sem login, fora do limite de pedidos). Valida o
+  // x-signature (e recusa ts antigo), guarda o evento (o repetido é ignorado),
+  // responde 200 na hora e processa depois, sempre consultando o Mercado Pago.
+  app.post("/webhooks/mercadopago", async (request: Request, response: Response) => {
+    if (!eventosMp || !mercadoPago) {
+      response.status(404).json({ok: false});
+      return;
+    }
+    const consulta = request.query as Record<string, unknown>;
+    const corpo = (request.body ?? {}) as {type?: string; data?: {id?: string | number}};
+    const dataId = String(consulta["data.id"] ?? (consulta.data as {id?: string} | undefined)?.id ?? corpo.data?.id ?? consulta.id ?? "");
+    const tipo = String(consulta.type ?? consulta.topic ?? corpo.type ?? "");
+    const requestId = request.header("x-request-id") ?? undefined;
+    const validacao = validarWebhook({assinatura: request.header("x-signature") ?? undefined, requestId, dataId, segredo: mercadoPago.segredoDoWebhook});
+    if (!validacao.valido) {
+      console.log(`Mercado Pago: webhook recusado (${validacao.motivo}).`);
+      response.status(401).json({ok: false});
+      return;
+    }
+    if (!requestId || !dataId || !tipo) {
+      response.status(200).json({ok: true});
+      return;
+    }
+    try {
+      const recebido = await eventosMp.receber({request_id: requestId, tipo, data_id: dataId});
+      response.status(200).json({ok: true});
+      if (recebido === "novo") processarEventosMp();
+      else console.log(`Mercado Pago: evento repetido ignorado (${tipo} ${dataId}).`);
+    } catch (erro) {
+      // Sem guardar o evento, o Mercado Pago tenta de novo.
+      console.log(`Mercado Pago: não deu para guardar o evento: ${erro instanceof Error ? erro.message : String(erro)}`);
+      response.status(500).json({ok: false});
+    }
   });
 
   // O que roda neste computador (render local e importação): uma coisa por vez.
@@ -287,7 +340,72 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       }
       const perfil = await contas.perfil(espaco.usuario, response.locals.token as string);
       const uso = await espaco.cota?.uso();
-      return {conta: {email: espaco.usuario.email, nome: perfil.nome, plano: perfil.plano, uso}};
+      const assinatura = await resumoDaConta(espaco, response.locals.token as string);
+      return {conta: {email: espaco.usuario.email, nome: perfil.nome, plano: perfil.plano, uso, assinatura}};
+    }),
+  );
+
+  // Resumo da assinatura para a tela (sem a migração 007: nenhuma assinatura).
+  const resumoDaConta = async (espaco: Espaco, token: string): Promise<ResumoDaAssinatura> => {
+    const perfil = await contas!.perfil(espaco.usuario!, token);
+    const assinatura = await bancoDasAssinaturas?.assinaturaDaConta(espaco.usuario!.id).catch(() => undefined);
+    return resumoDaAssinatura(perfil.assinatura, assinatura, new Date(), Boolean(apiMp), mercadoPago?.valor ?? 30);
+  };
+
+  // "Assinar": cria a assinatura no Mercado Pago e devolve o checkout (init_point).
+  // O retorno do checkout não vale como prova de pagamento: o plano só muda pelo
+  // webhook validado, depois da consulta ao Mercado Pago.
+  app.post(
+    "/api/assinatura",
+    handle(async (_request, response) => {
+      const espaco = espacoDe(response);
+      if (!apiMp || !mercadoPago || !bancoDasAssinaturas || !espaco.usuario) {
+        throw new Error("A assinatura não está disponível agora.");
+      }
+      const resumo = await resumoDaConta(espaco, response.locals.token as string);
+      if (resumo.situacao === "cortesia") throw new Error("A sua conta já é assinante (cortesia), sem cobrança.");
+      if (resumo.situacao !== "nenhuma") throw new Error("Você já é assinante. Para mudar, use Gerenciar assinatura.");
+      const atual = await bancoDasAssinaturas.assinaturaDaConta(espaco.usuario.id);
+      // Tocou em Assinar de novo logo depois: o mesmo checkout.
+      if (atual?.status === "pendente" && atual.init_point && Date.now() - new Date(atual.criado_em).getTime() < 60 * 60 * 1000) {
+        return {endereco: atual.init_point};
+      }
+      const pre = await apiMp.criarAssinatura({
+        usuarioId: espaco.usuario.id,
+        email: espaco.usuario.email,
+        valor: mercadoPago.valor,
+        voltaPara: `${configuracaoDoAmbiente().enderecoDoApp}/?assinatura=retorno`,
+      });
+      if (!pre.init_point) throw new Error("O Mercado Pago não devolveu o link de pagamento. Tente de novo.");
+      await bancoDasAssinaturas.criarAssinatura({
+        usuario_id: espaco.usuario.id,
+        mp_preapproval_id: pre.id,
+        status: "pendente",
+        valor: mercadoPago.valor,
+        init_point: pre.init_point,
+      });
+      console.log(`Assinatura: checkout aberto para ${espaco.usuario.id} (${pre.id}).`);
+      return {endereco: pre.init_point};
+    }),
+  );
+
+  // Cancelar: no Mercado Pago (sem novas cobranças); assinante até o fim do ciclo pago.
+  app.post(
+    "/api/assinatura/cancelar",
+    handle(async (_request, response) => {
+      const espaco = espacoDe(response);
+      if (!apiMp || !bancoDasAssinaturas || !espaco.usuario) {
+        throw new Error("A assinatura não está disponível agora.");
+      }
+      const atual = await bancoDasAssinaturas.assinaturaDaConta(espaco.usuario.id);
+      if (!atual || atual.status === "cancelada") throw new Error("Não há assinatura ativa para cancelar.");
+      const pre = await apiMp.cancelarAssinatura(atual.mp_preapproval_id);
+      const perfil = await bancoDasAssinaturas.perfil(espaco.usuario.id);
+      const efeito = regraDaAssinatura(atual, pre, perfil, new Date());
+      await bancoDasAssinaturas.salvarAssinatura(atual.id, efeito.assinatura);
+      if (efeito.perfil) await bancoDasAssinaturas.salvarPerfil(espaco.usuario.id, efeito.perfil);
+      console.log(`Assinatura: cancelada por ${espaco.usuario.id} (${atual.mp_preapproval_id}).`);
+      return {assinatura: await resumoDaConta(espaco, response.locals.token as string)};
     }),
   );
 

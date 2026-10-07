@@ -39,7 +39,10 @@ import type {DecisaoDeExportacao, UsoDoPlano} from "../servidor/cota";
 export type {DecisaoDeExportacao, UsoDoPlano};
 import type {EstadoDaPrevia} from "../servidor/previa-leve";
 export type {EstadoDaPrevia};
-export type Conta = {email: string; nome: string | null; plano: Plano; uso?: UsoDoPlano};
+// assinatura: o resumo da assinatura do Mercado Pago (veja app/servidor/assinaturas.ts).
+import type {ResumoDaAssinatura} from "../servidor/assinaturas";
+export type {ResumoDaAssinatura};
+export type Conta = {email: string; nome: string | null; plano: Plano; uso?: UsoDoPlano; assinatura?: ResumoDaAssinatura};
 
 // Erro de uma tarefa com um código do servidor (ex.: "assine", "sem-saldo").
 export class ErroDaTarefa extends Error {
@@ -111,6 +114,10 @@ export const api = {
     pedir(`/api/exportacao?video=${encodeURIComponent(video)}`).then((r) => lerJson<Exportacao | {estado: "nenhuma"}>(r)),
 
   // "Importar projetos deste computador": se está disponível para esta conta.
+  // Assinatura (Etapa 2c): o link do checkout do Mercado Pago; e o cancelamento.
+  assinar: () => pedir("/api/assinatura", {method: "POST"}).then((r) => lerJson<{endereco: string}>(r)),
+  cancelarAssinatura: () => pedir("/api/assinatura/cancelar", {method: "POST"}).then((r) => lerJson<{assinatura: ResumoDaAssinatura}>(r)),
+
   importacaoLocal: () =>
     pedir("/api/importacao-local").then((r) =>
       lerJson<{disponivel: boolean; videos?: string[]; projeto?: string | null}>(r),

@@ -10,7 +10,8 @@ import {listarVideos, readProject, saveProject} from "../../src/motor/projeto";
 import type {Projeto} from "../../src/motor/projeto";
 import type {Contas, Usuario} from "./contas";
 import {decidirExportacao, decidirTranscricao, diaDoCalendario, usoDeTranscricoes, usoDoPlano} from "./cota";
-import type {DecisaoDeExportacao, RegistroDeExportacao, UsoDeTranscricoes, UsoDoPlano} from "./cota";
+import type {CicloDoPlano, DecisaoDeExportacao, RegistroDeExportacao, UsoDeTranscricoes, UsoDoPlano} from "./cota";
+import type {Plano} from "./contas";
 
 export type ResumoDoProjeto = {video: string; blocos: number};
 
@@ -83,6 +84,16 @@ export const espacoDoUsuario = (root: string, contas: Contas, usuario: Usuario, 
   // Plano do perfil e histórico de exportações, lidos com a chave secreta (o
   // usuário não muda nenhum dos dois).
   const plano = async () => (await contas.perfil(usuario, token)).plano;
+  // Ciclo pago da assinatura (só de quem assina pelo Mercado Pago; veja cota.ts).
+  const planoECiclo = async (): Promise<{plano: Plano; ciclo?: CicloDoPlano}> => {
+    const perfil = await contas.perfil(usuario, token);
+    const {plano_origem, ciclo_inicio, ciclo_fim} = perfil.assinatura;
+    const ciclo =
+      perfil.plano === "assinante" && plano_origem === "assinatura" && ciclo_inicio && ciclo_fim
+        ? {inicio: new Date(ciclo_inicio), fim: new Date(ciclo_fim)}
+        : undefined;
+    return {plano: perfil.plano, ciclo};
+  };
   const historico = async (): Promise<RegistroDeExportacao[]> => {
     const {data, error} = await contas.admin
       .from("exportacoes")
@@ -165,9 +176,9 @@ export const espacoDoUsuario = (root: string, contas: Contas, usuario: Usuario, 
     cota: {
       uso: async () => {
         const agora = new Date();
-        const [p, h, hoje] = await Promise.all([plano(), historico(), transcricoesDeHoje(agora).catch(() => undefined)]);
+        const [{plano: p, ciclo}, h, hoje] = await Promise.all([planoECiclo(), historico(), transcricoesDeHoje(agora).catch(() => undefined)]);
         // Sem a tabela (migração 004 ainda não rodou), o quadro só não mostra as transcrições.
-        return {...usoDoPlano(p, h, agora), ...(hoje === undefined ? {} : {transcricoes: usoDeTranscricoes(p, hoje, agora)})};
+        return {...usoDoPlano(p, h, agora, ciclo), ...(hoje === undefined ? {} : {transcricoes: usoDeTranscricoes(p, hoje, agora)})};
       },
       podeTranscrever: async () => {
         const agora = new Date();
@@ -181,8 +192,8 @@ export const espacoDoUsuario = (root: string, contas: Contas, usuario: Usuario, 
         if (error) throw falha("registrar a transcrição", error);
       },
       decidir: async (video, duracaoS) => {
-        const [p, h, projeto] = await Promise.all([plano(), historico(), linhaDoVideo(video)]);
-        return decidirExportacao(p, h, projeto?.id ?? null, duracaoS, new Date());
+        const [{plano: p, ciclo}, h, projeto] = await Promise.all([planoECiclo(), historico(), linhaDoVideo(video)]);
+        return decidirExportacao(p, h, projeto?.id ?? null, duracaoS, new Date(), ciclo);
       },
       registrar: async (video, duracaoS, decisao) => {
         const projeto = await linhaDoVideo(video);

@@ -9,6 +9,7 @@ import type {Andamento, Conta} from "./api";
 import {ContaContexto} from "./conta";
 import {TelaDeLogin} from "./Login";
 import {FormularioDeSenhaNova} from "./Senha";
+import {RetornoDaAssinatura} from "./Assinatura";
 import {iniciarSessao, lerConfig, ouvirSessao, pedeSenhaNova, sair} from "./sessao";
 import type {ConfigDoLogin} from "./sessao";
 
@@ -88,7 +89,21 @@ const TelaImportarLocal: React.FC<{
   );
 };
 
+// Volta do checkout do Mercado Pago (?assinatura=retorno): lido uma vez, ao abrir, e
+// tirado do endereço. Só mostra a espera; quem confirma é o servidor (webhook).
+const voltouDoCheckout = (() => {
+  const parametros = new URLSearchParams(location.search);
+  if (parametros.get("assinatura") !== "retorno") return false;
+  parametros.delete("assinatura");
+  // O Mercado Pago pode acrescentar os próprios parâmetros (preapproval_id etc.).
+  for (const chave of [...parametros.keys()]) if (chave.startsWith("preapproval") || chave === "status") parametros.delete(chave);
+  const resto = parametros.toString();
+  history.replaceState(null, "", location.pathname + (resto ? `?${resto}` : ""));
+  return true;
+})();
+
 export const Entrada: React.FC = () => {
+  const [mostrarRetorno, setMostrarRetorno] = useState(voltouDoCheckout);
   const [config, setConfig] = useState<ConfigDoLogin>();
   const [estado, setEstado] = useState<Estado>({tela: "carregando"});
   const telaAtual = useRef<Estado["tela"]>("carregando");
@@ -248,6 +263,7 @@ export const Entrada: React.FC = () => {
       return (
         <ContaContexto.Provider value={{conta: estado.conta, sair: sairDaConta, atualizarConta}}>
           <App key={estado.usuario} />
+          {mostrarRetorno ? <RetornoDaAssinatura onFechar={() => setMostrarRetorno(false)} /> : null}
         </ContaContexto.Provider>
       );
   }

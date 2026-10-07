@@ -7,13 +7,17 @@ import type {Editor} from "../useEditor";
 import {Andamento} from "./Andamento";
 import {useConta} from "../conta";
 import {JanelaTrocarSenha} from "../Senha";
-import type {UsoDoPlano} from "../api";
+import {JanelaAssinar, JanelaGerenciarAssinatura, acaoDaAssinatura, avisoDaAssinatura} from "../Assinatura";
+import type {ResumoDaAssinatura, UsoDoPlano} from "../api";
 import {CONFIG_CELULAR, nomeDoPlano, resumoDasTranscricoes, resumoDoUso} from "./plano";
 
 // Quadro do plano: usados e restantes (o servidor manda o uso; aqui só se mostra).
-const QuadroDoPlano: React.FC<{uso: UsoDoPlano}> = ({uso}) => {
+// Com a assinatura: o aviso (ativa, cancelada, cobrança que falhou) e, no grátis, "Assinar".
+const QuadroDoPlano: React.FC<{uso: UsoDoPlano; assinatura?: ResumoDaAssinatura}> = ({uso, assinatura}) => {
   const {titulo, detalhe, fracao} = resumoDoUso(uso);
   const transcricoes = resumoDasTranscricoes(uso);
+  const aviso = avisoDaAssinatura(assinatura);
+  const [assinando, setAssinando] = useState(false);
   return (
     <div className="cel-uso">
       <b>{titulo}</b>
@@ -22,6 +26,13 @@ const QuadroDoPlano: React.FC<{uso: UsoDoPlano}> = ({uso}) => {
         <i style={{width: `${Math.min(100, fracao * 100)}%`}} />
       </div>
       {transcricoes ? <small className="cel-uso-transcricoes">{transcricoes}</small> : null}
+      {aviso ? <small className={assinatura?.situacao === "falhou" ? "assinatura-aviso" : "cel-uso-transcricoes"}>{aviso}</small> : null}
+      {acaoDaAssinatura(assinatura) === "assinar" ? (
+        <button type="button" className="bt primario cel-cheio cel-uso-assinar" onClick={() => setAssinando(true)}>
+          Assinar · {(assinatura?.valor ?? 30).toLocaleString("pt-BR", {style: "currency", currency: "BRL"})} por mês
+        </button>
+      ) : null}
+      {assinando ? <JanelaAssinar onFechar={() => setAssinando(false)} /> : null}
     </div>
   );
 };
@@ -102,6 +113,7 @@ const Menu: React.FC<{ocupado: boolean; onImportar: () => void}> = ({ocupado, on
   const {conta, sair} = useConta();
   const [aberto, setAberto] = useState(false);
   const [trocandoSenha, setTrocandoSenha] = useState(false);
+  const [janelaDaAssinatura, setJanelaDaAssinatura] = useState<"assinar" | "gerenciar">();
   const raiz = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!aberto) {
@@ -153,6 +165,18 @@ const Menu: React.FC<{ocupado: boolean; onImportar: () => void}> = ({ocupado, on
                 <b>{conta.email}</b>
                 <small>Plano {nomeDoPlano(conta)}</small>
               </div>
+              {acaoDaAssinatura(conta.assinatura) ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setAberto(false);
+                    setJanelaDaAssinatura(acaoDaAssinatura(conta.assinatura));
+                  }}
+                >
+                  {acaoDaAssinatura(conta.assinatura) === "assinar" ? "Assinar" : "Gerenciar assinatura"}
+                </button>
+              ) : null}
               <button
                 type="button"
                 role="menuitem"
@@ -184,6 +208,8 @@ const Menu: React.FC<{ocupado: boolean; onImportar: () => void}> = ({ocupado, on
         </div>
       ) : null}
       {trocandoSenha && conta ? <JanelaTrocarSenha email={conta.email} onFechar={() => setTrocandoSenha(false)} /> : null}
+      {janelaDaAssinatura === "assinar" ? <JanelaAssinar onFechar={() => setJanelaDaAssinatura(undefined)} /> : null}
+      {janelaDaAssinatura === "gerenciar" ? <JanelaGerenciarAssinatura onFechar={() => setJanelaDaAssinatura(undefined)} /> : null}
     </div>
   );
 };
@@ -210,7 +236,7 @@ export const Inicio: React.FC<{e: Editor; onAbrir: (nome: string) => void}> = ({
       </header>
       <Andamento tarefa={e.tarefa} />
       <div className="cel-rolagem">
-        {CONFIG_CELULAR.mostrarPlano && conta?.uso ? <QuadroDoPlano uso={conta.uso} /> : null}
+        {CONFIG_CELULAR.mostrarPlano && conta?.uso ? <QuadroDoPlano uso={conta.uso} assinatura={conta.assinatura} /> : null}
         <button type="button" className="bt primario cel-cheio" disabled={e.ocupado} onClick={() => void importar()}>
           ＋ Importar vídeo
         </button>

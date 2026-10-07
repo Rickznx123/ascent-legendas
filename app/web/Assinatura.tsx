@@ -1,0 +1,219 @@
+// Telas da assinatura (Etapa 2c): "Assinar", o retorno do checkout do Mercado Pago,
+// "Gerenciar assinatura" e os avisos. Quem decide o plano é o servidor (pelos
+// webhooks do Mercado Pago, veja app/servidor/assinaturas.ts); aqui só se mostra.
+import {useEffect, useState} from "react";
+import {api} from "./api";
+import type {ResumoDaAssinatura} from "./api";
+import {useConta} from "./conta";
+
+// Datas no horário de Brasília ("07/11").
+const dataCurta = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", {day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo"});
+const reais = (valor: number) => valor.toLocaleString("pt-BR", {style: "currency", currency: "BRL"});
+
+// Aviso curto para o quadro do plano e os menus (vazio: nada a avisar).
+export const avisoDaAssinatura = (resumo: ResumoDaAssinatura | undefined): string | undefined => {
+  if (!resumo) return undefined;
+  if (resumo.situacao === "falhou") {
+    return `Não conseguimos cobrar a assinatura. Atualize o cartão no Mercado Pago${resumo.ate ? ` até ${dataCurta(resumo.ate)}` : ""} para não voltar ao plano grátis.`;
+  }
+  if (resumo.situacao === "cancelada") return `Assinatura cancelada: você continua assinante${resumo.ate ? ` até ${dataCurta(resumo.ate)}` : ""}.`;
+  if (resumo.situacao === "ativa" && resumo.renovaEm) return `Assinatura ativa · renova em ${dataCurta(resumo.renovaEm)}.`;
+  if (resumo.situacao === "cortesia") return "Assinante (cortesia, sem cobrança).";
+  return undefined;
+};
+
+// O que aparece no menu da conta: "Assinar", "Gerenciar assinatura" ou nada.
+export const acaoDaAssinatura = (resumo: ResumoDaAssinatura | undefined): "assinar" | "gerenciar" | undefined => {
+  if (!resumo?.disponivel) return undefined;
+  if (resumo.situacao === "nenhuma") return "assinar";
+  if (resumo.situacao === "cortesia") return undefined;
+  return "gerenciar";
+};
+
+// "Assinar": o que inclui e o botão que leva ao checkout do Mercado Pago.
+export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
+  const {conta} = useConta();
+  const [indo, setIndo] = useState(false);
+  const [erro, setErro] = useState<string>();
+  const valor = conta?.assinatura?.valor ?? 30;
+  const assinar = async () => {
+    setIndo(true);
+    setErro(undefined);
+    try {
+      const {endereco} = await api.assinar();
+      // O checkout é do Mercado Pago; a volta é para /?assinatura=retorno.
+      window.location.href = endereco;
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : String(error));
+      setIndo(false);
+    }
+  };
+  return (
+    <div className="login janela-fundo" role="dialog" aria-modal="true" aria-labelledby="assinar-titulo">
+      <div className="login-caixa">
+        <h1 id="assinar-titulo">Assinar</h1>
+        <p className="assinatura-preco">
+          <b>{reais(valor)}</b> por mês
+        </p>
+        <ul className="assinatura-lista">
+          <li>30 minutos de vídeo exportado por mês</li>
+          <li>Vídeos sem a marca d'água</li>
+          <li>Até 10 transcrições por dia</li>
+        </ul>
+        <p className="suave">
+          Pagamento com cartão pelo Mercado Pago. Renova todo mês, no mesmo dia; cancele quando quiser e continue assinante até
+          o fim do mês pago.
+        </p>
+        <button type="button" className="bt primario cheio" disabled={indo} onClick={() => void assinar()}>
+          {indo ? "Abrindo o Mercado Pago…" : "Assinar com o Mercado Pago"}
+        </button>
+        <button type="button" className="bt cheio" disabled={indo} onClick={onFechar}>
+          Agora não
+        </button>
+        {erro ? (
+          <p className="login-erro" role="alert">
+            {erro}
+          </p>
+        ) : null}
+        <p className="login-legal">
+          Ao assinar, você aceita os{" "}
+          <a href="/termos.html" target="_blank" rel="noopener">
+            Termos de uso
+          </a>
+          .
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// "Gerenciar assinatura": a situação, a próxima cobrança e o cancelamento.
+export const JanelaGerenciarAssinatura: React.FC<{onFechar: () => void}> = ({onFechar}) => {
+  const {conta, atualizarConta} = useConta();
+  const [resumo, setResumo] = useState(conta?.assinatura);
+  const [confirmando, setConfirmando] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
+  const [erro, setErro] = useState<string>();
+  const cancelar = async () => {
+    setCancelando(true);
+    setErro(undefined);
+    try {
+      const {assinatura} = await api.cancelarAssinatura();
+      setResumo(assinatura);
+      setConfirmando(false);
+      atualizarConta();
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : String(error));
+    } finally {
+      setCancelando(false);
+    }
+  };
+  return (
+    <div className="login janela-fundo" role="dialog" aria-modal="true" aria-labelledby="gerenciar-titulo">
+      <div className="login-caixa">
+        <h1 id="gerenciar-titulo">Gerenciar assinatura</h1>
+        {resumo?.situacao === "ativa" ? (
+          <p>
+            Assinatura ativa: {reais(resumo.valor)} por mês.
+            {resumo.renovaEm ? ` A próxima cobrança é em ${dataCurta(resumo.renovaEm)}.` : ""}
+          </p>
+        ) : null}
+        {resumo?.situacao === "cancelada" ? (
+          <p>Assinatura cancelada. Você continua assinante{resumo.ate ? ` até ${dataCurta(resumo.ate)}` : ""}, sem novas cobranças.</p>
+        ) : null}
+        {resumo?.situacao === "falhou" ? <p className="login-erro">{avisoDaAssinatura(resumo)}</p> : null}
+        {resumo?.situacao === "nenhuma" ? <p>Você está no plano grátis.</p> : null}
+        <a className="bt cheio assinatura-link" href="https://www.mercadopago.com.br/subscriptions" target="_blank" rel="noopener">
+          Trocar o cartão no Mercado Pago
+        </a>
+        {resumo?.situacao === "ativa" || resumo?.situacao === "falhou" ? (
+          confirmando ? (
+            <>
+              <p className="suave">
+                Cancelar a assinatura? Não haverá novas cobranças, e você continua assinante até o fim do mês já pago.
+              </p>
+              <button type="button" className="bt perigo cheio" disabled={cancelando} onClick={() => void cancelar()}>
+                {cancelando ? "Cancelando…" : "Sim, cancelar a assinatura"}
+              </button>
+              <button type="button" className="bt cheio" disabled={cancelando} onClick={() => setConfirmando(false)}>
+                Manter a assinatura
+              </button>
+            </>
+          ) : (
+            <button type="button" className="bt cheio" onClick={() => setConfirmando(true)}>
+              Cancelar a assinatura
+            </button>
+          )
+        ) : null}
+        <button type="button" className="bt primario cheio" disabled={cancelando} onClick={onFechar}>
+          Fechar
+        </button>
+        {erro ? (
+          <p className="login-erro" role="alert">
+            {erro}
+          </p>
+        ) : null}
+        <p className="login-legal">Arrependeu-se? Em até 7 dias da assinatura, peça o reembolso pelo e-mail dos Termos de uso.</p>
+      </div>
+    </div>
+  );
+};
+
+// Volta do checkout (?assinatura=retorno). O retorno não prova o pagamento: a tela
+// só espera o servidor confirmar (pelo webhook do Mercado Pago) e mostra o plano.
+const ESPERA_MS = 90_000;
+export const RetornoDaAssinatura: React.FC<{onFechar: () => void}> = ({onFechar}) => {
+  const {atualizarConta} = useConta();
+  const [situacao, setSituacao] = useState<"confirmando" | "ativa" | "demorando">("confirmando");
+  useEffect(() => {
+    let parar = false;
+    const inicio = Date.now();
+    const conferir = async () => {
+      while (!parar) {
+        const conta = await api.conta().catch(() => null);
+        if (conta?.plano === "assinante" && conta.assinatura?.situacao !== "nenhuma") {
+          setSituacao("ativa");
+          atualizarConta();
+          return;
+        }
+        if (Date.now() - inicio > ESPERA_MS) {
+          setSituacao("demorando");
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
+    };
+    void conferir();
+    return () => {
+      parar = true;
+    };
+  }, [atualizarConta]);
+  return (
+    <div className="login janela-fundo" role="dialog" aria-modal="true" aria-labelledby="retorno-titulo">
+      <div className="login-caixa">
+        {situacao === "confirmando" ? (
+          <>
+            <h1 id="retorno-titulo">Confirmando sua assinatura…</h1>
+            <p className="suave">Estamos esperando o Mercado Pago confirmar o pagamento. Leva alguns segundos.</p>
+          </>
+        ) : situacao === "ativa" ? (
+          <>
+            <h1 id="retorno-titulo">Assinatura ativa</h1>
+            <p>Pronto! Você já pode exportar sem a marca d'água, com 30 minutos por mês.</p>
+          </>
+        ) : (
+          <>
+            <h1 id="retorno-titulo">Ainda não confirmamos o pagamento</h1>
+            <p className="suave">
+              Se o pagamento foi aprovado, a assinatura aparece em alguns minutos (o quadro do plano mostra quando). Se foi
+              recusado, toque em Assinar de novo e tente outro cartão.
+            </p>
+          </>
+        )}
+        <button type="button" className="bt primario cheio" onClick={onFechar}>
+          {situacao === "confirmando" ? "Fechar e continuar" : "Continuar"}
+        </button>
+      </div>
+    </div>
+  );
+};

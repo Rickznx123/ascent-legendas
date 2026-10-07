@@ -1544,6 +1544,42 @@ h3 {
   overflow-y: auto;
 }
 
+/* Assinatura (Assinatura.tsx): preço, o que inclui, avisos. */
+.assinatura-preco {
+  font-size: 15px;
+}
+
+.assinatura-preco b {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.assinatura-lista {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--texto);
+  line-height: 1.6;
+}
+
+.assinatura-link {
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Cobrança que falhou: o aviso em destaque. */
+.assinatura-aviso {
+  display: block;
+  color: var(--aviso);
+  margin-top: 8px;
+}
+
+.cel-uso-assinar {
+  margin-top: 12px;
+}
+
 /* Conta no topo do computador (BarraTopo). */
 .conta-raiz {
   position: relative;

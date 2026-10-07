@@ -1,8 +1,9 @@
 // npm run plano -- <email> <gratis|assinante>
 // Só para desenvolvimento: muda o plano de uma conta (perfis.plano), para testar
 // os limites. Usa a chave secreta do .env: é um script de terminal, sem rota no
-// servidor e sem nada acessível pelo navegador. Na Etapa 2c, o plano passa a mudar
-// pela assinatura.
+// servidor e sem nada acessível pelo navegador. Desde a Etapa 2c, o plano de quem
+// assina muda pela assinatura do Mercado Pago; o plano dado aqui fica com a origem
+// "manual" (cortesia, para testadores) e os webhooks não mexem nele.
 import path from "node:path";
 import {createClient} from "@supabase/supabase-js";
 import {carregarEnv} from "../src/motor/env";
@@ -44,7 +45,12 @@ const principal = async () => {
   }
 
   const {data: antes} = await admin.from("perfis").select("plano").eq("id", id).maybeSingle();
-  const {error} = await admin.from("perfis").upsert({id, plano}, {onConflict: "id"});
+  // Origem "manual": a assinatura do Mercado Pago (webhooks) não mexe neste plano.
+  let {error} = await admin.from("perfis").upsert({id, plano, plano_origem: "manual", plano_ate: null}, {onConflict: "id"});
+  // Sem as colunas da assinatura (migração 007 ainda não rodou): só o plano.
+  if (error && /column|coluna/iu.test(error.message)) {
+    ({error} = await admin.from("perfis").upsert({id, plano}, {onConflict: "id"}));
+  }
   if (error) {
     throw new Error(`Não foi possível mudar o plano: ${error.message}`);
   }

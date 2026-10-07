@@ -1,8 +1,9 @@
 // Limites dos planos (Etapa 2b). Tudo decidido aqui, no servidor; a tela só mostra.
 //   Grátis: 1 vídeo exportado, com marca d'água. Depois, exportar fica bloqueado
 //   ("Assine para continuar").
-//   Assinante: 30 minutos exportados por mês (mês do calendário, no horário de
-//   Brasília; na Etapa 2c, a partir da data da assinatura), sem marca d'água.
+//   Assinante: 30 minutos exportados por mês, sem marca d'água. Pela assinatura
+//   (Etapa 2c), por ciclo: do dia do pagamento até a próxima cobrança. Pelo npm run
+//   plano (testadores), por mês do calendário, no horário de Brasília.
 // Contagem: a duração do vídeo, na primeira exportação de cada projeto. As 5
 // reexportações seguintes do mesmo projeto não descontam; da sexta em diante, cada
 // uma desconta de novo. Só desconta o que terminou: o registro é gravado depois do
@@ -92,7 +93,13 @@ export const decidirTranscricao = (uso: UsoDeTranscricoes, plano: Plano): {permi
           "Elas renovam à meia-noite (horário de Brasília).",
       };
 
-export const usoDoPlano = (plano: Plano, historico: RegistroDeExportacao[], agora: Date): UsoDoPlano => {
+// Ciclo da assinatura paga (Etapa 2c): os 30 minutos contam do dia do pagamento até
+// a próxima cobrança. Sem ele (assinante pelo npm run plano), o mês do calendário.
+// Na tolerância de uma cobrança que falhou, o ciclo antigo continua (sem minutos
+// novos até o pagamento entrar).
+export type CicloDoPlano = {inicio: Date; fim: Date};
+
+export const usoDoPlano = (plano: Plano, historico: RegistroDeExportacao[], agora: Date, ciclo?: CicloDoPlano): UsoDoPlano => {
   if (plano === "gratis") {
     return {
       plano,
@@ -101,11 +108,13 @@ export const usoDoPlano = (plano: Plano, historico: RegistroDeExportacao[], agor
       videosDoPlano: LIMITES.videosNoGratis,
     };
   }
-  const {inicio, fim} = mesDoCalendario(agora);
+  const {inicio, fim} = ciclo ?? mesDoCalendario(agora);
+  // No ciclo da assinatura, a tolerância (depois do fim) ainda conta no ciclo antigo.
+  const ateQuando = ciclo ? Number.POSITIVE_INFINITY : fim.getTime();
   const segundosUsados = historico
     .filter((r) => {
       const quando = new Date(r.criado_em).getTime();
-      return quando >= inicio.getTime() && quando < fim.getTime();
+      return quando >= inicio.getTime() && quando < ateQuando;
     })
     .reduce((soma, r) => soma + Number(r.descontado_s), 0);
   return {plano, comMarca: false, segundosUsados, segundosDoPlano: LIMITES.segundosPorMesNoAssinante, renovaEm: fim.toISOString()};
@@ -125,8 +134,9 @@ export const decidirExportacao = (
   projetoId: string | null,
   duracaoS: number,
   agora: Date,
+  ciclo?: CicloDoPlano,
 ): DecisaoDeExportacao => {
-  const uso = usoDoPlano(plano, historico, agora);
+  const uso = usoDoPlano(plano, historico, agora, ciclo);
   const exportacoesDoProjeto = projetoId ? historico.filter((r) => r.projeto_id === projetoId).length : 0;
   // Primeira exportação, ou da sexta reexportação em diante: desconta.
   const desconta = exportacoesDoProjeto === 0 || exportacoesDoProjeto > LIMITES.reexportacoesSemDesconto;
