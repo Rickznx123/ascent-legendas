@@ -268,9 +268,9 @@ Ordem: (1) `npm run nuvem:site`; (2) criar o serviço no Render (Docker, Ohio, S
 
 **Bloco 10 — Antes dos testadores** (seção 8) — em andamento.
 
-Feito (06/10/2026, testado): e-mail do login pelo Resend no domínio (`login@ascentstudio.com.br`); modelos de e-mail em português (`supabase/emails/`); termos de uso e política de privacidade no ar, em rascunho (`/termos.html`, `/privacidade.html`); vídeos antigos da conta enviados ao S3 (`scripts/enviar-videos-antigos.ts`); registros de diagnóstico do envio removidos.
+Feito (06/10/2026, testado): e-mail do login pelo Resend no domínio (`login@ascentstudio.com.br`); modelos de e-mail em português (`supabase/emails/`); termos de uso e política de privacidade no ar (`/termos.html`, `/privacidade.html`; dados do responsável preenchidos em 07/10/2026); vídeos antigos da conta enviados ao S3 (`scripts/enviar-videos-antigos.ts`); registros de diagnóstico do envio removidos.
 
-Falta: trocar o Render para o plano Starter; crédito no Replicate (US$ 20–25); alertas de orçamento da AWS (Budgets e Cost Anomaly Detection); CNPJ e endereço nos termos e na política (antes do lançamento pago).
+Falta: trocar o Render para o plano Starter; crédito no Replicate (US$ 20–25); alertas de orçamento da AWS (Budgets e Cost Anomaly Detection).
 
 **Etapa 2c — Assinatura pelo Mercado Pago** ✅ testada em 07/10/2026 no app publicado, com credenciais e contas de teste. Falta ligar a cobrança real (lista abaixo).
 
@@ -294,11 +294,10 @@ Falta para ligar a cobrança real:
 1. [VOCÊ] Ativar as credenciais de produção da aplicação no Mercado Pago (dados do negócio) e trocar no Render `MERCADOPAGO_ACCESS_TOKEN` pelo de produção.
 2. [VOCÊ] Webhook em **modo produção** na conta real: mesma URL e eventos, e a assinatura secreta de produção em `MERCADOPAGO_WEBHOOK_SECRET`. Conferir no histórico de notificações que a primeira chegou com sucesso.
 3. [VOCÊ] Render no plano **Starter** (estorno depende do webhook; a verificação periódica só roda com o servidor acordado).
-4. [VOCÊ] CNPJ e endereço nos termos e na política; revisão do texto (de preferência com advogado).
-5. [VOCÊ] Origem e licença dos efeitos sonoros (`sons/ORIGEM.md`): todos "a confirmar".
-6. [EU/VOCÊ] Teste com dinheiro de verdade, com a sua conta: assinar, ver o plano ativar, cancelar pelo app e pedir o estorno no painel.
-7. [EU] Limpar os dados de teste do banco (assinaturas, pagamentos e eventos das contas `test_user_…`) ao trocar para produção; um evento antigo da madrugada de 07/10 ficou parado com erro (id de assinatura enviado como cobrança, antes da correção) e sai junto.
-8. [VOCÊ, opcional] `CHAVE_ADMIN` no Render, só se for usar o diagnóstico.
+4. [VOCÊ] Origem e licença dos efeitos sonoros (`sons/ORIGEM.md`): todos "a confirmar".
+5. [EU/VOCÊ] Teste com dinheiro de verdade, com a sua conta: assinar, ver o plano ativar, cancelar pelo app e pedir o estorno no painel.
+6. [EU] Limpar os dados de teste do banco (assinaturas, pagamentos e eventos das contas `test_user_…`) ao trocar para produção; um evento antigo da madrugada de 07/10 ficou parado com erro (id de assinatura enviado como cobrança, antes da correção) e sai junto.
+7. [VOCÊ, opcional] `CHAVE_ADMIN` no Render, só se for usar o diagnóstico.
 ---
 
 ## 8. Pronto antes de abrir para testadores
@@ -335,7 +334,6 @@ Todas tomadas em 05/10/2026 (veja "Decisões tomadas", no começo). O domínio s
 
 ## Pendências
 
-- **Termos de uso e política de privacidade** (`app/web/public/termos.html` e `privacidade.html`, rascunho de 06/10/2026): revisar o texto e, **antes do lançamento pago, preencher o marcador "[CNPJ e endereço: preencher antes do lançamento pago]"** nas duas páginas (de preferência com revisão de um advogado).
 - **Render: trocar do plano Free para o Starter antes de chamar testadores** (o Free dorme sem uso e tem menos memória; as vagas da fila foram medidas para o Starter; e a verificação periódica da assinatura só roda com o servidor acordado).
 - **Cobrança real (Etapa 2c, testada em 07/10/2026):** credenciais de produção, webhook em modo produção, Render Starter e teste com dinheiro de verdade; lista completa no bloco da Etapa 2c, acima.
 - **Origem dos efeitos sonoros** (`sons/ORIGEM.md`): os sete arquivos estão sem origem nem licença comprovadas.
