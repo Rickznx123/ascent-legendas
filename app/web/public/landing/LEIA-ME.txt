@@ -1,0 +1,12 @@
+Vídeos de exemplo da página de apresentação (app/web/Apresentacao.tsx).
+
+  hero.mp4     o celular da chamada principal (já legendado)
+  antes.mp4    o vídeo cru, sem legenda
+  depois.mp4   o mesmo vídeo exportado pelo app (já legendado)
+
+Poster de cada um (opcional, aparece enquanto o vídeo carrega): hero.jpg,
+antes.jpg e depois.jpg. Vertical 9:16 (por exemplo 1080 x 1920 ou 720 x 1280),
+H.264, sem som (a página toca mudo), curto e leve: 3 a 6 MB por vídeo.
+
+Enquanto um arquivo não existe, o espaço mostra o fundo provisório e a legenda
+animada da prancha. Quando ele existe, o vídeo aparece e a legenda animada some.

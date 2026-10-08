@@ -4,8 +4,17 @@
 // Sem login no servidor (sem Supabase no .env), nada disto é usado.
 import {createClient} from "@supabase/supabase-js";
 import type {Session, SupabaseClient} from "@supabase/supabase-js";
+import type {PlanosDaApresentacao} from "../servidor/servidor";
 
-export type ConfigDoLogin = {login: boolean; supabaseUrl?: string; chavePublica?: string; google?: boolean; envioDireto?: boolean};
+// planos: os números da página de apresentação (só com login no servidor).
+export type ConfigDoLogin = {
+  login: boolean;
+  supabaseUrl?: string;
+  chavePublica?: string;
+  google?: boolean;
+  envioDireto?: boolean;
+  planos?: PlanosDaApresentacao;
+};
 
 let cliente: SupabaseClient | undefined;
 let tokenAtual: string | undefined;

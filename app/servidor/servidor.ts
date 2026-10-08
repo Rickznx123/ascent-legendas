@@ -37,8 +37,19 @@ import {videosDasContas} from "./videos";
 import {apiDoMercadoPago, mercadoPagoDoAmbiente, validarWebhook} from "./mercadopago";
 import {bancoNoSupabase, processadorDeEventos, regraDaAssinatura, resumoDaAssinatura} from "./assinaturas";
 import type {ResumoDaAssinatura} from "./assinaturas";
-import {ErroDoPix, bancoDoPixNoSupabase, cpfValido, motivoParaNaoPagarPix, processadorDePix, vistaDoPix} from "./pix";
+import {DIAS_DO_PIX, ErroDoPix, bancoDoPixNoSupabase, cpfValido, motivoParaNaoPagarPix, processadorDePix, vistaDoPix} from "./pix";
+import {LIMITES} from "./cota";
 import {LIMITES_DE_USO, filaComVagas, limiteDePedidos} from "./limites";
+
+// Números dos planos para a página de apresentação (quem chega sem login), lidos da
+// configuração: o preço do Mercado Pago (ASSINATURA_VALOR_BRL; sem o Mercado Pago,
+// não vai), os minutos do assinante, os dias do Pix e os vídeos do grátis.
+export type PlanosDaApresentacao = {
+  precoBRL?: number;
+  minutosDoAssinante: number;
+  diasDoPix: number;
+  videosNoGratis: number;
+};
 
 // Erro com mensagem já pronta para a tela.
 class ErroParaATela extends Error {}
@@ -357,7 +368,13 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // pedido. A chave publicável pode ir ao navegador; a secreta nunca.
   app.get("/api/config", (_request, response) => {
     const config: ConfigDoLogin = contas ? {...contas.config, envioDireto: Boolean(armazenamento)} : {login: false};
-    response.json(config);
+    const planos: PlanosDaApresentacao = {
+      precoBRL: mercadoPago?.valor,
+      minutosDoAssinante: LIMITES.segundosPorMesNoAssinante / 60,
+      diasDoPix: DIAS_DO_PIX,
+      videosNoGratis: LIMITES.videosNoGratis,
+    };
+    response.json(contas ? {...config, planos} : config);
   });
 
   // Todas as outras rotas: com login, o token do usuário é validado e o pedido

@@ -1,9 +1,13 @@
 // Entrada do app: sem login no servidor, o editor de sempre. Com login: a tela de
 // login, depois (no primeiro login, se houver) a oferta de importar os projetos
 // deste computador, e o editor da conta. Sair, ou a sessão expirar, volta ao login.
+// Sem sessão, quem chega pelo navegador vê antes a página de apresentação
+// (Apresentacao.tsx); no app instalado (PWA), o login direto. Com sessão, o editor,
+// sem passar pela página: ela só aparece depois de saber que não há sessão.
 import {useCallback, useEffect, useRef, useState} from "react";
 import type {Session} from "@supabase/supabase-js";
 import {App} from "./App";
+import {Apresentacao, TITULO_DA_APRESENTACAO} from "./Apresentacao";
 import {EVENTO_SESSAO_EXPIRADA, api, executarTarefa} from "./api";
 import type {Andamento, Conta} from "./api";
 import {ContaContexto} from "./conta";
@@ -11,18 +15,36 @@ import {TelaDeLogin} from "./Login";
 import {FormularioDeSenhaNova} from "./Senha";
 import {RetornoDaAssinatura, checkoutRecente} from "./Assinatura";
 import {AvisoDoPix} from "./Pix";
-import {iniciarSessao, lerConfig, ouvirSessao, pedeSenhaNova, sair} from "./sessao";
+import {iniciarSessao, lerConfig, noAppInstalado, ouvirSessao, pedeSenhaNova, sair} from "./sessao";
 import type {ConfigDoLogin} from "./sessao";
 
 type Estado =
   | {tela: "carregando"}
   | {tela: "erro"; mensagem: string}
   | {tela: "local"}
-  | {tela: "login"; aviso?: string}
+  // Página de apresentação (sem sessão, fora do app instalado).
+  | {tela: "apresentacao"}
+  // vista: a aba em que o login abre (a página manda para "criar" ou "entrar").
+  | {tela: "login"; aviso?: string; vista?: VistaDoLogin}
   // Veio do link "Esqueci minha senha": a sessão está aberta, falta a senha nova.
   | {tela: "senha-nova"; sessao: Session}
   | {tela: "importar"; conta: Conta; usuario: string; videos: string[]; projeto: string | null}
   | {tela: "editor"; conta: Conta; usuario: string};
+
+type VistaDoLogin = "entrar" | "criar";
+
+// Os botões da página de apresentação levam a #criar-conta e #entrar: o endereço
+// abre direto essa aba do login (e o voltar do navegador volta à página).
+const vistaDoEndereco = (): VistaDoLogin | undefined =>
+  location.hash === "#criar-conta" ? "criar" : location.hash === "#entrar" ? "entrar" : undefined;
+
+// Sem sessão: a aba pedida no endereço; senão, a página de apresentação, ou o login
+// no app instalado (quem instalou já conhece o app).
+const semSessao = (): Estado => {
+  const vista = vistaDoEndereco();
+  if (vista) return {tela: "login", vista};
+  return noAppInstalado() ? {tela: "login"} : {tela: "apresentacao"};
+};
 
 // "Agora não" na importação fica lembrado neste navegador, por conta.
 const chaveDaRecusa = (usuario: string) => `importacao-local-recusada:${usuario}`;
@@ -126,6 +148,8 @@ export const Entrada: React.FC = () => {
       if (!conta) {
         throw new Error("O servidor não reconheceu a conta.");
       }
+      // Veio da página de apresentação (#entrar, #criar-conta): limpa o endereço.
+      if (vistaDoEndereco()) history.replaceState(null, "", location.pathname + location.search);
       const usuario = sessao.user.id;
       const oferta = recusou(usuario) ? {disponivel: false} : await api.importacaoLocal();
       setEstado(
@@ -159,8 +183,12 @@ export const Entrada: React.FC = () => {
         // do Supabase (ele pede para não fazer chamadas dentro dele).
         window.setTimeout(() => {
           if (!nova) {
-            setEstado({tela: "login"});
-          } else if (telaAtual.current === "login") {
+            // O Supabase avisa "sem sessão" logo ao começar a ouvir: com a tela ainda
+            // carregando, na página de apresentação ou no login, nada muda (a entrada
+            // decide sozinha). Saiu de dentro do app: login.
+            const semMudar: Estado["tela"][] = ["carregando", "apresentacao", "login"];
+            if (!semMudar.includes(telaAtual.current)) setEstado({tela: "login"});
+          } else if (telaAtual.current === "login" || telaAtual.current === "apresentacao") {
             setEstado({tela: "carregando"});
             void abrirConta(nova);
           }
@@ -175,7 +203,7 @@ export const Entrada: React.FC = () => {
       } else if (sessao) {
         await abrirConta(sessao);
       } else {
-        setEstado({tela: "login"});
+        setEstado(semSessao());
       }
     })().catch((error: unknown) => setEstado({tela: "erro", mensagem: error instanceof Error ? error.message : String(error)}));
     return () => {
@@ -183,6 +211,28 @@ export const Entrada: React.FC = () => {
       deixarDeOuvir();
     };
   }, [abrirConta]);
+
+  // Voltar e avançar do navegador entre a página de apresentação e o login.
+  useEffect(() => {
+    const aoNavegar = () => {
+      if (telaAtual.current === "login" || telaAtual.current === "apresentacao") {
+        setEstado(semSessao());
+      }
+    };
+    window.addEventListener("popstate", aoNavegar);
+    return () => window.removeEventListener("popstate", aoNavegar);
+  }, []);
+
+  // Título da aba: o da chamada principal na página de apresentação.
+  useEffect(() => {
+    document.title = estado.tela === "apresentacao" ? TITULO_DA_APRESENTACAO : "Ascent Legendas";
+  }, [estado.tela]);
+
+  // Da página de apresentação para o login, na aba pedida (fica no histórico).
+  const irParaOLogin = useCallback((vista: VistaDoLogin) => {
+    history.pushState(null, "", vista === "criar" ? "#criar-conta" : "#entrar");
+    setEstado({tela: "login", vista});
+  }, []);
 
   // Sessão expirada (o servidor respondeu 401): volta ao login.
   useEffect(() => {
@@ -225,8 +275,16 @@ export const Entrada: React.FC = () => {
       );
     case "local":
       return <App />;
+    case "apresentacao":
+      // Sem os números dos planos (servidor antigo), o login de sempre.
+      return config?.planos ? (
+        <Apresentacao planos={config.planos} onCriarConta={() => irParaOLogin("criar")} onEntrar={() => irParaOLogin("entrar")} />
+      ) : (
+        <TelaDeLogin google={Boolean(config?.google)} />
+      );
     case "login":
-      return <TelaDeLogin google={Boolean(config?.google)} aviso={estado.aviso} />;
+      // key: a aba pedida pela página reabre a tela nela.
+      return <TelaDeLogin key={estado.vista ?? "entrar"} google={Boolean(config?.google)} aviso={estado.aviso} vistaInicial={estado.vista} />;
     case "senha-nova":
       return (
         <main className="login">

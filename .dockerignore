@@ -16,6 +16,8 @@ medicao/resultados
 nuvem/resultados
 transcricao.json
 *.mp4
+# Vídeos de exemplo da página de apresentação: vão para o git e para a imagem.
+!app/web/public/landing/*.mp4
 *.mov
 *.mkv
 *.webm

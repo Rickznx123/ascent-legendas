@@ -39,8 +39,9 @@ const CampoDeEmail: React.FC<{valor: string; desativado: boolean; onMudar: (valo
   </>
 );
 
-export const TelaDeLogin: React.FC<{google: boolean; aviso?: string}> = ({google, aviso}) => {
-  const [vista, setVista] = useState<Vista>("entrar");
+// vistaInicial: a aba em que a tela abre (a página de apresentação abre em "criar").
+export const TelaDeLogin: React.FC<{google: boolean; aviso?: string; vistaInicial?: "entrar" | "criar"}> = ({google, aviso, vistaInicial}) => {
+  const [vista, setVista] = useState<Vista>(vistaInicial ?? "entrar");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [repetida, setRepetida] = useState("");

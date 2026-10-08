@@ -1,0 +1,712 @@
+/* Página de apresentação (Apresentacao.tsx), igual à landing-referencia.html.
+   Tudo fica dentro de .apresentacao, para não mexer no resto do app. Os nomes que o
+   app já usava (.barra, .marca, .palco, .selo) ganharam o prefixo "ap-".
+   Cores da prancha; o roxo é o --acento do app e o rosa é o do ícone do app (o app
+   não tinha um rosa no tema; tirado de icones/icone-512.png). */
+
+.apresentacao {
+  --fundo: #030210; /* o mesmo da barra do sistema (theme-color) */
+  --painel: #0c0a1e;
+  --painel-2: #14112b;
+  --linha: rgba(255, 255, 255, 0.09);
+  --texto: #f4f2ff;
+  --apoio: #a9a5c6;
+  --roxo: var(--acento);
+  --rosa: #f849cf;
+  --raio: 18px;
+
+  /* O body do app não rola: a página rola dentro dela. */
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  background: var(--fundo);
+  color: var(--texto);
+  font-family: var(--ui);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.apresentacao * {
+  box-sizing: border-box;
+}
+.apresentacao a {
+  color: inherit;
+}
+.apresentacao :focus-visible {
+  outline: 2px solid var(--rosa);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+.apresentacao .largura {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* Topo */
+.apresentacao .topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  padding-top: max(16px, env(safe-area-inset-top));
+}
+.apresentacao .ap-marca {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+.apresentacao .marca-icone {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid var(--linha);
+  display: block;
+}
+.apresentacao .entrar {
+  font-weight: 600;
+  font-size: 15px;
+  text-decoration: none;
+  padding: 9px 16px;
+  border: 1px solid var(--linha);
+  border-radius: 999px;
+}
+
+/* Botões */
+.apresentacao .botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 54px;
+  padding: 0 28px;
+  border-radius: 14px;
+  border: 0;
+  background: var(--roxo);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  font-size: 17px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.apresentacao .botao:active {
+  transform: translateY(1px);
+}
+.apresentacao .botao.cheio {
+  width: 100%;
+}
+.apresentacao .botao.vazado {
+  background: transparent;
+  border: 1px solid var(--linha);
+}
+
+/* Hero */
+.apresentacao .hero {
+  padding: 20px 20px 56px;
+  display: grid;
+  gap: 36px;
+}
+.apresentacao .hero h1 {
+  font-size: clamp(38px, 10.5vw, 68px);
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+  font-weight: 800;
+  margin: 0 0 16px;
+  text-wrap: balance;
+}
+.apresentacao .hero p {
+  color: var(--apoio);
+  font-size: 18px;
+  margin: 0 0 24px;
+  max-width: 34ch;
+}
+.apresentacao .hero .nota {
+  font-size: 14px;
+  color: var(--apoio);
+  margin: 12px 0 0;
+}
+.apresentacao .hero-demo {
+  display: grid;
+  justify-items: center;
+}
+.apresentacao .hero-demo .celular {
+  width: min(72vw, 300px);
+}
+
+/* Celular + vídeo de exemplo */
+.apresentacao .celular {
+  container-type: inline-size;
+  position: relative;
+  aspect-ratio: 9 / 16;
+  border-radius: 9cqw;
+  overflow: hidden;
+  border: 1px solid var(--linha);
+  background: var(--painel);
+}
+.apresentacao .video {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 70% at 50% 0%, #2b2260 0%, transparent 60%),
+    linear-gradient(180deg, #17133a 0%, #07051a 100%);
+}
+/* Silhueta de quem fala: fundo provisório enquanto o vídeo não existe. */
+.apresentacao .video::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 20%;
+  width: 34cqw;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.08);
+}
+.apresentacao .video::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 82cqw;
+  height: 70cqw;
+  border-radius: 40cqw 40cqw 0 0;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.06);
+}
+/* Vídeo real (public/landing/): só aparece depois de carregar; aí a legenda animada
+   some, porque o vídeo já vem legendado. */
+.apresentacao .celular video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+}
+.apresentacao .celular.com-video video {
+  opacity: 1;
+}
+.apresentacao .celular.com-video .ap-palco {
+  display: none;
+}
+
+/* Legenda animada (palco) */
+.apresentacao .ap-palco {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 20%;
+  z-index: 1;
+  padding: 0 6cqw;
+  text-align: center;
+}
+.apresentacao .leg span {
+  display: inline-block;
+  animation: ap-entra 0.34s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.apresentacao .leg.linear {
+  font-weight: 800;
+  font-size: 9.5cqw;
+  letter-spacing: -0.02em;
+  text-shadow: 0 0.6cqw 3cqw rgba(0, 0, 0, 0.6);
+}
+.apresentacao .leg.linear span {
+  margin: 0 0.12em;
+}
+.apresentacao .leg.destaque .cima {
+  font-weight: 600;
+  font-size: 8.5cqw;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.apresentacao .leg.destaque .cima span {
+  margin: 0 0.1em;
+}
+.apresentacao .leg.destaque .chave {
+  font-family: "Instrument Serif", serif;
+  font-style: italic;
+  font-size: 27cqw;
+  line-height: 0.9;
+  color: var(--rosa);
+  text-shadow: 0 0 8cqw color-mix(in srgb, var(--rosa) 45%, transparent);
+}
+@keyframes ap-entra {
+  from {
+    opacity: 0;
+    transform: translateY(45%) scale(0.88);
+    filter: blur(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+/* Seções */
+.apresentacao .secao {
+  padding: 56px 0;
+  border-top: 1px solid var(--linha);
+}
+.apresentacao .secao h2 {
+  font-size: clamp(28px, 7.4vw, 44px);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  font-weight: 800;
+  margin: 0 0 10px;
+  text-wrap: balance;
+}
+.apresentacao .secao .sub {
+  color: var(--apoio);
+  margin: 0 0 28px;
+  max-width: 46ch;
+}
+
+/* Antes e depois */
+.apresentacao .par {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  max-width: 560px;
+}
+.apresentacao .par figure {
+  margin: 0;
+}
+.apresentacao .par figcaption {
+  margin-top: 10px;
+  font-size: 14px;
+  color: var(--apoio);
+}
+.apresentacao .par figcaption strong {
+  display: block;
+  color: var(--texto);
+  font-size: 15px;
+}
+
+/* Passos */
+.apresentacao .passos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  counter-reset: passo;
+}
+.apresentacao .passos li {
+  counter-increment: passo;
+  background: var(--painel);
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  padding: 20px 20px 20px 72px;
+  position: relative;
+}
+.apresentacao .passos li::before {
+  content: counter(passo);
+  position: absolute;
+  left: 20px;
+  top: 20px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  background: color-mix(in srgb, var(--roxo) 18%, transparent);
+  color: #c9bcff;
+}
+.apresentacao .passos h3 {
+  margin: 0 0 4px;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+}
+.apresentacao .passos p {
+  margin: 0;
+  color: var(--apoio);
+  font-size: 15px;
+}
+
+/* Estilos */
+.apresentacao .estilos {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding: 0 20px 8px;
+  margin: 0 -20px;
+  scrollbar-width: none;
+}
+.apresentacao .estilos::-webkit-scrollbar {
+  display: none;
+}
+.apresentacao .estilo {
+  flex: 0 0 62%;
+  max-width: 240px;
+  scroll-snap-align: start;
+}
+.apresentacao .amostra {
+  aspect-ratio: 4 / 5;
+  border-radius: var(--raio);
+  border: 1px solid var(--linha);
+  background: linear-gradient(180deg, #17133a, #08061c);
+  display: grid;
+  place-content: center;
+  text-align: center;
+  padding: 14px;
+  line-height: 1;
+  position: relative;
+  overflow: hidden;
+}
+.apresentacao .estilo h3 {
+  margin: 10px 0 0;
+  font-size: 16px;
+}
+.apresentacao .estilo p {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: var(--apoio);
+}
+.apresentacao .breve {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--rosa);
+  color: #1a0410;
+}
+/* A */
+.apresentacao .am-a .l1 {
+  font-weight: 600;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+.apresentacao .am-a .l2 {
+  font-family: "Instrument Serif", serif;
+  font-style: italic;
+  font-size: 58px;
+  color: #c9bcff;
+}
+/* B */
+.apresentacao .am-b .l1 {
+  font-family: "Playfair Display", serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: 30px;
+}
+.apresentacao .am-b .l2 {
+  font-weight: 900;
+  font-size: 46px;
+  letter-spacing: -0.03em;
+  color: #ff3b3b;
+  text-shadow: 0 0 24px rgba(255, 59, 59, 0.5);
+  text-transform: uppercase;
+}
+/* C */
+.apresentacao .am-c {
+  font-style: italic;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+}
+.apresentacao .am-c .tag {
+  display: inline-block;
+  background: #e5202b;
+  font-size: 15px;
+  padding: 4px 9px;
+  margin-bottom: 6px;
+  transform: skewX(-6deg);
+}
+.apresentacao .am-c .l1 {
+  font-size: 30px;
+}
+.apresentacao .am-c .l2 {
+  font-size: 48px;
+  color: #e8ff3a;
+}
+/* D */
+.apresentacao .am-d {
+  text-transform: lowercase;
+  letter-spacing: -0.03em;
+}
+.apresentacao .am-d .l1 {
+  font-weight: 300;
+  font-size: 28px;
+}
+.apresentacao .am-d .l2 {
+  font-weight: 900;
+  font-size: 64px;
+}
+/* E */
+.apresentacao .am-e .l1 {
+  font-family: "Urbanist", sans-serif;
+  font-style: italic;
+  font-weight: 500;
+  font-size: 22px;
+}
+.apresentacao .am-e .l2 {
+  font-weight: 900;
+  font-size: 54px;
+  letter-spacing: -0.03em;
+  text-transform: lowercase;
+}
+.apresentacao .am-e .l3 {
+  font-family: "EB Garamond", serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 26px;
+  color: #e9c46a;
+}
+/* F */
+.apresentacao .am-f .l1 {
+  font-weight: 500;
+  font-size: 26px;
+  letter-spacing: -0.05em;
+}
+.apresentacao .am-f .l2 {
+  font-family: "Instrument Serif", serif;
+  font-style: italic;
+  font-size: 60px;
+  letter-spacing: -0.02em;
+}
+/* Misto */
+.apresentacao .am-m .l1 {
+  font-family: "Playfair Display", serif;
+  font-style: italic;
+  font-size: 26px;
+}
+.apresentacao .am-m .l2 {
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  font-size: 40px;
+  color: #e8ff3a;
+}
+.apresentacao .am-m .l3 {
+  font-family: "Instrument Serif", serif;
+  font-style: italic;
+  font-size: 40px;
+  color: var(--rosa);
+}
+
+/* Planos */
+.apresentacao .planos {
+  display: grid;
+  gap: 12px;
+}
+.apresentacao .plano {
+  background: var(--painel);
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+}
+.apresentacao .plano.principal {
+  background: var(--painel-2);
+  border-color: var(--roxo);
+}
+.apresentacao .plano h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--apoio);
+}
+.apresentacao .plano .ap-selo {
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--roxo);
+  margin-bottom: 10px;
+}
+.apresentacao .preco {
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  margin: 6px 0 2px;
+}
+.apresentacao .preco small {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--apoio);
+  letter-spacing: 0;
+}
+.apresentacao .plano ul {
+  list-style: none;
+  margin: 14px 0 20px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  color: var(--texto);
+  font-size: 15px;
+  flex: 1;
+}
+.apresentacao .plano li {
+  padding-left: 24px;
+  position: relative;
+}
+.apresentacao .plano li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.42em;
+  width: 12px;
+  height: 6px;
+  border-left: 2px solid var(--rosa);
+  border-bottom: 2px solid var(--rosa);
+  transform: rotate(-45deg);
+}
+.apresentacao .pagamento {
+  margin: 16px 0 0;
+  font-size: 14px;
+  color: var(--apoio);
+}
+
+/* Perguntas */
+.apresentacao .faq {
+  max-width: 720px;
+}
+.apresentacao .faq details {
+  border-bottom: 1px solid var(--linha);
+}
+.apresentacao .faq summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 18px 36px 18px 0;
+  font-weight: 600;
+  font-size: 17px;
+  position: relative;
+}
+.apresentacao .faq summary::-webkit-details-marker {
+  display: none;
+}
+.apresentacao .faq summary::after {
+  content: "+";
+  position: absolute;
+  right: 4px;
+  top: 14px;
+  font-size: 24px;
+  font-weight: 400;
+  color: var(--apoio);
+}
+.apresentacao .faq details[open] summary::after {
+  content: "–";
+}
+.apresentacao .faq p {
+  margin: 0 0 18px;
+  color: var(--apoio);
+  max-width: 60ch;
+}
+
+/* Chamada final */
+.apresentacao .final {
+  text-align: center;
+}
+.apresentacao .final h2 {
+  margin-bottom: 20px;
+}
+
+/* Rodapé */
+.apresentacao .rodape {
+  border-top: 1px solid var(--linha);
+  padding: 28px 0 110px;
+  font-size: 14px;
+  color: var(--apoio);
+}
+.apresentacao .rodape nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-bottom: 14px;
+}
+.apresentacao .rodape a {
+  text-decoration: none;
+  color: var(--texto);
+}
+.apresentacao .rodape a:hover {
+  text-decoration: underline;
+}
+
+/* Barra fixa no celular */
+.apresentacao .ap-barra {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+  background: rgba(3, 2, 16, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--linha);
+  transform: translateY(110%);
+  transition: transform 0.25s ease;
+}
+.apresentacao .ap-barra.visivel {
+  transform: none;
+}
+
+/* Computador */
+@media (min-width: 900px) {
+  .apresentacao .hero {
+    grid-template-columns: 1.15fr 0.85fr;
+    align-items: center;
+    padding: 40px 20px 88px;
+    gap: 56px;
+  }
+  .apresentacao .hero-demo .celular {
+    width: 320px;
+  }
+  .apresentacao .secao {
+    padding: 88px 0;
+  }
+  .apresentacao .passos {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .apresentacao .passos li {
+    padding: 72px 22px 24px;
+  }
+  .apresentacao .estilos {
+    flex-wrap: wrap;
+    overflow: visible;
+    margin: 0;
+    padding: 0;
+  }
+  .apresentacao .estilo {
+    flex: 0 0 calc(25% - 9px);
+    max-width: none;
+  }
+  .apresentacao .planos {
+    grid-template-columns: repeat(3, 1fr);
+    align-items: stretch;
+  }
+  .apresentacao .rodape {
+    padding-bottom: 40px;
+  }
+  .apresentacao .ap-barra {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .apresentacao {
+    scroll-behavior: auto;
+  }
+  .apresentacao .leg span {
+    animation: none;
+  }
+  .apresentacao .ap-barra {
+    transition: none;
+  }
+}
