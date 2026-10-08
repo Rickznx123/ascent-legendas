@@ -304,7 +304,6 @@ export const Apresentacao: React.FC<{
               </article>
               <article className="estilo">
                 <div className="amostra am-f">
-                  <span className="breve">Em breve</span>
                   <div className="l1">feito para</div>
                   <div className="l2">vender</div>
                 </div>
