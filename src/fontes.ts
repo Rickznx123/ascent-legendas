@@ -6,8 +6,10 @@
 //   pacote C — Inter Tight 400 e itálica 800/900
 //   pacote D — Hanken Grotesk 300/400/800
 //   pacote E — Urbanist itálica 500, Hanken Grotesk 800 e EB Garamond itálica 700
+//   pacote F — Inter Tight 700 e Instrument Serif itálica
 // São as instâncias estáticas no peso exato (Fontsource 5.3.0, das fontes do Google),
 // em dois arquivos por fonte: latin e latin-ext, com os mesmos intervalos do Google.
+// Origem e licença (OFL) de cada uma: fontes/ORIGEM.md.
 import ebGaramondLatin700Italic from "../fontes/eb-garamond-latin-700-italic.woff2";
 import ebGaramondLatinExt700Italic from "../fontes/eb-garamond-latin-ext-700-italic.woff2";
 import hankenLatin300 from "../fontes/hanken-grotesk-latin-300-normal.woff2";
@@ -22,6 +24,7 @@ import interTightLatin300 from "../fontes/inter-tight-latin-300-normal.woff2";
 import interTightLatin400 from "../fontes/inter-tight-latin-400-normal.woff2";
 import interTightLatin500 from "../fontes/inter-tight-latin-500-normal.woff2";
 import interTightLatin600 from "../fontes/inter-tight-latin-600-normal.woff2";
+import interTightLatin700 from "../fontes/inter-tight-latin-700-normal.woff2";
 import interTightLatin800 from "../fontes/inter-tight-latin-800-normal.woff2";
 import interTightLatin800Italic from "../fontes/inter-tight-latin-800-italic.woff2";
 import interTightLatin900Italic from "../fontes/inter-tight-latin-900-italic.woff2";
@@ -29,6 +32,7 @@ import interTightLatinExt300 from "../fontes/inter-tight-latin-ext-300-normal.wo
 import interTightLatinExt400 from "../fontes/inter-tight-latin-ext-400-normal.woff2";
 import interTightLatinExt500 from "../fontes/inter-tight-latin-ext-500-normal.woff2";
 import interTightLatinExt600 from "../fontes/inter-tight-latin-ext-600-normal.woff2";
+import interTightLatinExt700 from "../fontes/inter-tight-latin-ext-700-normal.woff2";
 import interTightLatinExt800 from "../fontes/inter-tight-latin-ext-800-normal.woff2";
 import interTightLatinExt800Italic from "../fontes/inter-tight-latin-ext-800-italic.woff2";
 import interTightLatinExt900Italic from "../fontes/inter-tight-latin-ext-900-italic.woff2";
@@ -54,6 +58,7 @@ const FONTES: Fonte[] = [
   {familia: "Inter Tight", peso: "400", estilo: "normal", arquivos: {latin: interTightLatin400, latinExt: interTightLatinExt400}},
   {familia: "Inter Tight", peso: "500", estilo: "normal", arquivos: {latin: interTightLatin500, latinExt: interTightLatinExt500}},
   {familia: "Inter Tight", peso: "600", estilo: "normal", arquivos: {latin: interTightLatin600, latinExt: interTightLatinExt600}},
+  {familia: "Inter Tight", peso: "700", estilo: "normal", arquivos: {latin: interTightLatin700, latinExt: interTightLatinExt700}},
   {familia: "Inter Tight", peso: "800", estilo: "normal", arquivos: {latin: interTightLatin800, latinExt: interTightLatinExt800}},
   {familia: "Inter Tight", peso: "800", estilo: "italic", arquivos: {latin: interTightLatin800Italic, latinExt: interTightLatinExt800Italic}},
   {familia: "Inter Tight", peso: "900", estilo: "italic", arquivos: {latin: interTightLatin900Italic, latinExt: interTightLatinExt900Italic}},

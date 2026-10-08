@@ -1,10 +1,12 @@
 // npx tsx nuvem/renderizar.ts --rotulo frio [--memoria 2048] [--quadros 200] [--pacote misto] [--paleta nome] [--baixar]
-//   [--projeto projeto.json --video arquivo.mp4]
+//   [--projeto projeto.json --video arquivo.mp4] [--segundos 20]
 // Renderiza o vídeo do transcricao.json (ou de um projeto salvo à parte, como o
 // de nuvem/transcrever.ts, com --projeto e --video) no Lambda e acrescenta o resultado
 // (custo estimado pelo Remotion, tempos, configuração) em nuvem/resultados/renders.json.
 // O vídeo vai uma vez para o bucket (entradas/) e a função lê por URL assinada.
 // A função com a memória pedida precisa existir: npx tsx nuvem/implantar.ts --memoria N
+// Usa o site da versão atual do código (npm run nuvem:site), como a exportação do app.
+// --segundos N renderiza só os primeiros N segundos.
 import {createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync} from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -14,13 +16,13 @@ import {
   getFunctions,
   getOrCreateBucket,
   getRenderProgress,
-  getSites,
   presignUrl,
   renderMediaOnLambda,
 } from "@remotion/lambda";
 import {prepararSons} from "../src/motor/pasta-sons";
 import {readProject} from "../src/motor/projeto";
 import type {Projeto} from "../src/motor/projeto";
+import {siteDaVersao} from "../app/servidor/site-lambda";
 import {RAIZ, REGIAO, exigir} from "./env";
 import {montarProps} from "./props";
 
@@ -49,10 +51,11 @@ const funcao = (await getFunctions({region: REGIAO, compatibleOnly: true}))
 if (!funcao) {
   throw new Error(`Não há função com ${memoria} MB. Rode: npx tsx nuvem/implantar.ts --memoria ${memoria}`);
 }
-const site = (await getSites({region: REGIAO})).sites.find((s) => s.id === "legendas");
+const site = await siteDaVersao(RAIZ, REGIAO);
 if (!site) {
-  throw new Error("O site 'legendas' não existe. Rode: npx tsx nuvem/implantar.ts");
+  throw new Error("O site da versão atual do código não existe. Rode: npm run nuvem:site");
 }
+const segundos = valor("--segundos") ? Number(valor("--segundos")) : undefined;
 const {bucketName} = await getOrCreateBucket({region: REGIAO});
 
 // Sobe o vídeo uma vez (mesmo nome e tamanho: reaproveita).
@@ -92,6 +95,7 @@ const videoSrc = await presignUrl({
 });
 
 const props = await montarProps(inputPath, {pacote, paleta}, projeto);
+const quadros = segundos ? Math.min(props.video.durationInFrames, Math.round(segundos * props.video.fps)) : props.video.durationInFrames;
 
 // Sons tocados (veja somTocado em src/sons.ts): gerados aqui e enviados para a
 // pasta pública do site, ao lado dos sons de sons/. Um novo implantar.ts os apaga;
@@ -103,7 +107,7 @@ try {
     await s3.send(
       new PutObjectCommand({
         Bucket: bucketName,
-        Key: `sites/${site.id}/public/sons/${arquivo}`,
+        Key: `sites/${site.nome}/public/sons/${arquivo}`,
         Body: readFileSync(path.join(temp, arquivo)),
         ContentType: "audio/wav",
         ACL: "public-read",
@@ -131,12 +135,13 @@ const renderId =
       codec: "h264",
       audioCodec: "aac",
       framesPerLambda: quadrosPorLambda,
+      ...(quadros < props.video.durationInFrames ? {frameRange: [0, quadros - 1] as [number, number]} : {}),
       privacy: "private",
       outName: `renders/${rotulo}.mp4`,
       overwrite: true,
     })
   ).renderId;
-console.log(`Render ${renderId} ${retomado ? "retomado" : "iniciado"} (${funcao.functionName}, ${quadrosPorLambda} quadros por Lambda)`);
+console.log(`Render ${renderId} ${retomado ? "retomado" : "iniciado"} (${funcao.functionName}, ${site.nome}, ${quadrosPorLambda} quadros por Lambda)`);
 
 // Cada consulta de progresso invoca a função e ocupa uma vaga de execução
 // simultânea. O limite da conta é 1000 (Service Quotas, us-east-2, conferido em
@@ -173,8 +178,11 @@ for (;;) {
     quadrosPorLambda,
     pedacos: p.chunks,
     lambdas: p.lambdasInvoked,
-    quadros: props.video.durationInFrames,
-    duracaoVideoS: props.video.durationInFrames / props.video.fps,
+    site: site.nome,
+    pacote,
+    paleta: paleta ?? null,
+    quadros,
+    duracaoVideoS: quadros / props.video.fps,
     custoUsd: p.costs.accruedSoFar,
     custoTexto: p.costs.displayCost,
     tempoTotalS: retomado ? null : (Date.now() - inicio) / 1000,

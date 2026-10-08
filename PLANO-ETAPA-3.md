@@ -351,6 +351,8 @@ Todas tomadas em 05/10/2026 (veja "Decisões tomadas", no começo). O domínio s
 - **Origem dos efeitos sonoros** (`sons/ORIGEM.md`): os sete arquivos estão sem origem nem licença comprovadas.
 - **Retomada da transcrição ao sair do app** (Bloco 5): falta teste no iPhone.
 - **Pacote C versão 2** ✅ feito em 07/10/2026 (prancha em `templates/pacote-c/referencia.html`): ritmo próprio (dinâmico a cada 2 blocos, o primeiro dinâmico), quatro layouts dinâmicos (destaque gigante, pilha à esquerda, com miudinho, pilha central), linear de até 3 palavras ou 20 caracteres com entrada por palavra ou por letra (por projeto), saída do bloco e 7 paletas novas de três cores, em todos os pacotes. Projetos antigos no C passam para o novo ao abrir ou exportar.
+  - 08/10/2026: ritmo novo do C (dinâmicos nas frases fortes, no máximo 3 lineares seguidos contando os pedaços do linear dividido, nunca dois dinâmicos seguidos, o primeiro dinâmico).
+- **Pacote F editorial** ✅ feito em 08/10/2026 (prancha em `templates/pacote-f/referencia.html`): o mesmo ritmo do C, quatro layouts dinâmicos (na linha, dois destaques com elo miúdo, destaque gigante, sans em cima), sans Inter Tight 700 branca e destaque em Instrument Serif itálica revelado da esquerda para a direita, com o brilho acendendo no fim; linear só na sans, palavra por palavra. Paletas novas do F: creme, lavanda, rosa e menta-suave (a branco é a mesma de antes).
 
 ---
 

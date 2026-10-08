@@ -20,9 +20,10 @@ Pacotes e paletas atuais:
 |---|---|---|
 | `a` | `layout-1` a `layout-7` | `templates/pacote-a/referencia.html` |
 | `b` | `b1` a `b6` e `linear` | `templates/pacote-b/referencia.html` |
-| `c` | `c1` a `c6` e `linear` (Anton e Kaushan Script) | `templates/pacote-c/referencia.html` |
+| `c` | `gigante`, `pilha-esquerda`, `miudinho`, `pilha-central` e `linear` (Inter Tight itálica) | `templates/pacote-c/referencia.html` |
 | `d` | `d1` a `d6` (d6 é a dupla) e `linear` (Hanken Grotesk) | `templates/pacote-d/referencia.html` |
 | `e` | `e1` a `e6` e `linear` (Urbanist, Hanken Grotesk e EB Garamond) | `templates/pacote-e/referencia.html` |
+| `f` | `na-linha`, `dois-destaques`, `gigante`, `sans-em-cima` e `linear` (Inter Tight 700 e Instrument Serif itálica) | `templates/pacote-f/referencia.html` |
 
 | Paleta | Uso |
 |---|---|
@@ -58,6 +59,7 @@ const pacote: PackageConfig = {
 
 - `before` e `after` contam as palavras antes e depois da palavra-chave; `words` conta as palavras do bloco.
 - `protectedExpression: true` faz a regra valer só para blocos com expressão protegida.
+- `eloDepois: true` faz a regra valer só quando, depois da palavra-chave, vêm só artigos e preposições (um ou dois) e uma última palavra forte, como "tudo em segundos" (os dois destaques com o elo do pacote F).
 - `dupla` (opcional): o layout de dupla do pacote (ex.: `"d6"`). Dois blocos seguidos ficam na tela ao mesmo tempo quando cada um tem até 4 palavras e o silêncio entre eles é menor que 0,4 s, no máximo uma dupla a cada 6 blocos (valores em `dupla` no `src/agrupamento-config.ts`). A dupla conta como um destaque no ritmo.
 - `maxLinearWords` e `maxLinearCaracteres` (opcionais): máximo de palavras e de caracteres do linear. Um linear maior é dividido em quantos blocos lineares forem precisos, nos pontos de menor penalidade do agrupador; um bloco com layout escolhido à mão não é dividido, só fica marcado "revisar". No modo misto, um linear maior não sorteia esse pacote.
 - `ritmo` (opcional): ritmo próprio do pacote, quando o vídeo usa só ele. Os dinâmicos caem nas frases mais fortes, nunca dois seguidos; `maxLinearesSeguidos: 3` limita os lineares seguidos (cada pedaço de um linear dividido conta; se um linear longo sozinho passa do limite, o pedaço mais forte dele vira dinâmico); `primeiroDestaque: true` faz o primeiro bloco do vídeo ser dinâmico. Sem `ritmo`, vale o ritmo comum.
@@ -97,6 +99,7 @@ A linha de cima depende da estrutura do layout. Em `escada` e `pilha`, a última
   - `pilha`: duas linhas antes da palavra-chave (a de baixo é a última palavra antes dela).
   - `dupla`: dois blocos seguidos na tela ao mesmo tempo. O layout descreve cada parte em `pair` (`first`, `second`, cada uma com sua estrutura, estilos e ajuste da palavra-chave) e onde fica cada grupo (`firstGroup`, `secondGroup`).
   - `papeis` (pacote C): até 3 linhas com papéis — etiqueta em caixa, destaque na cor, gigante, corpo, leve e miudinho. Como as palavras viram linhas fica em `papeis.arranjo` (`gigante`, `pilha` ou `miudinho`, veja `src/papeis.ts`); o estilo e o tamanho de cada papel, em `papeis.estilos` e `papeis.tamanhosCqw`. Cada linha entra inteira no instante da sua primeira palavra (`animations.word`, com o deslocamento e o desfoque de `papeis`); a etiqueta sozinha na linha abre da esquerda para a direita (`animations.top` com `fromClipRight: 1`). Uma linha mais larga que `papeis.larguraMaximaCqw` encolhe por inteiro.
+    - Pacote F: com `papeis.porPalavra`, cada palavra entra no instante da sua fala com a animação do seu papel (`porPalavra.animacoes`) e todas ficam na mesma linha de base. Os papéis do F são `sans`, `sans-pequena`, `sans-grande`, `serifa`, `serifa-gigante` e `elo`; os arranjos, `na-linha`, `dois-destaques`, `serifa-gigante` e `sans-em-cima`. Artigos e preposições entre duas palavras em serifa viram o `elo` miúdo. A serifa abre da esquerda para a direita (`fromClipRight` com `folgaDoRecorte`) e o brilho acende no fim (`brilhoAcende`, que vira a variável `--acende` usada no tamanho do brilho).
   - `linear`: palavras em sequência.
 - `styles`: CSS de cada papel (`block`, `support`, `supportBelow`, `keyword`, `keywordOuter`, `emphasis`, `complement`). As medidas em `cqw` equivalem a % da largura do vídeo; `em` é relativo ao tamanho da letra do próprio elemento.
 - Posição: o `block` não define `position`, `left`, `top` nem `transform` (se definir, é ignorado). O centro do bloco vai para a posição escolhida na interface (padrão: 50% da largura e 68% da altura), dentro da margem segura de 5% a 95% da largura e 8% a 92% da altura. O alinhamento do texto (`textAlign`) continua sendo do layout.
@@ -110,7 +113,7 @@ A linha de cima depende da estrutura do layout. Em `escada` e `pilha`, a última
 - `maxCharactersPerLine` (só no linear): acima desse número de caracteres, a linha é quebrada em duas.
 - `linhaUnica` (só no linear): sempre uma linha, reduzida se não couber. `porLetra` aceita a entrada letra por letra (escolhida por projeto em Geral → Entrada do linear), com `atrasoPorLetraMs` entre as letras.
 - `posicao` (opcional): o lugar próprio do layout (`x`, `y` em %; com `ancora: "esquerda"`, `x` é a borda esquerda). A posição geral do vídeo desloca esse lugar pelo quanto ela saiu da padrão; a posição de um bloco o substitui.
-- `saida` (opcional): depois de sair da linha do tempo, o bloco sobe `sobeCqw`, encolhe até `escala` e some em `duracaoMs`, junto com a entrada do seguinte.
+- `saida` (opcional): depois de sair da linha do tempo, o bloco sobe `sobeCqw`, encolhe até `escala`, desfoca até `desfoqueCqw` (opcional) e some em `duracaoMs`, junto com a entrada do seguinte.
 
 **Layouts nunca definem cor.** Use as variáveis que o motor preenche a partir da paleta:
 

@@ -54,7 +54,7 @@ const LINHA: CSSProperties = {display: "flex", alignItems: "center", gap: px(7),
 const BASE: CSSProperties = {fontFamily: FONTE, fontStyle: "italic", textTransform: "uppercase", lineHeight: 1, display: "inline-block"};
 
 // Papéis: .caixa, .cor (.brilho no gigante), .branco, .leve e .mini.
-const ESTILOS: Record<Papel, CSSProperties> = {
+const ESTILOS: Partial<Record<Papel, CSSProperties>> = {
   etiqueta: {
     ...BASE,
     fontWeight: 800,
@@ -83,7 +83,7 @@ const ESTILOS: Record<Papel, CSSProperties> = {
 
 // Tamanhos da prancha: etiqueta 19 · corpo 24 · destaque 30 · gigante 42 · miudinho 9.
 // O fecho leve do destaque gigante usa 30.
-const TAMANHOS: Record<Papel, number> = {
+const TAMANHOS: Partial<Record<Papel, number>> = {
   etiqueta: 19 * PX,
   corpo: 24 * PX,
   destaque: 30 * PX,

@@ -5,7 +5,7 @@ import {Easing} from "remotion";
 import {AGRUPAMENTO_CONFIG} from "./agrupamento-config";
 import {findKeywordIndex} from "./captions";
 import {encaixarNoAudio} from "./encaixe";
-import {linhaDeCadaPalavra, linhasDosPapeis, soEtiqueta} from "./papeis";
+import {linhaDeCadaPalavra, linhasDosPapeis, papelDeCadaPalavra, soEtiqueta} from "./papeis";
 import type {
   AssignedCaptionBlock,
   CaptionBlock,
@@ -169,8 +169,18 @@ export const animacaoDaPalavra = (block: AssignedCaptionBlock, template: Caption
     return block.words.length === 2 && animations.linearPair ? animations.linearPair[indice] : animations.word;
   }
   if (template.structure === "papeis" && template.papeis) {
+    const linhas = linhasDosPapeis(
+      template.papeis.arranjo,
+      block.words.length,
+      findKeywordIndex(block.words, block.keyword),
+      block.words.map((word) => word.text),
+    );
+    // Pacote F: cada palavra entra com a animação do seu papel.
+    if (template.papeis.porPalavra) {
+      const papel = papelDeCadaPalavra(linhas, block.words.length)[indice];
+      return (papel && template.papeis.porPalavra.animacoes[papel]) ?? animations.word;
+    }
     // A linha inteira entra junto; a etiqueta sozinha na linha abre da esquerda.
-    const linhas = linhasDosPapeis(template.papeis.arranjo, block.words.length, findKeywordIndex(block.words, block.keyword));
     const linha = linhas[linhaDeCadaPalavra(linhas, block.words.length)[indice]];
     return linha && soEtiqueta(linha) ? (animations.top ?? animations.word) : animations.word;
   }

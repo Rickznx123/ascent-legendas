@@ -11,6 +11,7 @@ import {
   normalizeForKeyword,
 } from "./captions";
 import {AGRUPAMENTO_CONFIG} from "./agrupamento-config";
+import {temEloDepois} from "./papeis";
 import {RHYTHM_CONFIG} from "./rhythm-config";
 import {keywordStaysVisible} from "./tempos";
 import type {
@@ -90,20 +91,21 @@ export const linearCabe = (config: PalavrasDoLinear, texts: string[]): boolean =
   (config.maxLinearWords === undefined || texts.length <= config.maxLinearWords) &&
   (config.maxLinearCaracteres === undefined || texts.length === 1 || texts.join(" ").length <= config.maxLinearCaracteres);
 
+// A regra vale para as palavras com a palavra-chave em keywordIndex?
+const regraVale = (rule: LayoutRule, texts: string[], keywordIndex: number, hasExpression: boolean): boolean =>
+  (rule.protectedExpression === undefined || rule.protectedExpression === hasExpression) &&
+  (rule.eloDepois === undefined || rule.eloDepois === temEloDepois(texts, keywordIndex)) &&
+  inRange(texts.length, rule.words) &&
+  inRange(keywordIndex, rule.before) &&
+  inRange(texts.length - keywordIndex - 1, rule.after);
+
 // Primeira regra de destaque do pacote que vale para a palavra-chave em keywordIndex.
 const matchingRule = (
   config: PackageConfig,
   texts: string[],
   keywordIndex: number,
   hasExpression: boolean,
-): LayoutRule | undefined =>
-  config.highlight.find(
-    (rule) =>
-      (rule.protectedExpression === undefined || rule.protectedExpression === hasExpression) &&
-      inRange(texts.length, rule.words) &&
-      inRange(keywordIndex, rule.before) &&
-      inRange(texts.length - keywordIndex - 1, rule.after),
-  );
+): LayoutRule | undefined => config.highlight.find((rule) => regraVale(rule, texts, keywordIndex, hasExpression));
 
 // O layout serve para o bloco pelas regras do pacote? (galeria: os que não servem
 // ficam esmaecidos). Linear: até maxLinearWords palavras. Dupla: precisa de um
@@ -131,14 +133,7 @@ export const layoutServeParaBloco = (
   const hasExpression = findProtectedSpans(texts).spans.length > 0;
   return (
     (config.threeLines.includes(layout) && keywordIndex === 0) ||
-    config.highlight.some(
-      (rule) =>
-        rule.templates.includes(layout) &&
-        (rule.protectedExpression === undefined || rule.protectedExpression === hasExpression) &&
-        inRange(texts.length, rule.words) &&
-        inRange(keywordIndex, rule.before) &&
-        inRange(texts.length - keywordIndex - 1, rule.after),
-    )
+    config.highlight.some((rule) => rule.templates.includes(layout) && regraVale(rule, texts, keywordIndex, hasExpression))
   );
 };
 

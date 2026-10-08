@@ -82,6 +82,14 @@ export type EntranceAnimation = {
   // Revelação da esquerda para a direita: fração escondida à direita no início
   // (1 = tudo escondido), aberta pela mesma curva (a etiqueta do pacote C).
   fromClipRight?: number;
+  // Folga do recorte, em % da palavra, para o brilho e a inclinação do itálico não
+  // serem cortados em cima, embaixo e à esquerda durante a revelação (pacote F). Com
+  // direitaPct, a revelação termina essa folga além da borda direita.
+  folgaDoRecorte?: {verticalPct: number; esquerdaPct: number; direitaPct?: number};
+  // Brilho que acende no fim da entrada (pacote F): de que fração a que fração da
+  // animação ele vai de 0 a 1, em linha reta. Vira a variável CSS --acende, que o
+  // estilo da palavra usa no tamanho do brilho. Sem valor: --acende fica em 1.
+  brilhoAcende?: [number, number];
   // Quadros-chave, como um @keyframes do CSS: [posição de 0 a 1, valor].
   // A curva (easing) vale em cada trecho entre dois quadros. Com quadros-chave de
   // opacidade, fromOpacity é ignorado. Brilho 1 = normal.
@@ -208,7 +216,7 @@ export type CaptionTemplate = {
   posicao?: {x: number; y: number; ancora?: "centro" | "esquerda"};
   // Saída do bloco: depois de sair da linha do tempo, sobe e some (na mesma hora em
   // que o seguinte entra). Sem valor: some de uma vez.
-  saida?: {duracaoMs: number; sobeCqw: number; escala: number};
+  saida?: {duracaoMs: number; sobeCqw: number; escala: number; desfoqueCqw?: number};
   // Só na estrutura "dupla": o desenho de cada bloco e de cada grupo.
   pair?: {
     first: TemplatePart;
@@ -229,6 +237,9 @@ export type LayoutRule = {
   before?: CountRange; // palavras antes da palavra-chave
   after?: CountRange; // palavras depois da palavra-chave
   protectedExpression?: boolean; // o bloco tem expressão protegida
+  // Depois da palavra-chave, só artigos e preposições e uma última palavra forte
+  // ("tudo em segundos"): os dois destaques com o elo miúdo do pacote F.
+  eloDepois?: boolean;
 };
 
 export type PackageConfig = {
@@ -308,20 +319,45 @@ export type EntradaLinear = "palavra" | "letra";
 //   corpo     texto branco pesado
 //   leve      fecho sem peso nem itálico
 //   mini      conectivos empilhados em letra miúda
-export type Papel = "etiqueta" | "destaque" | "gigante" | "corpo" | "leve" | "mini";
+//
+// Pacote F (editorial), uma entrada por palavra:
+//   sans            sans branca com espaçamento negativo
+//   sans-pequena    a sans menor (linha de apoio)
+//   sans-grande     a sans maior (frase forte embaixo)
+//   serifa          destaque em serifa itálica, na cor, com brilho
+//   serifa-gigante  o destaque enorme em serifa
+//   elo             artigo ou preposição miúdo entre dois destaques
+export type Papel =
+  | "etiqueta"
+  | "destaque"
+  | "gigante"
+  | "corpo"
+  | "leve"
+  | "mini"
+  | "sans"
+  | "sans-pequena"
+  | "sans-grande"
+  | "serifa"
+  | "serifa-gigante"
+  | "elo";
 
 // Como as palavras viram linhas (veja linhasDosPapeis em src/papeis.ts):
 //   gigante   apoio com a etiqueta no fim, palavra-chave gigante, fecho leve
 //   pilha     etiqueta, corpo, linha na cor (da palavra-chave ao fim)
 //   miudinho  etiqueta, linha na cor, miudinho empilhado ao lado da última palavra
-export type ArranjoDosPapeis = "gigante" | "pilha" | "miudinho";
+// Pacote F:
+//   na-linha         sans e destaque na mesma linha; o resto em serifa embaixo
+//   dois-destaques   sans pequena em cima; dois destaques ligados pelo elo embaixo
+//   serifa-gigante   sans pequena, a palavra-chave enorme em serifa, sans pequena
+//   sans-em-cima     sans e destaque em cima; o resto em sans grande embaixo
+export type ArranjoDosPapeis = "gigante" | "pilha" | "miudinho" | "na-linha" | "dois-destaques" | "serifa-gigante" | "sans-em-cima";
 
 export type ConfigDosPapeis = {
   arranjo: ArranjoDosPapeis;
-  // Estilo de cada papel, sem cor e sem tamanho (as cores vêm da paleta).
-  estilos: Record<Papel, CSSProperties>;
-  // Tamanho de cada papel, em % da largura do vídeo (cqw).
-  tamanhosCqw: Record<Papel, number>;
+  // Estilo de cada papel usado pelo pacote, sem tamanho (as cores vêm da paleta).
+  estilos: Partial<Record<Papel, CSSProperties>>;
+  // Tamanho de cada papel usado, em % da largura do vídeo (cqw).
+  tamanhosCqw: Partial<Record<Papel, number>>;
   // Uma linha (as partes lado a lado) e o espaço entre as linhas.
   linha: CSSProperties;
   // Entrada de cada linha, em % da largura: quanto sobe e o desfoque inicial.
@@ -331,6 +367,17 @@ export type ConfigDosPapeis = {
   desfoqueCqw: number;
   // Largura máxima de uma linha, em % da largura do vídeo (acima disso ela encolhe).
   larguraMaximaCqw: number;
+  // Entrada palavra por palavra (pacote F): cada palavra entra no instante da sua
+  // fala com a animação do seu papel (sem ela, a de animations.word), e as palavras
+  // ficam na mesma linha de base. Sem valor: cada linha entra inteira (pacote C).
+  porPalavra?: {
+    animacoes: Partial<Record<Papel, EntranceAnimation>>;
+    // Espaço antes de cada palavra, em em da própria palavra: entre duas palavras do
+    // mesmo papel (mesmoPapelEm), senão padraoEm. Junto do elo, nenhum: o elo tem a
+    // margem dele no estilo.
+    padraoEm: number;
+    mesmoPapelEm?: Partial<Record<Papel, number>>;
+  };
 };
 
 // Limites do linear de um pacote (palavras e caracteres).

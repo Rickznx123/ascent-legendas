@@ -32,6 +32,7 @@ import type {
   KeywordFit,
   KineticCaptionVideoProps,
   Palette,
+  Papel,
   TemplatePart,
   Word,
 } from "./types";
@@ -188,16 +189,17 @@ const sampleKeyframes = (
 };
 
 // Folga lateral (padding esquerdo + direito) em em, para contar na largura medida,
-// como o offsetWidth do HTML conta o padding do .tx.
-const horizontalPaddingEm = (style: CSSProperties): number => {
+// como o offsetWidth do HTML conta o padding do .tx. Com "margin", a margem lateral.
+const horizontalPaddingEm = (style: CSSProperties, propriedade: "padding" | "margin" = "padding"): number => {
   const toEm = (value: unknown): number => {
     const match = /^(-?[\d.]+)em$/u.exec(String(value ?? "").trim());
     return match ? Number(match[1]) : 0;
   };
-  if (style.paddingLeft !== undefined || style.paddingRight !== undefined) {
-    return toEm(style.paddingLeft) + toEm(style.paddingRight);
+  const [esquerda, direita] = propriedade === "padding" ? [style.paddingLeft, style.paddingRight] : [style.marginLeft, style.marginRight];
+  if (esquerda !== undefined || direita !== undefined) {
+    return toEm(esquerda) + toEm(direita);
   }
-  const parts = String(style.padding ?? "").trim().split(/\s+/u).filter(Boolean);
+  const parts = String(style[propriedade] ?? "").trim().split(/\s+/u).filter(Boolean);
   if (parts.length === 0) {
     return 0;
   }
@@ -263,6 +265,11 @@ const AnimatedWord: React.FC<{
     : 1;
   // Revelação da esquerda para a direita (a etiqueta do pacote C).
   const clipRight = animation.fromClipRight !== undefined ? Math.max(0, animation.fromClipRight * (1 - progress)) : undefined;
+  const folga = animation.folgaDoRecorte;
+  // Brilho que acende no fim da entrada (pacote F), em linha reta de 0 a 1.
+  const acende = animation.brilhoAcende
+    ? Math.min(1, Math.max(0, (linear - animation.brilhoAcende[0]) / Math.max(0.001, animation.brilhoAcende[1] - animation.brilhoAcende[0])))
+    : undefined;
 
   return (
     <span
@@ -270,7 +277,14 @@ const AnimatedWord: React.FC<{
         ...style,
         display: style?.display ?? "inline-block",
         opacity,
-        ...(clipRight !== undefined ? {clipPath: `inset(0 ${(clipRight * 100).toFixed(1)}% 0 0)`} : {}),
+        ...(clipRight !== undefined
+          ? {
+              clipPath: folga
+                ? `inset(-${folga.verticalPct}% ${(clipRight * (100 + (folga.direitaPct ?? 0)) - (folga.direitaPct ?? 0)).toFixed(1)}% -${folga.verticalPct}% -${folga.esquerdaPct}%)`
+                : `inset(0 ${(clipRight * 100).toFixed(1)}% 0 0)`,
+            }
+          : {}),
+        ...(acende !== undefined ? {"--acende": acende.toFixed(3)} : {}),
         transform: `translate(${translateX}em, ${translateY}em) scale(${scale})`,
         filter:
           [blur > 0 ? `blur(${blur}em)` : "", brightness !== 1 ? `brightness(${brightness})` : "", filter ?? ""]
@@ -372,8 +386,9 @@ const pinturaDoDestaque = (palette: Palette, estilo: CSSProperties): CSSProperti
         ...estilo,
         ...CLIPPED_FILL,
         textShadow: "none",
-        padding: "0 .08em",
-        margin: "0 -.08em",
+        // Folga para a itálica não sair do degradê; uma parte com margem própria (o
+        // elo do pacote F) fica com a dela.
+        ...(estilo.margin === undefined ? {padding: "0 .08em", margin: "0 -.08em"} : {}),
         filter: String(estilo.textShadow ?? "")
           .split(/,(?![^(]*\))/u)
           .filter((sombra) => sombra.trim())
@@ -381,7 +396,10 @@ const pinturaDoDestaque = (palette: Palette, estilo: CSSProperties): CSSProperti
           .join(" "),
       };
 
-// Estrutura "papeis" (pacote C): até 3 linhas com papéis (src/papeis.ts). Cada linha
+// Papéis pintados na cor de destaque da paleta (com degradê, recortado no texto).
+const PAPEIS_NA_COR: Papel[] = ["destaque", "gigante", "serifa", "serifa-gigante", "elo"];
+
+// Estrutura "papeis" (pacotes C e F): até 3 linhas com papéis (src/papeis.ts). Cada linha
 // entra inteira no instante da sua primeira palavra; a etiqueta sozinha na linha abre
 // da esquerda para a direita. Uma linha mais larga que o máximo encolhe por inteiro.
 const BlocoDePapeis: React.FC<{block: AssignedCaptionBlock; template: CaptionTemplate; palette: Palette; videoWidth: number}> = ({
@@ -392,10 +410,66 @@ const BlocoDePapeis: React.FC<{block: AssignedCaptionBlock; template: CaptionTem
 }) => {
   const config = template.papeis!;
   const words = block.words;
-  const linhas = linhasDosPapeis(config.arranjo, words.length, findKeywordIndex(words, block.keyword));
+  const linhas = linhasDosPapeis(
+    config.arranjo,
+    words.length,
+    findKeywordIndex(words, block.keyword),
+    words.map((word) => word.text),
+  );
   const texto = (indices: number[]) => indices.map((indice) => cleanWord(words[indice].text));
   const folgaDaCaixaPx = (estilo: CSSProperties, tamanhoPx: number) =>
     horizontalPaddingEm(estilo) * tamanhoPx;
+  const estiloDe = (papel: Papel): CSSProperties => config.estilos[papel] ?? {};
+  const tamanhoDe = (papel: Papel): number => config.tamanhosCqw[papel] ?? 6;
+  const naCor = (papel: Papel) => PAPEIS_NA_COR.includes(papel);
+
+  if (config.porPalavra) {
+    // Pacote F: cada palavra entra no instante da sua fala, com a animação do seu
+    // papel, e todas ficam na mesma linha de base. Uma linha mais larga que o máximo
+    // encolhe por inteiro.
+    const {animacoes, padraoEm, mesmoPapelEm} = config.porPalavra;
+    return (
+      <>
+        {linhas.map((linha, indiceDaLinha) => {
+          const palavras = linha.partes.flatMap((parte) => parte.palavras.map((indice) => ({indice, papel: parte.papel})));
+          const espacoEm = (posicao: number): number => {
+            const anterior = palavras[posicao - 1]?.papel;
+            const atual = palavras[posicao].papel;
+            if (!anterior || anterior === "elo" || atual === "elo") {
+              return 0;
+            }
+            return anterior === atual ? (mesmoPapelEm?.[atual] ?? padraoEm) : padraoEm;
+          };
+          const largura = palavras.reduce((soma, {indice, papel}, posicao) => {
+            const estilo = estiloDe(papel);
+            const tamanhoPx = (tamanhoDe(papel) / 100) * videoWidth;
+            const extrasEm = horizontalPaddingEm(estilo) + horizontalPaddingEm(estilo, "margin") + espacoEm(posicao);
+            return soma + larguraDoTexto(cleanWord(words[indice].text), estilo, tamanhoPx) + extrasEm * tamanhoPx;
+          }, 0);
+          const escala = Math.min(1, ((config.larguraMaximaCqw / 100) * videoWidth) / Math.max(1, largura));
+          return (
+            <div key={`${words[palavras[0].indice].startMs}-${indiceDaLinha}`} style={config.linha}>
+              {palavras.map(({indice, papel}, posicao) => {
+                const word = words[indice];
+                const estilo = estiloDe(papel);
+                return (
+                  <AnimatedWord
+                    key={indice}
+                    text={<span style={naCor(papel) ? pinturaDoDestaque(palette, estilo) : estilo}>{cleanWord(word.text)}</span>}
+                    startMs={word.startMs}
+                    faladaMs={word.faladaMs}
+                    animation={animacoes[papel] ?? template.animations.word}
+                    style={{fontSize: `${(tamanhoDe(papel) * escala).toFixed(3)}cqw`, marginLeft: `${espacoEm(posicao)}em`}}
+                  />
+                );
+              })}
+            </div>
+          );
+        })}
+      </>
+    );
+  }
+
   return (
     <>
       {linhas.map((linha, indiceDaLinha) => {
@@ -403,8 +477,8 @@ const BlocoDePapeis: React.FC<{block: AssignedCaptionBlock; template: CaptionTem
         // Largura da linha no tamanho normal, para saber se precisa encolher.
         const largura =
           linha.partes.reduce((soma, parte) => {
-            const estilo = config.estilos[parte.papel];
-            const tamanhoPx = (config.tamanhosCqw[parte.papel] / 100) * videoWidth;
+            const estilo = estiloDe(parte.papel);
+            const tamanhoPx = (tamanhoDe(parte.papel) / 100) * videoWidth;
             const larguraDaParte =
               parte.papel === "mini"
                 ? Math.max(...texto(parte.palavras).map((palavra) => larguraDoTexto(palavra, estilo, tamanhoPx)))
@@ -413,15 +487,15 @@ const BlocoDePapeis: React.FC<{block: AssignedCaptionBlock; template: CaptionTem
           }, 0) +
           espacoPx * (linha.partes.length - 1);
         const escala = Math.min(1, ((config.larguraMaximaCqw / 100) * videoWidth) / Math.max(1, largura));
-        const principal = Math.max(...linha.partes.map((parte) => config.tamanhosCqw[parte.papel])) * escala;
+        const principal = Math.max(...linha.partes.map((parte) => tamanhoDe(parte.papel))) * escala;
         const primeira = words[Math.min(...linha.partes.flatMap((parte) => parte.palavras))];
         const animacao: EntranceAnimation = soEtiqueta(linha)
           ? (template.animations.top ?? template.animations.word)
           : {...template.animations.word, fromTranslateYEm: config.sobeCqw / principal, fromBlurEm: config.desfoqueCqw / principal};
         const partes = linha.partes.map((parte, indiceDaParte) => {
-          const tamanho = `${(config.tamanhosCqw[parte.papel] * escala).toFixed(3)}cqw`;
-          const base: CSSProperties = {...config.estilos[parte.papel], fontSize: tamanho};
-          const estilo = parte.papel === "destaque" || parte.papel === "gigante" ? pinturaDoDestaque(palette, base) : base;
+          const tamanho = `${(tamanhoDe(parte.papel) * escala).toFixed(3)}cqw`;
+          const base: CSSProperties = {...estiloDe(parte.papel), fontSize: tamanho};
+          const estilo = naCor(parte.papel) ? pinturaDoDestaque(palette, base) : base;
           return parte.papel === "mini" ? (
             <span key={indiceDaParte} style={estilo}>
               {texto(parte.palavras).map((palavra, i) => (
@@ -815,6 +889,9 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
     if (saida && saindo > 0) {
       style.transform = `translateY(${(-saindo * saida.sobeCqw).toFixed(3)}cqw) scale(${(1 - (1 - saida.escala) * saindo).toFixed(4)})`;
       style.opacity = 1 - saindo;
+      if (saida.desfoqueCqw) {
+        style.filter = `blur(${(saindo * saida.desfoqueCqw).toFixed(3)}cqw)`;
+      }
     }
     return (
       <Posicionado

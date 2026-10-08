@@ -1,0 +1,232 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pacote F editorial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root{ --fundo:#f4f4f7; --painel:#fff; --linha:#dcdde5; --texto:#17181d; --fraco:#666878; --marca:#6a48f2; }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --fundo:#0f1013; --painel:#17181d; --linha:#2a2c34; --texto:#e9e9ee; --fraco:#9a9cab; --marca:#7c5cff; } }
+  :root[data-theme="dark"]{ --fundo:#0f1013; --painel:#17181d; --linha:#2a2c34; --texto:#e9e9ee; --fraco:#9a9cab; --marca:#7c5cff; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--fundo);color:var(--texto);font:15px/1.5 "Inter Tight",system-ui,sans-serif}
+  .pagina{max-width:1060px;margin:0 auto;padding:20px 16px 40px;display:grid;grid-template-columns:auto 1fr;gap:28px;align-items:start}
+  @media (max-width:820px){.pagina{grid-template-columns:1fr}}
+  h1{font-size:20px;margin:0 0 2px;font-weight:800;letter-spacing:-.02em}
+  .sub{color:var(--fraco);margin:0 0 16px}
+  h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--fraco);margin:22px 0 8px;font-weight:800}
+
+  .moldura{width:360px;height:640px;position:relative;margin:0 auto}
+  .palco{width:360px;height:640px;position:absolute;left:0;top:0;transform-origin:0 0;overflow:hidden;border-radius:14px;transition:background .4s}
+  .palco.escuro{background:linear-gradient(180deg,#5b5b5b 0%,#3b3b3b 50%,#1e1e1e 100%)}
+  .palco.claro{background:linear-gradient(180deg,#ff8a2a 0%,#ff6a00 60%,#e85500 100%)}
+  .cena{position:absolute;inset:0}
+  .aviso{position:absolute;left:10px;bottom:8px;font-size:10px;color:rgba(255,255,255,.55)}
+
+  .bloco{position:absolute;left:0;right:0;top:418px;display:flex;flex-direction:column;align-items:center;text-align:center;line-height:.92}
+  .ln{display:flex;align-items:baseline;justify-content:center;white-space:nowrap}
+  .w{display:inline-block;will-change:transform,opacity,filter;opacity:0}
+  /* sans com espaçamento negativo */
+  .sans{font-family:"Inter Tight",sans-serif;font-weight:700;letter-spacing:-.055em;color:var(--f-sans);
+    text-shadow:0 1px 2px rgba(0,0,0,.35),0 4px 18px rgba(0,0,0,.28)}
+  .sans + .sans{margin-left:.2em}
+  /* serifa itálica de destaque */
+  .serif{font-family:"Instrument Serif",serif;font-style:italic;font-weight:400;letter-spacing:-.01em;color:var(--f-dest);
+    text-shadow:0 0 14px var(--f-brilho),0 2px 10px rgba(0,0,0,.25);padding:0 .04em}
+  .sans + .serif,.serif + .sans,.serif + .serif{margin-left:.16em}
+  .elo{font-family:"Instrument Serif",serif;font-style:italic;color:var(--f-dest);font-size:.5em;margin:0 .12em;opacity:.9}
+  .z1{font-size:22px} .z2{font-size:28px} .z3{font-size:40px} .z4{font-size:56px}
+
+  .controles{display:flex;flex-wrap:wrap;gap:8px;margin:14px auto 0;justify-content:center;max-width:360px}
+  .controles .rotulo{width:100%;font-size:11px;color:var(--fraco);text-transform:uppercase;letter-spacing:.08em;margin-top:6px}
+  button{font:inherit;font-size:13px;color:var(--texto);background:var(--painel);border:1px solid var(--linha);border-radius:999px;padding:7px 13px;cursor:pointer}
+  button.on{background:var(--marca);border-color:var(--marca);color:#fff}
+  .pal i{width:14px;height:14px;border-radius:50%;display:inline-block;border:1px solid rgba(128,128,128,.5);vertical-align:-2px;margin-right:6px}
+  .quadro{font-variant-numeric:tabular-nums;color:var(--fraco);font-size:12px;text-align:center;margin-top:8px}
+
+  .ficha{background:var(--painel);border:1px solid var(--linha);border-radius:14px;padding:18px 20px}
+  .ficha ul{margin:0;padding-left:18px} .ficha li{margin:4px 0}
+  table{border-collapse:collapse;width:100%;font-size:14px}
+  td,th{border-bottom:1px solid var(--linha);padding:6px 8px 6px 0;text-align:left;vertical-align:top}
+  th{color:var(--fraco);font-weight:400;white-space:nowrap}
+  .ex{font-family:"Instrument Serif",serif;font-style:italic;font-size:17px}
+</style>
+</head>
+<body>
+<div class="pagina">
+  <div>
+    <div class="moldura" id="moldura">
+      <div class="palco escuro" id="palco">
+        <svg class="cena" viewBox="0 0 360 640" aria-hidden="true"><g fill="rgba(0,0,0,.42)"><circle cx="180" cy="215" r="44"/><path d="M96 310 q84 -50 168 0 l24 330 h-216 z"/></g></svg>
+        <div id="legenda"></div>
+        <div class="aviso">vídeo de exemplo</div>
+      </div>
+    </div>
+    <div class="quadro" id="quadro">quadro 0</div>
+    <div class="controles">
+      <button id="tocar" class="on">Pausar</button>
+      <button data-vel="1" class="on">1x</button>
+      <button data-vel="0.5">0,5x</button>
+      <button data-vel="0.2">0,2x</button>
+      <div class="rotulo">Fundo do vídeo</div>
+      <button data-fundo="escuro" class="on">Escuro</button>
+      <button data-fundo="claro">Claro e colorido</button>
+      <div class="rotulo">Paleta</div>
+      <span id="paletas" style="display:contents"></span>
+    </div>
+  </div>
+
+  <div>
+    <h1>Pacote F · editorial</h1>
+    <p class="sub">Sans pesada com espaçamento negativo, misturada com uma serifa itálica elegante na palavra que importa.</p>
+    <div class="ficha">
+      <h2 style="margin-top:0">O que muda em relação à referência</h2>
+      <ul>
+        <li><b>Base alinhada:</b> a serifa e a sans dividem a mesma linha de base, em vez de a serifa "flutuar". O olho lê as duas como uma frase só.</li>
+        <li><b>Elo miúdo:</b> artigos e preposições entre dois destaques viram serifa pequena ("<span class="ex">tudo</span> em <span class="ex">segundos</span>"), o que dá ritmo sem roubar atenção.</li>
+        <li><b>Leitura em fundo claro:</b> a sans ganha uma sombra suave por baixo, e o brilho da serifa é dosado pela paleta. Teste o botão "Claro e colorido".</li>
+        <li><b>Destaque escrito:</b> a palavra em serifa aparece como se fosse escrita, da esquerda para a direita, com o brilho acendendo junto.</li>
+        <li><b>Pontuação preservada:</b> vírgula e ponto ficam, porque fazem parte do tom de conversa do estilo.</li>
+      </ul>
+
+      <h2>Layouts dinâmicos</h2>
+      <table>
+        <tr><th>1 · Na linha</th><td>sans e destaque na mesma linha; o destaque pode continuar sozinho na linha de baixo</td></tr>
+        <tr><th>2 · Dois destaques</th><td>sans pequena em cima; embaixo dois destaques grandes ligados por um elo miúdo</td></tr>
+        <tr><th>3 · Destaque gigante</th><td>uma palavra em serifa enorme, com a sans pequena logo abaixo completando a frase</td></tr>
+        <tr><th>4 · Sans em cima</th><td>destaque médio em cima, nome ou frase forte em sans grande embaixo</td></tr>
+      </table>
+
+      <h2>Linear</h2>
+      <ul>
+        <li>Só a sans, branca, com espaçamento negativo. Até 3 palavras ou 20 caracteres.</li>
+        <li>Cada palavra sobe suave, com um desfoque leve, no instante da fala.</li>
+        <li>Mesmo ritmo do pacote C: dinâmico na frase forte, lineares entre eles.</li>
+      </ul>
+
+      <h2>Movimento (30 quadros por segundo, base 360 x 640)</h2>
+      <table>
+        <tr><th>Sans</th><td>por palavra · 6 quadros · sobe 10 px · desfoque de 4 px a 0 · curva cúbica-out</td></tr>
+        <tr><th>Serifa</th><td>revela da esquerda para a direita em 9 quadros · escala 1,06 a 1 · brilho acende nos últimos 4</td></tr>
+        <tr><th>Saída</th><td>6 quadros · desfoque até 4 px e some, sem deslocar</td></tr>
+        <tr><th>Tamanhos</th><td>linear 28 · sans 22 a 28 · serifa 40 · gigante 56 · elo metade do destaque</td></tr>
+        <tr><th>Espaçamento</th><td>sans -0,055em · serifa -0,01em</td></tr>
+        <tr><th>Fontes</th><td>Inter Tight 700 e Instrument Serif itálica (as duas gratuitas, licença aberta)</td></tr>
+      </table>
+
+      <h2>Paletas do F</h2>
+      <table id="tabela"></table>
+    </div>
+  </div>
+</div>
+
+<script>
+const PALETAS = {
+  Branco:  { sans:'#FFFFFF', dest:'#FFFFFF', brilho:'rgba(255,255,255,.55)' },
+  Creme:   { sans:'#FFFFFF', dest:'#F6E7C8', brilho:'rgba(246,231,200,.55)' },
+  Lavanda: { sans:'#FFFFFF', dest:'#E3D4FF', brilho:'rgba(190,160,255,.6)' },
+  Rosa:    { sans:'#FFFFFF', dest:'#FFD3E6', brilho:'rgba(255,150,200,.55)' },
+  Menta:   { sans:'#FFFFFF', dest:'#CFF8E6', brilho:'rgba(120,240,190,.5)' },
+};
+
+// tipos: s = sans, d = destaque serifa, e = elo miúdo. [tipo, texto, instante, tamanho]
+const BLOCOS = [
+  { sai:2.2, linhas:[ [['s','Eu vivo',0.20,'z2'],['d','gravando',0.55,'z3']], [['d','conteúdo,',1.05,'z3']] ] },
+  { sai:3.4, lin:true, linhas:[ [['s','e sempre',2.35,'z2'],['s','travava',2.75,'z2']] ] },
+  { sai:4.4, lin:true, linhas:[ [['s','na legenda.',3.55,'z2']] ] },
+  { sai:6.7, linhas:[ [['s','até que o app faz',4.60,'z1']], [['d','tudo',5.10,'z3'],['e','em',5.45,''],['d','segundos.',5.60,'z3']] ] },
+  { sai:7.9, lin:true, linhas:[ [['s','sem abrir',6.85,'z2']] ] },
+  { sai:8.9, lin:true, linhas:[ [['s','editor',7.95,'z2'],['s','nenhum,',8.25,'z2']] ] },
+  { sai:11.0, linhas:[ [['d','simples',9.05,'z4']], [['s','assim de usar.',9.85,'z1']] ] },
+  { sai:12.2, lin:true, linhas:[ [['s','e no fim',11.15,'z2']] ] },
+  { sai:14.2, linhas:[ [['s','o segredo',12.35,'z2'],['d','sempre',12.75,'z3']], [['s','foi esse.',13.25,'z3']] ] },
+];
+const CICLO = 14.6, FPS = 30;
+
+const legenda = document.getElementById('legenda'), pecas = [];
+BLOCOS.forEach((b, bi) => {
+  const d = document.createElement('div'); d.className = 'bloco';
+  b.linhas.forEach(linha => {
+    const ln = document.createElement('div'); ln.className = 'ln';
+    linha.forEach(([tipo, txt, em, z]) => {
+      if (tipo === 's') {
+        txt.split(' ').forEach((p, i) => {
+          const w = document.createElement('span'); w.className = 'w sans ' + z; w.textContent = p;
+          ln.appendChild(w); pecas.push({ el: w, tipo, em: em + i * 0.18, bloco: bi });
+        });
+      } else {
+        const w = document.createElement('span'); w.className = 'w ' + (tipo === 'd' ? 'serif ' + z : 'elo'); w.textContent = txt;
+        if (tipo === 'e') { w.style.fontSize = '20px'; }
+        ln.appendChild(w); pecas.push({ el: w, tipo, em, bloco: bi });
+      }
+    });
+    d.appendChild(ln);
+  });
+  legenda.appendChild(d);
+});
+
+const lim = (v, a, b) => Math.max(a, Math.min(b, v));
+const cub = p => 1 - Math.pow(1 - p, 3);
+let tocando = true, vel = 1, tempo = 0, anterior = performance.now();
+
+function desenhar(q) {
+  for (const k of pecas) {
+    const b = BLOCOS[k.bloco], qe = q - Math.round(k.em * FPS), qs = q - Math.round(b.sai * FPS);
+    if (qe < 0 || qs >= 6) { k.el.style.opacity = 0; continue; }
+    let op, y = 0, blur = 0, esc = 1, clip = 'none', brilho = 1;
+    if (k.tipo === 'd') {
+      const p = lim(qe / 9, 0, 1), e = cub(p);
+      clip = `inset(-30% ${((1 - e) * 100).toFixed(1)}% -30% -10%)`; esc = 1.06 - 0.06 * e; op = lim(qe / 2, 0, 1);
+      brilho = lim((qe - 5) / 4, 0, 1);
+    } else {
+      const p = lim(qe / 6, 0, 1), e = cub(p);
+      y = (1 - e) * 10; blur = (1 - e) * 4; op = lim(qe / 4, 0, 1);
+    }
+    if (qs > 0) { const s = qs / 6; op *= 1 - s; blur += s * 4; }
+    k.el.style.opacity = op.toFixed(3);
+    k.el.style.transform = `translateY(${y.toFixed(1)}px) scale(${esc.toFixed(3)})`;
+    k.el.style.filter = blur > 0.2 ? `blur(${blur.toFixed(1)}px)` : 'none';
+    k.el.style.clipPath = clip;
+    if (k.tipo === 'd') k.el.style.textShadow = `0 0 ${(14 * brilho).toFixed(1)}px var(--f-brilho), 0 2px 10px rgba(0,0,0,.25)`;
+  }
+  document.getElementById('quadro').textContent = 'quadro ' + q + ' de ' + Math.round(CICLO * FPS);
+}
+function passo(agora) {
+  if (tocando) tempo = (tempo + (agora - anterior) / 1000 * vel) % CICLO;
+  anterior = agora; desenhar(Math.floor(tempo * FPS)); requestAnimationFrame(passo);
+}
+requestAnimationFrame(passo);
+
+function aplicar(nome) {
+  const p = PALETAS[nome], s = document.getElementById('palco').style;
+  s.setProperty('--f-sans', p.sans); s.setProperty('--f-dest', p.dest); s.setProperty('--f-brilho', p.brilho);
+  document.querySelectorAll('[data-pal]').forEach(b => b.classList.toggle('on', b.dataset.pal === nome));
+}
+const cont = document.getElementById('paletas'), tab = document.getElementById('tabela');
+Object.entries(PALETAS).forEach(([nome, p]) => {
+  const b = document.createElement('button'); b.className = 'pal'; b.dataset.pal = nome;
+  b.innerHTML = `<i style="background:${p.dest}"></i>${nome}`; b.addEventListener('click', () => aplicar(nome)); cont.appendChild(b);
+  const tr = document.createElement('tr'); tr.innerHTML = `<th>${nome}</th><td>sans ${p.sans} · serifa ${p.dest} · brilho ${p.brilho}</td>`; tab.appendChild(tr);
+});
+aplicar('Branco');
+
+function grupo(attr, fn) { const l = document.querySelectorAll(`[data-${attr}]`); l.forEach(b => b.addEventListener('click', () => { l.forEach(o => o.classList.toggle('on', o === b)); fn(b.dataset[attr]); })); }
+grupo('vel', v => vel = parseFloat(v));
+grupo('fundo', v => { document.getElementById('palco').className = 'palco ' + v; });
+const bt = document.getElementById('tocar');
+bt.addEventListener('click', () => { tocando = !tocando; bt.textContent = tocando ? 'Pausar' : 'Tocar'; bt.classList.toggle('on', tocando); });
+
+function ajustar() {
+  const larg = Math.min(360, document.documentElement.clientWidth - 32), e = larg / 360, m = document.getElementById('moldura');
+  m.style.width = larg + 'px'; m.style.height = 640 * e + 'px'; document.getElementById('palco').style.transform = `scale(${e})`;
+}
+addEventListener('resize', ajustar); ajustar();
+</script>
+</body>
+</html>
+
+</body></html>
