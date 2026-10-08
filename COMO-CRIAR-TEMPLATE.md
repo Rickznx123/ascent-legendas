@@ -32,6 +32,8 @@ Pacotes e paletas atuais:
 | `amarelo` | palavra-chave em degradê amarelo com brilho dourado; resto branco |
 | `areia` | degradê na horizontal, areia e branco (referência do pacote D) |
 | `dourado`, `prata`, `rose`, `azul`, `verde`, `roxo` | degradês da referência do pacote D; resto branco |
+| `neon`, `ascent`, `oceano`, `fogo`, `menta`, `ouro`, `mono` | prancha do pacote C: destaque, fundo e texto da caixa; resto branco |
+| `creme`, `lavanda`, `rosa`, `menta-suave` | prancha do pacote F: serifa e brilho em tons claros; resto branco (o `branco` do F é o `branco` acima) |
 
 ## Pacotes
 
@@ -148,6 +150,14 @@ export default palette;
 ```
 
 Sem `caixa`, a etiqueta do pacote C usa a cor da palavra-chave de fundo e texto claro ou escuro, conforme o fundo. As paletas da prancha do C (neon, ascent, oceano, fogo, menta, ouro e mono) têm as três cores e valem em todos os pacotes; fora do C, a caixa não aparece.
+
+Toda paleta vale em todos os pacotes. Papel de cada cor:
+
+| Pacote | `supportColor` | `keywordFill` | `glow` | `caixa` |
+|---|---|---|---|---|
+| A, B, D, E | apoio, complemento e linear | palavra-chave | brilho da palavra-chave | não usa |
+| C | corpo, leve, miudinho e linear | destaque e gigante | não usa: o brilho do gigante sai da cor do destaque | etiqueta (sem ela: fundo na cor da palavra-chave, texto claro ou escuro) |
+| F | não usa: a sans é sempre branca | serifa e elo | brilho da serifa (`glow.inner`) | não usa |
 
 `intensity` vai de 0 a 1 e multiplica a transparência das duas cores do brilho. Para um brilho mais forte, aumente a opacidade das cores.
 
