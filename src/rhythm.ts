@@ -260,10 +260,7 @@ const mergeBlocks = (first: CaptionBlock, second: CaptionBlock): CaptionBlock =>
 // Define a família de cada bloco. Blocos que precisam de destaque viram destaque
 // primeiro; depois cada ciclo do padrão de ritmo ganha no máximo um destaque.
 // Dois destaques nunca ficam seguidos: quem sobra fica linear.
-const assignFamilies = (blocks: CaptionBlock[], ritmo?: PackageConfig["ritmo"]): TemplateFamily[] => {
-  if (ritmo) {
-    return familiasDoRitmo(blocks, ritmo);
-  }
+const assignFamilies = (blocks: CaptionBlock[]): TemplateFamily[] => {
   const families = Array<TemplateFamily>(blocks.length).fill("linear");
   const isHighlight = (index: number): boolean => families[index] === "destaque";
   const canHighlight = (index: number): boolean =>
@@ -304,38 +301,95 @@ const assignFamilies = (blocks: CaptionBlock[], ritmo?: PackageConfig["ritmo"]):
   return families;
 };
 
-// Ritmo próprio de um pacote: um destaque a cada `aCada` blocos (o mais forte da
-// janela), nunca dois seguidos; com primeiroDestaque, o primeiro bloco é destaque.
-// Um destaque escolhido à mão dentro da janela conta como o destaque dela, e os
-// blocos com família escolhida à mão não mudam.
-const familiasDoRitmo = (blocks: CaptionBlock[], ritmo: NonNullable<PackageConfig["ritmo"]>): TemplateFamily[] => {
-  const aCada = Math.max(2, Math.floor(ritmo.aCada));
-  const fixa = (index: number): TemplateFamily | undefined =>
-    blocks[index]?.layoutManual && blocks[index]?.family ? blocks[index].family : undefined;
-  const families = blocks.map((_, index) => fixa(index) ?? "linear");
-  const intervaloDe = (de: number, ate: number) => Array.from({length: Math.max(0, ate - de + 1)}, (_, i) => de + i);
-  let de = 0;
-  let ate = ritmo.primeiroDestaque ? 0 : aCada - 1;
-  while (de < blocks.length) {
-    const janela = intervaloDe(de, Math.min(blocks.length - 1, ate));
-    let escolhido = janela.find((index) => fixa(index) === "destaque");
-    if (escolhido === undefined) {
-      [escolhido] = janela
-        .filter((index) => !fixa(index) && families[index - 1] !== "destaque" && families[index + 1] !== "destaque")
-        .sort((left, right) => blockStrength(blocks[right]) - blockStrength(blocks[left]) || left - right);
-      if (escolhido !== undefined) {
-        families[escolhido] = "destaque";
+// Ritmo próprio de um pacote: dinâmicos nas frases mais fortes, lineares entre eles.
+// Nunca dois dinâmicos seguidos e no máximo `maxLinearesSeguidos` lineares seguidos,
+// contando cada pedaço de um linear longo (o que passa do máximo de palavras ou de
+// caracteres vira mais de um linear). Com primeiroDestaque, o primeiro bloco do
+// vídeo é dinâmico. Em cada trecho, entre os blocos que podem ser o próximo dinâmico
+// sem quebrar as regras, vence o mais forte. Se um linear longo sozinho passa do
+// máximo, ele é dividido aqui e o pedaço mais forte (que respeite as regras) vira
+// dinâmico. Blocos com família escolhida à mão não mudam, e um dinâmico escolhido à
+// mão conta como o dinâmico do trecho.
+const familiasDoRitmo = (
+  blocks: CaptionBlock[],
+  ritmo: NonNullable<PackageConfig["ritmo"]>,
+  limites: PalavrasDoLinear,
+): {blocks: CaptionBlock[]; families: TemplateFamily[]} => {
+  const maximo = Math.max(1, Math.floor(ritmo.maxLinearesSeguidos));
+  const fila = [...blocks];
+  const fixa = (block: CaptionBlock | undefined): TemplateFamily | undefined =>
+    block?.layoutManual && block.family ? block.family : undefined;
+  const dividir = (block: CaptionBlock): Word[][] =>
+    dividirLinear(block.words, limites.maxLinearWords ?? Number.POSITIVE_INFINITY, limites.maxLinearCaracteres ?? Number.POSITIVE_INFINITY);
+  // Quantos lineares o bloco vira (um escolhido à mão nunca é dividido).
+  const pedacos = (block: CaptionBlock): number =>
+    fixa(block) || linearCabe(limites, textsOf(block)) ? 1 : dividir(block).length;
+  const forca = (block: CaptionBlock): number => blockStrength(block) + (mustHighlight(block) ? 10000 : 0);
+
+  const saida: CaptionBlock[] = [];
+  const families: TemplateFamily[] = [];
+  let seguidos = 0;
+  let anteriorDinamico = false;
+  let inicio = 0;
+  while (inicio < fila.length) {
+    // Trecho alcançável: do próximo bloco até onde os lineares antes dele ainda cabem.
+    const candidatos: number[] = [];
+    let manual: number | undefined;
+    let lineares = seguidos;
+    let estourou: number | undefined;
+    for (let j = inicio; j < fila.length; j++) {
+      if (fixa(fila[j]) === "destaque") {
+        manual = j;
+        break;
+      }
+      const vizinhoDinamico = (j === inicio && anteriorDinamico) || fixa(fila[j + 1]) === "destaque";
+      const primeiroDoVideo = ritmo.primeiroDestaque && saida.length === 0 && j === 0;
+      if (!fixa(fila[j]) && !vizinhoDinamico) {
+        candidatos.push(j);
+      }
+      if (primeiroDoVideo && candidatos[0] === 0) {
+        break;
+      }
+      lineares += pedacos(fila[j]);
+      if (lineares > maximo) {
+        estourou = j;
+        break;
       }
     }
-    if (escolhido === undefined) {
-      de = ate + 1;
-      ate += aCada;
+    const escolhido =
+      manual ??
+      (ritmo.primeiroDestaque && saida.length === 0 && candidatos[0] === 0
+        ? 0
+        : [...candidatos].sort((a, b) => forca(fila[b]) - forca(fila[a]) || a - b)[0]);
+
+    if (escolhido === undefined && estourou !== undefined && !fixa(fila[estourou]) && pedacos(fila[estourou]) > 1) {
+      // O linear longo passou do máximo: vira os seus pedaços, e o trecho é refeito.
+      const longo = fila[estourou];
+      const partes = dividir(longo).map(
+        (words): CaptionBlock => ({
+          ...longo,
+          words,
+          startMs: words[0].startMs,
+          endMs: words[words.length - 1].endMs,
+          keyword: chooseKeyword(words),
+        }),
+      );
+      fila.splice(estourou, 1, ...partes);
       continue;
     }
-    de = escolhido + 2;
-    ate = escolhido + aCada;
+
+    // Sem dinâmico possível (lineares escolhidos à mão): o trecho todo fica linear.
+    const ate = escolhido ?? (estourou ?? fila.length - 1);
+    for (let j = inicio; j <= ate; j++) {
+      const dinamico = j === escolhido;
+      saida.push(fila[j]);
+      families.push(dinamico ? "destaque" : (fixa(fila[j]) ?? "linear"));
+      seguidos = dinamico ? 0 : seguidos + pedacos(fila[j]);
+      anteriorDinamico = dinamico;
+    }
+    inicio = ate + 1;
   }
-  return families;
+  return {blocks: saida, families};
 };
 
 // Um pacote usado na escolha de layouts. No modo de um pacote, prefix é "" e os
@@ -527,15 +581,18 @@ const arrangePair = (
 // anterior quando há outro pacote que dê um layout diferente. Blocos com layout
 // escolhido à mão ficam como estão.
 const distribute = (
-  blocks: CaptionBlock[],
+  entrada: CaptionBlock[],
   candidatesFor: (block: CaptionBlock, family: TemplateFamily) => PackageRules[],
   isKnownTemplate: (name: string) => boolean,
   // Avisa qual pacote foi usado (pode não ser o primeiro candidato).
   onUsed: (rules: PackageRules) => void = () => undefined,
-  // Ritmo próprio do pacote (só no modo de um pacote).
-  ritmo?: PackageConfig["ritmo"],
+  // Ritmo próprio do pacote (só no modo de um pacote), com os limites do linear dele.
+  ritmo?: {ritmo: NonNullable<PackageConfig["ritmo"]>; limites: PalavrasDoLinear},
 ): AssignedCaptionBlock[] => {
-  const families = assignFamilies(blocks, ritmo);
+  // O ritmo próprio pode dividir um linear longo em pedaços (um deles vira dinâmico).
+  const {blocks, families} = ritmo
+    ? familiasDoRitmo(entrada, ritmo.ritmo, ritmo.limites)
+    : {blocks: entrada, families: assignFamilies(entrada)};
   const pickers = new Map<string, Picker>();
   const pickerOf = (rules: PackageRules): Picker => {
     let picker = pickers.get(rules.name);
@@ -639,7 +696,8 @@ export const assignRhythmAndTemplates = (
   }
 
   const rules: PackageRules = {name: options.packageName ?? "", prefix: "", templates, config: packageConfig};
-  return distribute(blocks, () => [rules], (name) => Boolean(templates[name]), undefined, packageConfig.ritmo).map((block) =>
+  const ritmo = packageConfig.ritmo ? {ritmo: packageConfig.ritmo, limites: packageConfig} : undefined;
+  return distribute(blocks, () => [rules], (name) => Boolean(templates[name]), undefined, ritmo).map((block) =>
     options.packageName ? block : {...block, pacote: undefined},
   );
 };

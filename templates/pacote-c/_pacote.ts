@@ -6,15 +6,16 @@ import type {PackageConfig} from "../../src/types";
  * "before" e "after" contam as palavras antes e depois da palavra-chave.
  * Com mais de um template na lista, eles se alternam entre os blocos.
  *
- * Ritmo: dinâmico, linear, dinâmico... O primeiro bloco do vídeo é dinâmico, e
- * nunca há dois dinâmicos seguidos. O linear tem até 3 palavras ou 20 caracteres;
- * passou disso, vira mais de um bloco linear (todos no lugar do mesmo linear).
+ * Ritmo: dinâmicos nas frases fortes, lineares entre eles. O primeiro bloco do
+ * vídeo é dinâmico, nunca há dois dinâmicos seguidos e no máximo 3 lineares
+ * seguidos. O linear tem até 3 palavras ou 20 caracteres; passou disso, vira mais
+ * de um bloco linear, e cada pedaço conta nos 3.
  */
 const pacote: PackageConfig = {
   linear: "linear",
   maxLinearWords: 3,
   maxLinearCaracteres: 20,
-  ritmo: {aCada: 2, primeiroDestaque: true},
+  ritmo: {maxLinearesSeguidos: 3, primeiroDestaque: true},
   highlight: [
     // Uma palavra só: o destaque gigante.
     {words: {max: 1}, templates: ["gigante"]},

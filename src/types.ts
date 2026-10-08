@@ -245,10 +245,12 @@ export type PackageConfig = {
   maxLinearWords?: number;
   // Máximo de caracteres do linear (opcional). Um linear maior vira mais blocos lineares.
   maxLinearCaracteres?: number;
-  // Ritmo próprio do pacote (opcional; vale quando o vídeo usa só este pacote): um
-  // destaque a cada `aCada` blocos, nunca dois seguidos; com primeiroDestaque, o
-  // primeiro bloco do vídeo é destaque. Sem valor: o ritmo comum (rhythm-config.ts).
-  ritmo?: {aCada: number; primeiroDestaque?: boolean};
+  // Ritmo próprio do pacote (opcional; vale quando o vídeo usa só este pacote):
+  // dinâmicos nas frases mais fortes, nunca dois seguidos, e no máximo
+  // maxLinearesSeguidos lineares seguidos (cada pedaço de um linear dividido conta);
+  // com primeiroDestaque, o primeiro bloco do vídeo é dinâmico. Sem valor: o ritmo
+  // comum (rhythm-config.ts).
+  ritmo?: {maxLinearesSeguidos: number; primeiroDestaque?: boolean};
   // Texto de exemplo das miniaturas da galeria (opcional): as palavras e qual
   // delas é a palavra-chave.
   exemplo?: {texto: string; palavraChave: string};
