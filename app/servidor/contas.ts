@@ -3,7 +3,7 @@
 // roda no modo local, sem login (contasDoAmbiente devolve undefined).
 import {createClient} from "@supabase/supabase-js";
 import type {SupabaseClient} from "@supabase/supabase-js";
-import {planoEfetivo} from "./assinaturas";
+import {COLUNAS_DO_PERFIL, planoEfetivo} from "./assinaturas";
 import type {PerfilDaAssinatura} from "./assinaturas";
 
 export type Plano = "gratis" | "assinante";
@@ -80,14 +80,12 @@ export const contasDoAmbiente = (): Contas | undefined => {
 
   const perfil = async (usuario: Usuario, token: string): Promise<Perfil> => {
     const banco = doUsuario(token);
-    let {data, error} = await banco
-      .from("perfis")
-      .select("nome, plano, plano_origem, plano_ate, ciclo_inicio, ciclo_fim")
-      .eq("id", usuario.id)
-      .maybeSingle();
-    // Sem as colunas da assinatura (a migração 007 ainda não rodou): o plano de sempre.
-    if (error && /column|coluna/iu.test(error.message)) {
-      ({data, error} = await banco.from("perfis").select("nome, plano").eq("id", usuario.id).maybeSingle());
+    // Sem as colunas do nível (migração 009) ou da assinatura (007): o que existir.
+    let data: unknown = null;
+    let error: {message: string} | null = null;
+    for (const colunas of [...COLUNAS_DO_PERFIL.map((lista) => `nome, ${lista}`), "nome, plano"]) {
+      ({data, error} = await banco.from("perfis").select(colunas).eq("id", usuario.id).maybeSingle());
+      if (!error || !/column|coluna/iu.test(error.message)) break;
     }
     if (error) {
       throw new Error(`Não foi possível ler o perfil: ${error.message}`);
@@ -100,6 +98,8 @@ export const contasDoAmbiente = (): Contas | undefined => {
         plano_ate: linha.plano_ate ?? null,
         ciclo_inicio: linha.ciclo_inicio ?? null,
         ciclo_fim: linha.ciclo_fim ?? null,
+        nivel: linha.nivel ?? "basico",
+        nivel_na_renovacao: linha.nivel_na_renovacao ?? null,
       };
       return {nome: linha.nome, plano: planoEfetivo(assinatura, new Date()), assinatura};
     }

@@ -27,6 +27,7 @@
 // são de assinatura vão para lá.
 import type {SupabaseClient} from "@supabase/supabase-js";
 import type {ApiDoMercadoPago, Pagamento, PagamentoAutorizado, Preapproval} from "./mercadopago";
+import type {Nivel} from "./planos";
 
 export const TOLERANCIA_MS = 5 * 24 * 3600 * 1000;
 const UM_MES = (data: Date) => {
@@ -69,7 +70,14 @@ export type PerfilDaAssinatura = {
   plano_ate: string | null;
   ciclo_inicio: string | null;
   ciclo_fim: string | null;
+  // Plano pago (migração 009): Básico, Pro ou Editor; vazio vale Básico. Numa troca
+  // para um plano menor, o que vale a partir da próxima renovação.
+  nivel?: Nivel;
+  nivel_na_renovacao?: Nivel | null;
 };
+
+// Colunas do perfil lidas com a assinatura (sem a migração 009, sem o nível).
+export const COLUNAS_DO_PERFIL = ["plano, plano_origem, plano_ate, ciclo_inicio, ciclo_fim, nivel, nivel_na_renovacao", "plano, plano_origem, plano_ate, ciclo_inicio, ciclo_fim"];
 
 export type Evento = {request_id: string; tipo: string; data_id: string; tentativas: number};
 
@@ -523,7 +531,8 @@ export const bancoNoSupabase = (admin: SupabaseClient): BancoDeAssinaturas => {
       falha("salvar o pagamento", error);
     },
     perfil: async (usuarioId) => {
-      const {data, error} = await admin.from("perfis").select("plano, plano_origem, plano_ate, ciclo_inicio, ciclo_fim").eq("id", usuarioId).maybeSingle();
+      let {data, error} = await admin.from("perfis").select(COLUNAS_DO_PERFIL[0]).eq("id", usuarioId).maybeSingle();
+      if (error && /column|coluna/iu.test(error.message)) ({data, error} = await admin.from("perfis").select(COLUNAS_DO_PERFIL[1]).eq("id", usuarioId).maybeSingle());
       falha("ler o perfil", error);
       return (data as PerfilDaAssinatura | null) ?? {plano: "gratis", plano_origem: "manual", plano_ate: null, ciclo_inicio: null, ciclo_fim: null};
     },

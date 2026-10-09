@@ -1,7 +1,8 @@
 // Limites dos planos (Etapa 2b). Tudo decidido aqui, no servidor; a tela só mostra.
 //   Grátis: 1 vídeo exportado, com marca d'água. Depois, exportar fica bloqueado
 //   ("Assine para continuar").
-//   Assinante: 30 minutos exportados por mês, sem marca d'água. Pela assinatura
+//   Assinante: os minutos do plano pago (Básico 30, Pro 60, Editor 120; veja
+//   planos.ts) por mês, sem marca d'água. Pela assinatura
 //   (Etapa 2c), por ciclo: do dia do pagamento até a próxima cobrança. Pelo npm run
 //   plano (testadores), por mês do calendário, no horário de Brasília.
 // Contagem: a duração do vídeo, na primeira exportação de cada projeto. As 5
@@ -99,7 +100,14 @@ export const decidirTranscricao = (uso: UsoDeTranscricoes, plano: Plano): {permi
 // novos até o pagamento entrar).
 export type CicloDoPlano = {inicio: Date; fim: Date};
 
-export const usoDoPlano = (plano: Plano, historico: RegistroDeExportacao[], agora: Date, ciclo?: CicloDoPlano): UsoDoPlano => {
+// segundosDoAssinante: os minutos do nível do assinante (planos.ts), em segundos.
+export const usoDoPlano = (
+  plano: Plano,
+  historico: RegistroDeExportacao[],
+  agora: Date,
+  ciclo?: CicloDoPlano,
+  segundosDoAssinante = LIMITES.segundosPorMesNoAssinante,
+): UsoDoPlano => {
   if (plano === "gratis") {
     return {
       plano,
@@ -117,7 +125,7 @@ export const usoDoPlano = (plano: Plano, historico: RegistroDeExportacao[], agor
       return quando >= inicio.getTime() && quando < ateQuando;
     })
     .reduce((soma, r) => soma + Number(r.descontado_s), 0);
-  return {plano, comMarca: false, segundosUsados, segundosDoPlano: LIMITES.segundosPorMesNoAssinante, renovaEm: fim.toISOString()};
+  return {plano, comMarca: false, segundosUsados, segundosDoPlano: segundosDoAssinante, renovaEm: fim.toISOString()};
 };
 
 // "2 min 05 s", "45 s".
@@ -135,8 +143,9 @@ export const decidirExportacao = (
   duracaoS: number,
   agora: Date,
   ciclo?: CicloDoPlano,
+  segundosDoAssinante = LIMITES.segundosPorMesNoAssinante,
 ): DecisaoDeExportacao => {
-  const uso = usoDoPlano(plano, historico, agora, ciclo);
+  const uso = usoDoPlano(plano, historico, agora, ciclo, segundosDoAssinante);
   const exportacoesDoProjeto = projetoId ? historico.filter((r) => r.projeto_id === projetoId).length : 0;
   // Primeira exportação, ou da sexta reexportação em diante: desconta.
   const desconta = exportacoesDoProjeto === 0 || exportacoesDoProjeto > LIMITES.reexportacoesSemDesconto;

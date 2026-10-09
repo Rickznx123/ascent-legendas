@@ -16,7 +16,7 @@
     "nuvem:site": "tsx nuvem/site.ts",
     "landing:estilos": "tsx scripts/landing-estilos.ts",
     "plano": "tsx scripts/plano.ts",
-    "teste:assinaturas": "tsx --test app/servidor/assinaturas.teste.ts app/servidor/pix.teste.ts",
+    "teste:assinaturas": "tsx --test app/servidor/assinaturas.teste.ts app/servidor/pix.teste.ts app/servidor/planos.teste.ts",
     "app:publico": "tsx app/servidor/index.ts --producao"
   },
   "dependencies": {

@@ -39,14 +39,18 @@ import {bancoNoSupabase, processadorDeEventos, regraDaAssinatura, resumoDaAssina
 import type {ResumoDaAssinatura} from "./assinaturas";
 import {DIAS_DO_PIX, ErroDoPix, bancoDoPixNoSupabase, cpfValido, motivoParaNaoPagarPix, processadorDePix, vistaDoPix} from "./pix";
 import {LIMITES} from "./cota";
+import {planosPagos} from "./planos";
+import type {PlanoPago} from "./planos";
 import {LIMITES_DE_USO, filaComVagas, limiteDePedidos, textoDaFila} from "./limites";
 import {idDoEnvio, memoriaMB, registrarEnvio, segundos, semEnderecos} from "./registro";
 
 // Números dos planos para a página de apresentação (quem chega sem login), lidos da
 // configuração: o preço do Mercado Pago (ASSINATURA_VALOR_BRL; sem o Mercado Pago,
 // não vai), os minutos do assinante, os dias do Pix e os vídeos do grátis.
+// pagos: Básico, Pro e Editor (planos.ts), só com o Mercado Pago ligado.
 export type PlanosDaApresentacao = {
   precoBRL?: number;
+  pagos?: PlanoPago[];
   minutosDoAssinante: number;
   diasDoPix: number;
   videosNoGratis: number;
@@ -380,6 +384,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     const config: ConfigDoLogin = contas ? {...contas.config, envioDireto: Boolean(armazenamento)} : {login: false};
     const planos: PlanosDaApresentacao = {
       precoBRL: mercadoPago?.valor,
+      pagos: mercadoPago ? planosPagos() : undefined,
       minutosDoAssinante: LIMITES.segundosPorMesNoAssinante / 60,
       diasDoPix: DIAS_DO_PIX,
       videosNoGratis: LIMITES.videosNoGratis,
