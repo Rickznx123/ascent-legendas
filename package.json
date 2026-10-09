@@ -14,6 +14,7 @@
     "medir-sincronia": "tsx medicao/medir-sincronia.ts",
     "link-login": "tsx scripts/link-login.ts",
     "nuvem:site": "tsx nuvem/site.ts",
+    "landing:estilos": "tsx scripts/landing-estilos.ts",
     "plano": "tsx scripts/plano.ts",
     "teste:assinaturas": "tsx --test app/servidor/assinaturas.teste.ts app/servidor/pix.teste.ts",
     "app:publico": "tsx app/servidor/index.ts --producao"

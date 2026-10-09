@@ -363,6 +363,18 @@
   position: relative;
   overflow: hidden;
 }
+/* Clipe do estilo (landing/estilos/): por cima do texto, só depois de carregar. */
+.apresentacao .amostra video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+}
+.apresentacao .amostra.com-clipe video {
+  opacity: 1;
+}
 .apresentacao .estilo h3 {
   margin: 10px 0 0;
   font-size: 16px;

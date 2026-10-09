@@ -121,6 +121,56 @@ const EspacoDeVideo: React.FC<{nome: "hero" | "antes" | "depois"; legenda?: Reac
   );
 };
 
+// Cartão de estilo com o clipe /landing/estilos/<nome>.mp4 (npm run landing:estilos).
+// O clipe só carrega e toca com o cartão na tela e pausa quando ele sai; sem
+// movimento, fica no poster. Sem os arquivos, fica o texto do cartão.
+const Amostra: React.FC<{nome: string; className: string; children: ReactNode}> = ({nome, className, children}) => {
+  const caixa = useRef<HTMLDivElement>(null);
+  const video = useRef<HTMLVideoElement>(null);
+  const [perto, setPerto] = useState(false);
+  const [comClipe, setComClipe] = useState(false);
+  const poster = `/landing/estilos/${nome}.jpg`;
+  useEffect(() => {
+    const elemento = caixa.current;
+    if (!elemento || typeof IntersectionObserver === "undefined") return;
+    const observador = new IntersectionObserver(([entrada]) => {
+      if (entrada.isIntersecting) {
+        setPerto(true);
+        if (!semMovimento()) video.current?.play().catch(() => undefined);
+      } else {
+        video.current?.pause();
+      }
+    });
+    observador.observe(elemento);
+    return () => observador.disconnect();
+  }, [perto]);
+  // O poster existe: o clipe (ou só o poster, sem movimento) cobre o texto.
+  useEffect(() => {
+    if (!perto) return;
+    const imagem = new Image();
+    imagem.onload = () => setComClipe(true);
+    imagem.src = poster;
+  }, [perto, poster]);
+  return (
+    <div ref={caixa} className={`amostra ${className}${comClipe ? " com-clipe" : ""}`}>
+      {children}
+      {perto ? (
+        <video
+          ref={video}
+          src={`/landing/estilos/${nome}.mp4`}
+          poster={poster}
+          muted
+          loop
+          playsInline
+          preload="none"
+          aria-hidden="true"
+          onError={() => setComClipe(false)}
+        />
+      ) : null}
+    </div>
+  );
+};
+
 const reais = (valor: number): string =>
   `R$ ${valor.toLocaleString("pt-BR", {minimumFractionDigits: Number.isInteger(valor) ? 0 : 2, maximumFractionDigits: 2})}`;
 
@@ -259,63 +309,63 @@ export const Apresentacao: React.FC<{
             <p className="sub">Escolha um estilo ou deixe o app misturar todos no mesmo vídeo.</p>
             <div className="estilos">
               <article className="estilo">
-                <div className="amostra am-a">
+                <Amostra nome="a" className="am-a">
                   <div className="l1">tem novidade</div>
                   <div className="l2">chegando</div>
-                </div>
+                </Amostra>
                 <h3>Estilo A</h3>
                 <p>Limpo, com destaque em serifa</p>
               </article>
               <article className="estilo">
-                <div className="amostra am-b">
+                <Amostra nome="b" className="am-b">
                   <div className="l1">o segredo</div>
                   <div className="l2">é esse</div>
-                </div>
+                </Amostra>
                 <h3>Estilo B</h3>
                 <p>Criativo, com brilho</p>
               </article>
               <article className="estilo">
-                <div className="amostra am-c">
+                <Amostra nome="c" className="am-c">
                   <div>
                     <span className="tag">Atenção</span>
                   </div>
                   <div className="l1">olha esse</div>
                   <div className="l2">imóvel</div>
-                </div>
+                </Amostra>
                 <h3>Estilo C</h3>
                 <p>Impacto, estilo imobiliário</p>
               </article>
               <article className="estilo">
-                <div className="amostra am-d">
+                <Amostra nome="d" className="am-d">
                   <div className="l1">isso muda</div>
                   <div className="l2">tudo</div>
-                </div>
+                </Amostra>
                 <h3>Estilo D</h3>
                 <p>Minúsculas, leve e pesado</p>
               </article>
               <article className="estilo">
-                <div className="amostra am-e">
+                <Amostra nome="e" className="am-e">
                   <div className="l1">você vai</div>
                   <div className="l2">amar</div>
                   <div className="l3">esse resultado</div>
-                </div>
+                </Amostra>
                 <h3>Estilo E</h3>
                 <p>Três fontes, palavras deslizando</p>
               </article>
               <article className="estilo">
-                <div className="amostra am-f">
+                <Amostra nome="f" className="am-f">
                   <div className="l1">feito para</div>
                   <div className="l2">vender</div>
-                </div>
+                </Amostra>
                 <h3>Estilo F</h3>
                 <p>Editorial</p>
               </article>
               <article className="estilo">
-                <div className="amostra am-m">
+                <Amostra nome="misto" className="am-m">
                   <div className="l1">um pouco</div>
                   <div className="l2">de cada</div>
                   <div className="l3">estilo</div>
-                </div>
+                </Amostra>
                 <h3>Misto</h3>
                 <p>Todos os estilos no mesmo vídeo</p>
               </article>

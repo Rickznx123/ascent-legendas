@@ -18,6 +18,7 @@ transcricao.json
 *.mp4
 # Vídeos de exemplo da página de apresentação: vão para o git e para a imagem.
 !app/web/public/landing/*.mp4
+!app/web/public/landing/estilos/*.mp4
 *.mov
 *.mkv
 *.webm
