@@ -108,6 +108,8 @@ export type BancoDeAssinaturas = {
   salvarPagamento: (pagamento: PagamentoDaAssinatura & {dados?: unknown}) => Promise<void>;
   perfil: (usuarioId: string) => Promise<PerfilDaAssinatura>;
   salvarPerfil: (usuarioId: string, campos: Partial<PerfilDaAssinatura>) => Promise<void>;
+  // Para a verificação periódica: pagamentos aprovados desde a data (estorno sem webhook).
+  pagamentosParaConferir: (desde: Date) => Promise<PagamentoDaAssinatura[]>;
   // Para a verificação periódica: pendentes criadas no intervalo e autorizadas com a
   // próxima cobrança no intervalo.
   assinaturasParaConferir: (limites: {pendentesDe: Date; pendentesAte: Date; cobrancaDe: Date; cobrancaAte: Date}) => Promise<Assinatura[]>;
@@ -475,7 +477,31 @@ export const processadorDeEventos = ({
   // Verificação periódica: pendentes há mais de 2 minutos (até 3 dias) e autorizadas
   // perto da cobrança (de 10 dias atrás até amanhã). Cada uma é consultada no máximo a
   // cada 10 minutos (pendente) ou 1 hora (autorizada), e até 5 por rodada.
+  // Junto, os pagamentos aprovados dos últimos 35 dias (o ciclo e o arrependimento de
+  // 7 dias), cada um a cada 30 minutos, até 5 por rodada: um estorno sem webhook (ou
+  // com o webhook perdido) volta o perfil para grátis em até ~30 minutos.
   const LIMITE_POR_RODADA = 5;
+  const ultimaConsultaDoPagamento = new Map<string, number>();
+  const verificarEstornos = async (): Promise<string[]> => {
+    const agoraMs = agora().getTime();
+    const resultados: string[] = [];
+    let consultados = 0;
+    for (const pagamento of await banco.pagamentosParaConferir(new Date(agoraMs - 35 * 24 * 3600_000))) {
+      if (consultados >= LIMITE_POR_RODADA) break;
+      const ultima = ultimaConsultaDoPagamento.get(pagamento.mp_payment_id);
+      if (ultima !== undefined && agoraMs - ultima < 30 * 60_000) continue;
+      ultimaConsultaDoPagamento.set(pagamento.mp_payment_id, agoraMs);
+      consultados++;
+      try {
+        const resultado = await doPagamento(pagamento.mp_payment_id);
+        // Só o que mudou vai para o log (aprovado continua aprovado: nada).
+        if (resultado !== "pagamento approved") resultados.push(`verificação do pagamento ${pagamento.mp_payment_id}: ${resultado}`);
+      } catch (erro) {
+        resultados.push(`verificação do pagamento ${pagamento.mp_payment_id}: erro ${erro instanceof Error ? erro.message : String(erro)}`);
+      }
+    }
+    return resultados;
+  };
   const verificarAssinaturas = async (): Promise<string[]> => {
     const agoraMs = agora().getTime();
     const MIN = 60_000;
@@ -495,7 +521,7 @@ export const processadorDeEventos = ({
         resultados.push(`verificação ${assinatura.mp_preapproval_id}: erro ${erro instanceof Error ? erro.message : String(erro)}`);
       }
     }
-    return resultados;
+    return [...resultados, ...(await verificarEstornos())];
   };
 
   const doPagamento = async (pagamentoId: string) => {
@@ -638,6 +664,17 @@ export const bancoNoSupabase = (admin: SupabaseClient): BancoDeAssinaturas => {
     salvarPerfil: async (usuarioId, campos) => {
       const {error} = await admin.from("perfis").update(campos).eq("id", usuarioId);
       falha("salvar o perfil", error);
+    },
+    pagamentosParaConferir: async (desde) => {
+      const {data, error} = await admin
+        .from("pagamentos_assinatura")
+        .select("mp_payment_id, assinatura_id, usuario_id, status, valor, pago_em")
+        .eq("status", "approved")
+        .gte("pago_em", desde.toISOString())
+        .order("pago_em", {ascending: false})
+        .limit(200);
+      falha("ler os pagamentos para conferir", error);
+      return (data ?? []) as PagamentoDaAssinatura[];
     },
     assinaturasParaConferir: async ({pendentesDe, pendentesAte, cobrancaDe, cobrancaAte}) => {
       const pendentes = await admin

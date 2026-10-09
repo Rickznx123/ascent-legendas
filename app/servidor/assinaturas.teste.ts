@@ -112,6 +112,7 @@ const montar = (perfilInicial: Partial<PerfilDaAssinatura> = {}, assinaturaInici
     salvarPerfil: async (_conta, campos) => {
       perfil = {...perfil, ...campos};
     },
+    pagamentosParaConferir: async (desde) => [...pagamentos.values()].filter((p) => p.status === "approved" && p.pago_em !== null && new Date(p.pago_em) >= desde),
     assinaturasParaConferir: async ({pendentesDe, pendentesAte, cobrancaDe, cobrancaAte}) =>
       [...assinaturas.values()].filter((a) =>
         a.status === "pendente"
@@ -604,5 +605,64 @@ describe("planos: nível pelo valor cobrado e troca de plano", () => {
     await t.webhook("subscription_preapproval", PRE);
     assert.equal(t.perfil().plano, "assinante");
     assert.equal(t.perfil().nivel, "editor");
+  });
+});
+
+describe("estorno depois de cancelar (regra: pagamento vigente devolvido, grátis na hora)", () => {
+  const PRE2 = "pre-2";
+  // Pro pago, sobe para o Editor (pago), cancela: como no teste de 09/10.
+  const editorCancelado = async () => {
+    const t = montar({}, {valor: 49.9, nivel: "pro"});
+    t.mp.cobrancas.set("c1", {...cobranca("c1", "approved", "p1"), transaction_amount: 49.9});
+    await t.webhook("subscription_authorized_payment", "c1");
+    t.avancar(1);
+    t.assinaturas.set("a2", {...t.assinatura(), id: "a2", mp_preapproval_id: PRE2, status: "pendente", valor: 79.9, nivel: "editor", pago_ate: null, proxima_cobranca: null, criado_em: t.agora().toISOString()});
+    t.mp.porId.set(PRE2, {id: PRE2, status: "authorized", external_reference: CONTA, next_payment_date: "2026-11-08T12:00:00Z"} as Preapproval);
+    t.mp.cobrancas.set("c2", {...cobranca("c2", "approved", "p2", "2026-10-08T12:00:00Z"), preapproval_id: PRE2, transaction_amount: 79.9});
+    await t.webhook("subscription_authorized_payment", "c2");
+    t.mp.porId.set(PRE2, {...t.mp.porId.get(PRE2)!, status: "cancelled"});
+    await t.webhook("subscription_preapproval", PRE2);
+    assert.equal(t.perfil().nivel, "editor");
+    assert.equal(t.assinaturas.get("a2")!.status, "cancelada");
+    return t;
+  };
+
+  it("pelo webhook: o pagamento do Editor devolvido volta o perfil para grátis, mesmo com a assinatura cancelada", async () => {
+    const t = await editorCancelado();
+    t.mp.pagamentos.set("p2", {id: "p2", status: "refunded"});
+    await t.webhook("payment", "p2");
+    assert.equal(planoEfetivo(t.perfil(), t.agora()), "gratis");
+  });
+
+  it("sem webhook: a verificação periódica acha o estorno e volta para grátis", async () => {
+    const t = await editorCancelado();
+    t.mp.pagamentos.set("p1", {id: "p1", status: "approved"});
+    t.mp.pagamentos.set("p2", {id: "p2", status: "refunded"});
+    const linhas = await t.processador.verificarAssinaturas();
+    assert.ok(linhas.some((linha) => linha.includes("p2") && /grátis/u.test(linha)));
+    assert.equal(planoEfetivo(t.perfil(), t.agora()), "gratis");
+    assert.equal(t.pagamentos.get("p2")!.status, "refunded");
+  });
+
+  it("devolução do pagamento antigo (Pro, já substituído pelo Editor): nada muda", async () => {
+    const t = await editorCancelado();
+    t.mp.pagamentos.set("p1", {id: "p1", status: "refunded"});
+    t.mp.pagamentos.set("p2", {id: "p2", status: "approved"});
+    await t.processador.verificarAssinaturas();
+    assert.equal(planoEfetivo(t.perfil(), t.agora()), "assinante");
+    assert.equal(t.perfil().nivel, "editor");
+  });
+
+  it("a verificação consulta cada pagamento no máximo a cada 30 minutos", async () => {
+    const t = await editorCancelado();
+    t.mp.pagamentos.set("p1", {id: "p1", status: "approved"});
+    t.mp.pagamentos.set("p2", {id: "p2", status: "approved"});
+    await t.processador.verificarAssinaturas();
+    t.mp.pagamentos.set("p2", {id: "p2", status: "refunded"});
+    await t.processador.verificarAssinaturas();
+    assert.equal(planoEfetivo(t.perfil(), t.agora()), "assinante", "consultado há pouco: espera");
+    t.avancar(31 / (24 * 60));
+    await t.processador.verificarAssinaturas();
+    assert.equal(planoEfetivo(t.perfil(), t.agora()), "gratis");
   });
 });

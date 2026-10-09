@@ -68,6 +68,8 @@ export type BancoDoPix = {
   salvarPix: (id: string, campos: Partial<PixPagamento>) => Promise<void>;
   // Para a verificação periódica: criando ou pendentes criados depois de "desde".
   pixParaConferir: (desde: Date) => Promise<PixPagamento[]>;
+  // Para a verificação periódica: aprovados desde a data (estorno sem webhook).
+  pixAprovadosDesde: (desde: Date) => Promise<PixPagamento[]>;
   perfil: (usuarioId: string) => Promise<PerfilDaAssinatura>;
   salvarPerfil: (usuarioId: string, campos: Partial<PerfilDaAssinatura>) => Promise<void>;
 };
@@ -346,11 +348,17 @@ export const processadorDePix = ({
   // um no máximo a cada 2 minutos, até 5 por rodada.
   const verificar = async (): Promise<string[]> => {
     const resultados: string[] = [];
-    for (const pix of await banco.pixParaConferir(new Date(agora().getTime() - 2 * DIA))) {
-      if (resultados.length >= 5) break;
+    let consultados = 0;
+    // Pendentes dos últimos 2 dias (a cada 2 minutos) e aprovados dos últimos 35 dias
+    // (a cada 30 minutos: um estorno sem webhook volta o perfil para grátis).
+    const aprovados = (await banco.pixAprovadosDesde(new Date(agora().getTime() - 35 * DIA))).map((pix) => ({pix, intervalo: 30 * 60_000}));
+    const pendentes = (await banco.pixParaConferir(new Date(agora().getTime() - 2 * DIA))).map((pix) => ({pix, intervalo: 2 * 60_000}));
+    for (const {pix, intervalo} of [...pendentes, ...aprovados]) {
+      if (consultados >= 5) break;
       try {
-        const resultado = await consultar(pix, 2 * 60_000);
-        if (resultado) resultados.push(`verificação ${pix.id}: ${resultado}`);
+        const resultado = await consultar(pix, intervalo);
+        if (resultado !== undefined) consultados++;
+        if (resultado && resultado !== "pagamento approved" && !resultado.startsWith("aprovado (já aplicado")) resultados.push(`verificação ${pix.id}: ${resultado}`);
       } catch (erro) {
         resultados.push(`verificação ${pix.id}: erro ${semCpf(erro instanceof Error ? erro.message : String(erro))}`);
       }
@@ -387,6 +395,11 @@ export const bancoDoPixNoSupabase = (admin: SupabaseClient, perfis: Pick<BancoDo
         .update({...campos, atualizado_em: new Date().toISOString()})
         .eq("id", id);
       falha("salvar o Pix", error);
+    },
+    pixAprovadosDesde: async (desde) => {
+      const {data, error} = await admin.from("pix_pagamentos").select(CAMPOS).eq("status", "aprovado").gte("aprovado_em", desde.toISOString()).order("aprovado_em", {ascending: false}).limit(200);
+      falha("listar os Pix aprovados", error);
+      return (data as PixPagamento[] | null) ?? [];
     },
     pixParaConferir: async (desde) => {
       const {data, error} = await admin.from("pix_pagamentos").select(CAMPOS).in("status", ["criando", "pendente"]).gte("criado_em", desde.toISOString()).order("criado_em");

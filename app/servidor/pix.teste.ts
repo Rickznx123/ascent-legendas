@@ -45,6 +45,7 @@ const montar = (perfilInicial: Partial<PerfilDaAssinatura> = {}) => {
     salvarPix: async (id, campos) => {
       linhas.set(id, {...linhas.get(id)!, ...campos});
     },
+    pixAprovadosDesde: async (desde) => [...linhas.values()].filter((l) => l.status === "aprovado" && l.aprovado_em !== null && new Date(l.aprovado_em) >= desde),
     pixParaConferir: async (desde) =>
       [...linhas.values()].filter((l) => (l.status === "criando" || l.status === "pendente") && new Date(l.criado_em) >= desde),
     perfil: async () => perfil,
@@ -386,5 +387,19 @@ describe("Pix por plano (Básico, Pro e Editor)", () => {
     const pro = await t.pix.gerar(t.usuario, 49.9, undefined, "pro");
     assert.notEqual(pro.id, basico.id);
     assert.equal(Number(pro.valor), 49.9);
+  });
+});
+
+describe("Pix: estorno sem webhook", () => {
+  it("a verificação periódica acha o Pix devolvido e volta para grátis", async () => {
+    const t = montar();
+    const gerado = await t.pix.gerar(t.usuario, 79.9, undefined, "editor");
+    t.mudar(gerado.mp_payment_id!, {status: "approved", date_approved: "2026-10-08T12:00:00Z"});
+    await t.pix.doPagamento(gerado.mp_payment_id!);
+    assert.equal(t.perfil().plano, "assinante");
+    t.avancar(3600_000);
+    t.mudar(gerado.mp_payment_id!, {status: "refunded"});
+    await t.pix.verificar();
+    assert.equal(t.perfil().plano, "gratis");
   });
 });
