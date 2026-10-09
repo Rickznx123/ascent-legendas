@@ -552,6 +552,8 @@
   color: var(--texto);
   font-size: 15px;
   flex: 1;
+  /* Os itens ficam juntos no topo (sem esticar as linhas até o botão). */
+  align-content: start;
 }
 .apresentacao .plano li {
   padding-left: 24px;
@@ -572,6 +574,9 @@
   margin: 16px 0 0;
   font-size: 14px;
   color: var(--apoio);
+}
+.apresentacao .pagamento + .pagamento {
+  margin-top: 4px;
 }
 
 /* Perguntas */
@@ -689,7 +694,7 @@
     max-width: none;
   }
   .apresentacao .planos {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     align-items: stretch;
   }
   .apresentacao .rodape {

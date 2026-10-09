@@ -217,7 +217,10 @@ export const Apresentacao: React.FC<{
     return () => observador.disconnect();
   }, []);
 
-  const {minutosDoAssinante: minutos, diasDoPix: dias, videosNoGratis: videosGratis, precoBRL: preco} = planos;
+  const {minutosDoAssinante: minutos, diasDoPix: dias, videosNoGratis: videosGratis} = planos;
+  // Básico, Pro e Editor, com os valores da configuração (/api/config). Sem o Mercado
+  // Pago no servidor, só os minutos do Básico, sem preço.
+  const pagos: {nivel: string; nome: string; minutos: number; valor?: number}[] = planos.pagos ?? [{nivel: "basico", nome: "Assinatura", minutos}];
   const criar = {href: "#criar-conta", ir: onCriarConta};
 
   return (
@@ -392,43 +395,27 @@ export const Apresentacao: React.FC<{
                   Testar grátis
                 </Ir>
               </div>
-              <div className="plano principal">
-                <span className="ap-selo">Mais escolhido</span>
-                <h3>Assinatura mensal</h3>
-                {preco !== undefined ? (
-                  <div className="preco">
-                    {reais(preco)} <small>por mês</small>
-                  </div>
-                ) : null}
-                <ul>
-                  <li>{minutos} minutos exportados por mês</li>
-                  <li>Sem marca d'água</li>
-                  <li>Cartão, renova todo mês</li>
-                  <li>Cancele quando quiser e use até o fim do período</li>
-                </ul>
-                <Ir className="botao cheio" {...criar}>
-                  Assinar com cartão
-                </Ir>
-              </div>
-              <div className="plano">
-                <h3>{dias} dias no Pix</h3>
-                {preco !== undefined ? (
-                  <div className="preco">
-                    {reais(preco)} <small>pagamento único</small>
-                  </div>
-                ) : null}
-                <ul>
-                  <li>
-                    {minutos} minutos exportados em {dias} dias
-                  </li>
-                  <li>Sem marca d'água</li>
-                  <li>Não renova sozinho</li>
-                </ul>
-                <Ir className="botao vazado cheio" {...criar}>
-                  Pagar com Pix
-                </Ir>
-              </div>
+              {pagos.map((plano) => (
+                <div key={plano.nivel} className={`plano${plano.nivel === "pro" ? " principal" : ""}`}>
+                  {plano.nivel === "pro" ? <span className="ap-selo">Mais escolhido</span> : null}
+                  <h3>{plano.nome}</h3>
+                  {plano.valor !== undefined ? (
+                    <div className="preco">
+                      {reais(plano.valor)} <small>por mês</small>
+                    </div>
+                  ) : null}
+                  <ul>
+                    <li>{plano.minutos} minutos exportados por mês</li>
+                    <li>Sem marca d'água</li>
+                    <li>Cancele quando quiser e use até o fim do período</li>
+                  </ul>
+                  <Ir className={`botao cheio${plano.nivel === "pro" ? "" : " vazado"}`} {...criar}>
+                    Assinar o {plano.nome}
+                  </Ir>
+                </div>
+              ))}
             </div>
+            <p className="pagamento">Todos os planos no cartão ou no Pix de {dias} dias.</p>
             <p className="pagamento">Pagamento pelo Mercado Pago. Não precisa ter conta lá.</p>
           </div>
         </section>
@@ -454,7 +441,7 @@ export const Apresentacao: React.FC<{
                 <p>Você corrige antes de exportar: toque na legenda para editar o texto, apagar uma palavra ou trocar a palavra em destaque.</p>
               </details>
               <details>
-                <summary>O que conta nos {minutos} minutos?</summary>
+                <summary>O que conta nos minutos do plano?</summary>
                 <p>Só os vídeos que você exporta. Um vídeo de 1 minuto exportado gasta 1 minuto do plano.</p>
               </details>
               <details>
