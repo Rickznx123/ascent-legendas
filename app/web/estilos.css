@@ -1583,6 +1583,69 @@ h3 {
   gap: var(--esp-2);
 }
 
+/* Escolha do plano (Básico, Pro, Editor): um cartão por plano, o Pro em destaque. */
+.planos-escolha {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+}
+.plano-opcao {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "nome preco" "minutos preco";
+  align-items: center;
+  gap: 2px var(--esp-3);
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: var(--raio-p);
+  border: 1px solid var(--linha);
+  background: var(--painel-2);
+  color: inherit;
+}
+.plano-opcao.destaque {
+  border-color: var(--acento);
+}
+.plano-opcao[aria-checked="true"] {
+  background: var(--acento-fraco);
+  border-color: var(--acento);
+  box-shadow: inset 0 0 0 1px var(--acento);
+}
+.plano-opcao-nome {
+  grid-area: nome;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+}
+.plano-opcao-selo {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--acento);
+  color: var(--acento-texto);
+}
+.plano-opcao-minutos {
+  grid-area: minutos;
+  font-size: var(--fonte-pequena);
+  color: var(--suave);
+}
+.plano-opcao-preco {
+  grid-area: preco;
+  font-size: 17px;
+  font-weight: 800;
+}
+/* Subir de plano: o aviso de cobrança cheia, antes de confirmar. */
+.aviso-de-troca {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--raio-p);
+  border: 1px solid var(--acento);
+  background: var(--acento-fraco);
+  font-weight: 600;
+}
+
 /* Pix (Pix.tsx): copia e cola primeiro (o caminho do celular); no computador, o QR
    code sobe para o topo. */
 .pix {

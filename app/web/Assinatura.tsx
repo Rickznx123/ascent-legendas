@@ -26,7 +26,7 @@ const marcarCheckout = (aberto: boolean) => {
 };
 import {useEffect, useState} from "react";
 import {api} from "./api";
-import type {ResumoDaAssinatura} from "./api";
+import type {Nivel, ResumoDaAssinatura} from "./api";
 import {useConta} from "./conta";
 import {JanelaPix} from "./Pix";
 
@@ -57,6 +57,18 @@ export const acaoDaAssinatura = (resumo: ResumoDaAssinatura | undefined): AcaoDa
   if (resumo.situacao === "pix") return "pix";
   return "gerenciar";
 };
+// Quem assina e ainda tem um plano maior para subir (o Editor é o maior).
+export const podeSubirDePlano = (resumo: ResumoDaAssinatura | undefined): boolean =>
+  Boolean(
+    resumo?.disponivel &&
+      (resumo.situacao === "ativa" || resumo.situacao === "cancelada" || resumo.situacao === "pix") &&
+      resumo.planos.findIndex((plano) => plano.nivel === resumo.nivel) < resumo.planos.length - 1,
+  );
+
+// O menor preço dos planos ("a partir de R$ 30").
+export const menorPreco = (resumo: ResumoDaAssinatura | undefined): number =>
+  Math.min(...(resumo?.planos.map((plano) => plano.valor) ?? []), resumo?.valor ?? 30);
+
 export const ROTULO_DA_ACAO: Record<AcaoDaAssinatura, string> = {assinar: "Assinar", gerenciar: "Gerenciar assinatura", pix: "Renovar com Pix"};
 
 // A janela de cada ação (para os menus).
@@ -66,59 +78,151 @@ export const JanelaDaAcao: React.FC<{acao: AcaoDaAssinatura | undefined; onFecha
   ) : acao === "gerenciar" ? (
     <JanelaGerenciarAssinatura onFechar={onFechar} />
   ) : acao === "pix" ? (
-    <JanelaPix onFechar={onFechar} />
+    // Renovar ou subir de plano no Pix: a escolha dos planos, já no Pix.
+    <JanelaAssinar onFechar={onFechar} />
   ) : null;
 
-// "Assinar": o que inclui e o botão que leva ao checkout do Mercado Pago.
+// Aviso de subir de plano, antes de confirmar (o servidor faz assim, veja
+// app/servidor/assinaturas.ts).
+export const AVISO_DE_SUBIR = "Você paga o plano novo cheio hoje e o seu mês recomeça agora.";
+
+// "Assinar" e "Trocar de plano": os três planos para escolher (o Pro em destaque) e,
+// depois, cartão ou Pix com o valor do escolhido. Quem já assina vê o plano atual
+// marcado: subir abre o pagamento do plano novo (com o aviso acima); descer vale a
+// partir da próxima renovação. O valor cobrado é sempre o do servidor.
 export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
-  const {conta} = useConta();
+  const {conta, atualizarConta} = useConta();
+  const resumo = conta?.assinatura;
+  const planos = resumo?.planos ?? [];
+  const situacao = resumo?.situacao ?? "nenhuma";
+  const atual = situacao === "nenhuma" ? undefined : resumo?.nivel;
+  const ordem = (nivel: Nivel | undefined) => planos.findIndex((plano) => plano.nivel === nivel);
+  // Já assina: o plano acima do atual; senão, o Pro.
+  const [escolhido, setEscolhido] = useState<Nivel>(() =>
+    atual ? (planos.find((plano) => ordem(plano.nivel) > ordem(atual))?.nivel ?? atual) : "pro",
+  );
   const [indo, setIndo] = useState(false);
   const [erro, setErro] = useState<string>();
+  const [feito, setFeito] = useState<string>();
   const [pagandoPix, setPagandoPix] = useState(false);
-  const valor = conta?.assinatura?.valor ?? 30;
+  const plano = planos.find((item) => item.nivel === escolhido);
+  const troca = atual ? Math.sign(ordem(escolhido) - ordem(atual)) : 0;
+  const desfazDescida = situacao === "ativa" && troca === 0 && Boolean(resumo?.nivelNaRenovacao);
+  const podeCartao = situacao === "nenhuma" || (situacao === "ativa" && (troca !== 0 || desfazDescida)) || (situacao === "cancelada" && troca > 0);
+  const podePix = situacao === "nenhuma" || (situacao === "pix" && troca >= 0);
+  const sobe = troca > 0 && (situacao === "ativa" || situacao === "cancelada" || situacao === "pix");
+  const nomeAtual = planos.find((item) => item.nivel === atual)?.nome;
+
   const assinar = async () => {
     setIndo(true);
     setErro(undefined);
     try {
-      const {endereco} = await api.assinar();
-      // O checkout é do Mercado Pago; a volta é para /?assinatura=retorno.
-      marcarCheckout(true);
-      window.location.href = endereco;
+      const resposta = await api.assinar(escolhido);
+      if (resposta.endereco) {
+        // O checkout é do Mercado Pago; a volta é para /?assinatura=retorno.
+        marcarCheckout(true);
+        window.location.href = resposta.endereco;
+        return;
+      }
+      // Descer (ou desfazer a descida): vale na próxima renovação, sem pagamento agora.
+      atualizarConta();
+      setFeito(
+        troca < 0
+          ? `Pronto: a partir da próxima renovação, você passa para o ${plano?.nome}${resumo?.renovaEm ? ` (em ${dataCurta(resumo.renovaEm)})` : ""}. Até lá, continua no ${nomeAtual}.`
+          : `Pronto: você continua no ${plano?.nome}.`,
+      );
+      setIndo(false);
     } catch (error) {
       // Sem resposta do servidor (rede, ou página de erro no lugar do JSON): a mesma mensagem simples.
       setErro(error instanceof TypeError || error instanceof SyntaxError ? "Não foi possível abrir o pagamento agora. Tente de novo em instantes." : error instanceof Error ? error.message : String(error));
       setIndo(false);
     }
   };
-  if (pagandoPix) return <JanelaPix onFechar={onFechar} />;
+  if (pagandoPix) return <JanelaPix nivel={escolhido} onFechar={onFechar} />;
+  const rotuloDoCartao =
+    situacao === "nenhuma"
+      ? "Cartão (renova todo mês)"
+      : troca > 0
+        ? `Subir para o ${plano?.nome} no cartão`
+        : troca < 0
+          ? `Mudar para o ${plano?.nome} na renovação`
+          : `Continuar no ${plano?.nome}`;
   return (
     <div className="login janela-fundo" role="dialog" aria-modal="true" aria-labelledby="assinar-titulo">
       <div className="login-caixa">
-        <h1 id="assinar-titulo">Assinar</h1>
-        <p className="assinatura-preco">
-          <b>{reais(valor)}</b> por mês
-        </p>
+        <h1 id="assinar-titulo">{atual ? "Trocar de plano" : "Assinar"}</h1>
+        <div className="planos-escolha" role="radiogroup" aria-label="Plano">
+          {planos.map((item) => (
+            <button
+              key={item.nivel}
+              type="button"
+              role="radio"
+              aria-checked={item.nivel === escolhido}
+              className={`plano-opcao${item.nivel === "pro" ? " destaque" : ""}`}
+              disabled={indo}
+              onClick={() => {
+                setEscolhido(item.nivel);
+                setFeito(undefined);
+                setErro(undefined);
+              }}
+            >
+              <span className="plano-opcao-nome">
+                {item.nome}
+                {item.nivel === atual ? <em className="plano-opcao-selo">Seu plano</em> : item.nivel === "pro" ? <em className="plano-opcao-selo">Mais escolhido</em> : null}
+              </span>
+              <span className="plano-opcao-minutos">{item.minutos} min por mês</span>
+              <b className="plano-opcao-preco">{reais(item.valor)}</b>
+            </button>
+          ))}
+        </div>
         <ul className="assinatura-lista">
-          <li>30 minutos de vídeo exportado por mês</li>
+          <li>{plano?.minutos ?? 30} minutos de vídeo exportado por mês</li>
           <li>Vídeos sem a marca d'água</li>
           <li>Até 10 transcrições por dia</li>
         </ul>
-        <div className="assinatura-opcao">
-          <button type="button" className="bt primario cheio" disabled={indo} onClick={() => void assinar()}>
-            {indo ? "Abrindo o Mercado Pago…" : "Cartão (renova todo mês)"}
-          </button>
-          <p className="suave pequeno">
-            Pelo Mercado Pago. Renova todo mês, no mesmo dia; cancele quando quiser e continue assinante até o fim do mês pago.
+        {sobe ? <p className="aviso-de-troca">{AVISO_DE_SUBIR}</p> : null}
+        {feito ? (
+          <p className="suave" role="status">
+            {feito}
           </p>
-        </div>
-        <div className="assinatura-opcao">
-          <button type="button" className="bt cheio" disabled={indo} onClick={() => setPagandoPix(true)}>
-            Pix (30 dias, sem renovação)
-          </button>
-          <p className="suave pequeno">{reais(valor)} dão 30 dias de assinante. Não renova sozinho: para continuar, pague outro Pix.</p>
-        </div>
+        ) : null}
+        {podeCartao && !feito ? (
+          <div className="assinatura-opcao">
+            <button type="button" className="bt primario cheio" disabled={indo} onClick={() => void assinar()}>
+              {indo ? (troca < 0 || desfazDescida ? "Trocando…" : "Abrindo o Mercado Pago…") : rotuloDoCartao}
+            </button>
+            <p className="suave pequeno">
+              {situacao === "nenhuma"
+                ? "Pelo Mercado Pago. Renova todo mês, no mesmo dia; cancele quando quiser e continue assinante até o fim do mês pago."
+                : troca > 0
+                  ? `Quando o pagamento for aprovado, o ${nomeAtual} é cancelado sem nova cobrança. Se não for aprovado, você continua no ${nomeAtual}.`
+                  : troca < 0
+                    ? `Sem cobrança agora: você continua no ${nomeAtual} até a próxima renovação, que já vem com o valor do ${plano?.nome}.`
+                    : "Cancela a troca agendada: a próxima renovação continua com o valor de hoje."}
+            </p>
+          </div>
+        ) : null}
+        {podePix && !feito ? (
+          <div className="assinatura-opcao">
+            <button type="button" className={`bt cheio${podeCartao ? "" : " primario"}`} disabled={indo} onClick={() => setPagandoPix(true)}>
+              {situacao === "pix" ? (troca > 0 ? `Pix do ${plano?.nome} (começa agora)` : "Renovar com Pix (+30 dias)") : "Pix (30 dias, sem renovação)"}
+            </button>
+            <p className="suave pequeno">
+              {plano ? reais(plano.valor) : ""} dão 30 dias de {plano?.nome}. Não renova sozinho: para continuar, pague outro Pix.
+            </p>
+          </div>
+        ) : null}
+        {!podeCartao && !podePix && !feito ? (
+          <p className="suave">
+            {situacao === "pix"
+              ? `Você está no ${nomeAtual} pelo Pix até ${resumo?.ate ? dataCurta(resumo.ate) : "o fim do período"}. Um plano menor pode ser pago depois dessa data.`
+              : situacao === "cancelada"
+                ? `Sua assinatura vale até ${resumo?.ate ? dataCurta(resumo.ate) : "o fim do período"}. Para um plano maior, escolha acima.`
+                : `Você já está no ${nomeAtual}.`}
+          </p>
+        ) : null}
         <button type="button" className="bt cheio" disabled={indo} onClick={onFechar}>
-          Agora não
+          {feito ? "Fechar" : "Agora não"}
         </button>
         {erro ? (
           <p className="login-erro" role="alert">
@@ -141,6 +245,7 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
 export const JanelaGerenciarAssinatura: React.FC<{onFechar: () => void}> = ({onFechar}) => {
   const {conta, atualizarConta} = useConta();
   const [resumo, setResumo] = useState(conta?.assinatura);
+  const [trocando, setTrocando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [cancelando, setCancelando] = useState(false);
   const [erro, setErro] = useState<string>();
@@ -158,15 +263,23 @@ export const JanelaGerenciarAssinatura: React.FC<{onFechar: () => void}> = ({onF
       setCancelando(false);
     }
   };
+  if (trocando) return <JanelaAssinar onFechar={onFechar} />;
+  const nomeDo = (nivel: Nivel | undefined) => resumo?.planos.find((plano) => plano.nivel === nivel)?.nome;
   return (
     <div className="login janela-fundo" role="dialog" aria-modal="true" aria-labelledby="gerenciar-titulo">
       <div className="login-caixa">
         <h1 id="gerenciar-titulo">Gerenciar assinatura</h1>
         {resumo?.situacao === "ativa" ? (
           <p>
-            Assinatura ativa: {reais(resumo.valor)} por mês.
+            Plano {nomeDo(resumo.nivel) ?? "Básico"}: {reais(resumo.valor)} por mês.
             {resumo.renovaEm ? ` A próxima cobrança é em ${dataCurta(resumo.renovaEm)}.` : ""}
+            {resumo.nivelNaRenovacao ? ` Na renovação, passa para o ${nomeDo(resumo.nivelNaRenovacao)}.` : ""}
           </p>
+        ) : null}
+        {resumo?.disponivel && (resumo.situacao === "ativa" || resumo.situacao === "cancelada") ? (
+          <button type="button" className="bt cheio" onClick={() => setTrocando(true)}>
+            Trocar de plano
+          </button>
         ) : null}
         {resumo?.situacao === "cancelada" ? (
           <p>Assinatura cancelada. Você continua assinante{resumo.ate ? ` até ${dataCurta(resumo.ate)}` : ""}, sem novas cobranças.</p>
@@ -221,13 +334,15 @@ export const RetornoDaAssinatura: React.FC<{onFechar: () => void}> = ({onFechar}
   const {atualizarConta} = useConta();
   const [situacao, setSituacao] = useState<"confirmando" | "ativa" | "recusado" | "demorando">("confirmando");
   const [assinando, setAssinando] = useState(false);
+  const [minutos, setMinutos] = useState<number>();
   useEffect(() => {
     let parar = false;
     const inicio = Date.now();
     const conferir = async () => {
       while (!parar) {
         const resposta = await api.confirmarAssinatura().catch(() => null);
-        if (resposta?.plano === "assinante" && resposta.assinatura.situacao !== "nenhuma") {
+        if (resposta?.pago && resposta.assinatura.situacao !== "nenhuma") {
+          setMinutos(resposta.assinatura.planos.find((plano) => plano.nivel === resposta.assinatura.nivel)?.minutos);
           marcarCheckout(false);
           setSituacao("ativa");
           atualizarConta();
@@ -266,13 +381,13 @@ export const RetornoDaAssinatura: React.FC<{onFechar: () => void}> = ({onFechar}
         ) : situacao === "ativa" ? (
           <>
             <h1 id="retorno-titulo">Assinatura ativa</h1>
-            <p>Pronto! Você já pode exportar sem a marca d'água, com 30 minutos por mês.</p>
+            <p>Pronto! Você já pode exportar sem a marca d'água, com {minutos ?? 30} minutos por mês.</p>
           </>
         ) : situacao === "recusado" ? (
           <>
             <h1 id="retorno-titulo">Pagamento recusado</h1>
             <p className="login-erro" role="alert">
-              Pagamento recusado. Tente outro cartão ou outro meio de pagamento.
+              Pagamento recusado. Se você estava trocando de plano, continua no plano de antes, sem nada mudar. Tente outro cartão ou outro meio de pagamento.
             </p>
             <button type="button" className="bt primario cheio" onClick={() => setAssinando(true)}>
               Assinar de novo

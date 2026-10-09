@@ -42,7 +42,8 @@ export type {EstadoDaPrevia};
 // assinatura: o resumo da assinatura do Mercado Pago (veja app/servidor/assinaturas.ts).
 import type {ResumoDaAssinatura} from "../servidor/assinaturas";
 import type {VistaDoPix} from "../servidor/pix";
-export type {ResumoDaAssinatura, VistaDoPix};
+import type {Nivel, PlanoPago} from "../servidor/planos";
+export type {Nivel, PlanoPago, ResumoDaAssinatura, VistaDoPix};
 export type Conta = {email: string; nome: string | null; plano: Plano; uso?: UsoDoPlano; assinatura?: ResumoDaAssinatura};
 
 // Erro de uma tarefa com um código do servidor (ex.: "assine", "sem-saldo").
@@ -117,15 +118,19 @@ export const api = {
 
   // "Importar projetos deste computador": se está disponível para esta conta.
   // Assinatura (Etapa 2c): o link do checkout do Mercado Pago; e o cancelamento.
-  assinar: () => pedir("/api/assinatura", {method: "POST"}).then((r) => lerJson<{endereco: string}>(r)),
+  // Plano escolhido: abre o checkout (endereco) ou, ao descer, troca na renovação (trocado).
+  assinar: (nivel: Nivel) =>
+    pedir("/api/assinatura", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({nivel})}).then((r) =>
+      lerJson<{endereco?: string; trocado?: boolean; assinatura?: ResumoDaAssinatura}>(r),
+    ),
   confirmarAssinatura: () =>
-    pedir("/api/assinatura/confirmar", {method: "POST"}).then((r) => lerJson<{plano: Plano; assinatura: ResumoDaAssinatura; recusado?: boolean}>(r)),
+    pedir("/api/assinatura/confirmar", {method: "POST"}).then((r) => lerJson<{plano: Plano; assinatura: ResumoDaAssinatura; pago?: boolean; recusado?: boolean}>(r)),
   cancelarAssinatura: () => pedir("/api/assinatura/cancelar", {method: "POST"}).then((r) => lerJson<{assinatura: ResumoDaAssinatura}>(r)),
   // Pix avulso de 30 dias (Etapa 2d): o último Pix da conta, gerar (com o CPF só se o
   // Mercado Pago pedir) e conferir se caiu.
   pix: () => pedir("/api/pix").then((r) => lerJson<{pix: VistaDoPix | null; assinatura: ResumoDaAssinatura}>(r)),
-  gerarPix: (cpf?: string) =>
-    pedir("/api/pix", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(cpf ? {cpf} : {})}).then((r) =>
+  gerarPix: (nivel: Nivel, cpf?: string) =>
+    pedir("/api/pix", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(cpf ? {cpf, nivel} : {nivel})}).then((r) =>
       lerJson<{pix: VistaDoPix}>(r),
     ),
   conferirPix: () => pedir("/api/pix/conferir", {method: "POST"}).then((r) => lerJson<{pix: VistaDoPix | null; assinatura: ResumoDaAssinatura}>(r)),

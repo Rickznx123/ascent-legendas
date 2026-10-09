@@ -3,7 +3,7 @@
 // Só mostra a decisão do servidor (app/servidor/cota.ts); a exportação decide de
 // novo lá.
 import {useState} from "react";
-import {JanelaAssinar} from "./Assinatura";
+import {JanelaAssinar, podeSubirDePlano} from "./Assinatura";
 import type {DecisaoDeExportacao} from "./api";
 import {avisoDaExportacao} from "./celular/plano";
 import {useConta} from "./conta";
@@ -20,15 +20,17 @@ export const AvisoDoPlano: React.FC<{
   const [assinando, setAssinando] = useState(false);
   // Sem o Mercado Pago no servidor, não há "Assinar" (e quem já assina não vê).
   const podeAssinar = Boolean(conta?.assinatura?.disponivel && conta.assinatura.situacao === "nenhuma");
+  // Assinante sem minutos: subir para um plano maior.
+  const podeSubir = decisao.codigo === "sem-saldo" && podeSubirDePlano(conta?.assinatura);
   if (!decisao.permitido) {
     return (
       <div className="aviso-do-plano" role="alert">
         <h2>{decisao.codigo === "assine" ? "Assine para continuar" : "Sem minutos suficientes"}</h2>
         <p>{decisao.motivo}</p>
         <div className="aviso-do-plano-botoes">
-          {podeAssinar ? (
+          {podeAssinar || podeSubir ? (
             <button type="button" className={`bt primario ${classeDoBotao}`} onClick={() => setAssinando(true)}>
-              Assinar
+              {podeSubir ? "Subir de plano" : "Assinar"}
             </button>
           ) : null}
           <button type="button" className={`bt ${classeDoBotao}`} onClick={onVoltar}>

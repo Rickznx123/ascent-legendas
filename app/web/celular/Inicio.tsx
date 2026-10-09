@@ -7,7 +7,7 @@ import type {Editor} from "../useEditor";
 import {Andamento} from "./Andamento";
 import {useConta} from "../conta";
 import {JanelaTrocarSenha} from "../Senha";
-import {JanelaAssinar, JanelaDaAcao, ROTULO_DA_ACAO, acaoDaAssinatura, avisoDaAssinatura} from "../Assinatura";
+import {JanelaAssinar, JanelaDaAcao, ROTULO_DA_ACAO, acaoDaAssinatura, avisoDaAssinatura, menorPreco, podeSubirDePlano} from "../Assinatura";
 import type {AcaoDaAssinatura} from "../Assinatura";
 import type {ResumoDaAssinatura, UsoDoPlano} from "../api";
 import {CONFIG_CELULAR, nomeDoPlano, resumoDasTranscricoes, resumoDoUso} from "./plano";
@@ -30,7 +30,13 @@ const QuadroDoPlano: React.FC<{uso: UsoDoPlano; assinatura?: ResumoDaAssinatura}
       {aviso ? <small className={assinatura?.situacao === "falhou" ? "assinatura-aviso" : "cel-uso-transcricoes"}>{aviso}</small> : null}
       {acaoDaAssinatura(assinatura) === "assinar" ? (
         <button type="button" className="bt primario cel-cheio cel-uso-assinar" onClick={() => setAssinando(true)}>
-          Assinar · {(assinatura?.valor ?? 30).toLocaleString("pt-BR", {style: "currency", currency: "BRL"})} por mês
+          Assinar · a partir de {menorPreco(assinatura).toLocaleString("pt-BR", {style: "currency", currency: "BRL"})} por mês
+        </button>
+      ) : null}
+      {/* Minutos acabando (menos de 10%) ou acabados: subir de plano. */}
+      {uso.plano === "assinante" && uso.segundosUsados >= uso.segundosDoPlano * 0.9 && podeSubirDePlano(assinatura) ? (
+        <button type="button" className="bt primario cel-cheio cel-uso-assinar" onClick={() => setAssinando(true)}>
+          Subir de plano
         </button>
       ) : null}
       {assinando ? <JanelaAssinar onFechar={() => setAssinando(false)} /> : null}

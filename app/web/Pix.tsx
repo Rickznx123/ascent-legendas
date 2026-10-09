@@ -3,7 +3,7 @@
 // app/servidor/pix.ts); aqui só se mostra.
 import {useCallback, useEffect, useState} from "react";
 import {api} from "./api";
-import type {VistaDoPix} from "./api";
+import type {Nivel, VistaDoPix} from "./api";
 import {useConta} from "./conta";
 
 const dataCurta = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", {day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo"});
@@ -51,8 +51,10 @@ const relogioDoPrazo = (ms: number) => {
 // O Pix dentro do app: o código copia e cola (o caminho principal no celular), o QR
 // code, o prazo correndo e a conferência automática até o pagamento cair. Abre já
 // gerando (ou retomando o código da conta que ainda vale).
-export const JanelaPix: React.FC<{onFechar: () => void}> = ({onFechar}) => {
-  const {atualizarConta} = useConta();
+// nivel: o plano do Pix (o valor é o do servidor). Sem ele, o plano atual da conta.
+export const JanelaPix: React.FC<{nivel?: Nivel; onFechar: () => void}> = ({nivel: pedido, onFechar}) => {
+  const {conta, atualizarConta} = useConta();
+  const nivel = pedido ?? conta?.assinatura?.nivel ?? "basico";
   const [pix, setPix] = useState<VistaDoPix>();
   const [gerando, setGerando] = useState(true);
   const [erro, setErro] = useState<string>();
@@ -66,7 +68,7 @@ export const JanelaPix: React.FC<{onFechar: () => void}> = ({onFechar}) => {
     setGerando(true);
     setErro(undefined);
     try {
-      const resposta = await api.gerarPix(comCpf);
+      const resposta = await api.gerarPix(nivel, comCpf);
       setPix(resposta.pix);
       setPedeCpf(false);
     } catch (falha) {
@@ -76,7 +78,7 @@ export const JanelaPix: React.FC<{onFechar: () => void}> = ({onFechar}) => {
     } finally {
       setGerando(false);
     }
-  }, []);
+  }, [nivel]);
   useEffect(() => {
     void gerar();
   }, [gerar]);
