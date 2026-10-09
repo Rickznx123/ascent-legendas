@@ -28,6 +28,10 @@ export type EstadoDaPrevia =
   | {estado: "falhou"; mensagem: string; capa?: string}
   | {estado: "pronta"; video: string; capa?: string};
 
+// Prazo do ffmpeg: travado, ele é encerrado (e não prende a fila para sempre).
+const PRAZO_DA_CAPA_MS = 60_000;
+const PRAZO_DA_PREVIA_MS = 15 * 60_000;
+
 // Lado menor da prévia leve, em px.
 const LADO_MENOR = 540;
 // Os endereços são assinados no começo da hora e valem 3 h: o mesmo endereço durante
@@ -42,7 +46,7 @@ const ESCALA =
 // lado menor em 540 px. Também usada para os vídeos que só existem no disco.
 export const tirarCapa = async (entrada: string, saida: string) => {
   for (const segundo of ["0.5", "0"]) {
-    await execFileAsync(ffmpegPath(), ["-hide_banner", "-loglevel", "error", "-y", "-ss", segundo, "-i", entrada, "-frames:v", "1", "-vf", ESCALA, "-q:v", "4", saida]).catch(
+    await execFileAsync(ffmpegPath(), ["-hide_banner", "-loglevel", "error", "-y", "-ss", segundo, "-i", entrada, "-frames:v", "1", "-vf", ESCALA, "-q:v", "4", saida], {timeout: PRAZO_DA_CAPA_MS}).catch(
       () => undefined,
     );
     if (existsSync(saida)) return;
@@ -141,7 +145,7 @@ export const previasLeves = (armazenamento: ArmazenamentoS3) => {
           "+faststart",
           arquivoDaPrevia,
         ],
-        {maxBuffer: 16 * 1024 * 1024},
+        {maxBuffer: 16 * 1024 * 1024, timeout: PRAZO_DA_PREVIA_MS},
       );
       const {size} = await stat(arquivoDaPrevia);
       await enviar(arquivoDaPrevia, video, "video/mp4");

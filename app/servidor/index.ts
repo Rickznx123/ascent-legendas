@@ -9,6 +9,12 @@ import {iniciarServidor} from "./servidor";
 // npm run app:publico — servidor na internet (Render): SERVIDOR_PUBLICO=1, tela
 // montada, porta do PORT (veja configuracao.ts).
 carregarEnv(process.cwd());
+
+// Um erro esquecido em um envio não derruba o servidor de todos: fica no log e o
+// processo segue (sem isto, o Node encerra e o Render responde 502 até subir de novo).
+const motivo = (erro: unknown) => (erro instanceof Error ? (erro.stack ?? erro.message) : String(erro));
+process.on("unhandledRejection", (erro) => console.error(`Erro não tratado (promessa): ${motivo(erro)}`));
+process.on("uncaughtException", (erro) => console.error(`Erro não tratado: ${motivo(erro)}`));
 const {publico, porta, enderecoDoApp} = configuracaoDoAmbiente();
 const modo = publico || process.argv.includes("--producao") ? "producao" : "dev";
 const rede = process.argv.includes("--rede");

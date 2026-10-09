@@ -1190,6 +1190,17 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     });
   }
 
+  // Último recurso: erro que escapou de uma rota vira resposta 500 e uma linha no log
+  // (sem o corpo do pedido), em vez de derrubar o pedido sem resposta.
+  app.use((erro: unknown, request: Request, response: Response, next: NextFunction) => {
+    console.error(`Erro em ${request.method} ${request.path}: ${erro instanceof Error ? erro.message : String(erro)}`);
+    if (response.headersSent) {
+      next(erro);
+      return;
+    }
+    response.status(500).json({mensagem: "Algo deu errado no servidor. Tente de novo."});
+  });
+
   return new Promise((resolve) => {
     const server = app.listen(porta, rede || publico ? "0.0.0.0" : "127.0.0.1", () => resolve(server));
   });
