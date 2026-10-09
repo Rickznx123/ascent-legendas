@@ -1,3 +1,4 @@
+import {useEffect, useRef, useState} from "react";
 import {keywordBackground} from "../../src/KineticCaptionVideo";
 import type {ArquivoSom, ConfigEfeitos, FrequenciaSom} from "../../src/sons";
 import type {Palette} from "../../src/types";
@@ -55,6 +56,9 @@ type Props = {
   onEfeitos: (mudanca: Partial<ConfigEfeitos>) => void;
   onOuvir: (arquivo: string) => void;
 };
+
+// Quanto tempo "Sons aplicados" fica na tela.
+const CONFIRMACAO_MS = 2000;
 
 const segundos = (ms: number) => `${(ms / 1000).toFixed(2).replace(".", ",")} s`;
 
@@ -185,12 +189,26 @@ export function Cores({
 
 export function Sons({
   sons,
-  efeitos,
+  efeitos: aplicados,
   ocupado,
   temProjeto,
   onEfeitos,
   onOuvir,
 }: Pick<Props, "sons" | "efeitos" | "ocupado" | "temProjeto" | "onEfeitos" | "onOuvir">) {
+  // A escolha fica aqui até "Aplicar"; trocar de aba descarta.
+  const [pendentes, setPendentes] = useState<Partial<ConfigEfeitos>>({});
+  const efeitos = {...aplicados, ...pendentes};
+  const mudar = (mudanca: Partial<ConfigEfeitos>) => setPendentes((atuais) => ({...atuais, ...mudanca}));
+  const [aplicado, setAplicado] = useState(false);
+  const timerDoAplicado = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timerDoAplicado.current), []);
+  const aplicar = () => {
+    onEfeitos(pendentes);
+    setPendentes({});
+    setAplicado(true);
+    window.clearTimeout(timerDoAplicado.current);
+    timerDoAplicado.current = window.setTimeout(() => setAplicado(false), CONFIRMACAO_MS);
+  };
   return (
     <>
       {(["destaque", "linear"] as const).map((familia) => {
@@ -203,7 +221,7 @@ export function Sons({
               className="sel"
               value={efeitos[familia]}
               disabled={ocupado || !tem || !temProjeto}
-              onChange={(event) => onEfeitos({[familia]: event.target.value as FrequenciaSom})}
+              onChange={(event) => mudar({[familia]: event.target.value as FrequenciaSom})}
             >
               {FREQUENCIAS.map(({valor, rotulo}) => (
                 <option key={valor} value={valor}>
@@ -225,8 +243,21 @@ export function Sons({
           step={5}
           value={efeitos.volume}
           disabled={ocupado || sons.length === 0 || !temProjeto}
-          onChange={(event) => onEfeitos({volume: Number(event.target.value)})}
+          onChange={(event) => mudar({volume: Number(event.target.value)})}
         />
+      </div>
+      <div className="acoes">
+        <button
+          type="button"
+          className="bt primario"
+          disabled={ocupado || !temProjeto || Object.keys(pendentes).length === 0}
+          onClick={aplicar}
+        >
+          Aplicar
+        </button>
+        <span className="suave" role="status">
+          {aplicado ? "Sons aplicados" : null}
+        </span>
       </div>
       {sons.length === 0 ? (
         <p className="ajuda">

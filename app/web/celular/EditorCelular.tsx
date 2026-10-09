@@ -237,9 +237,7 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
           ) : null}
           {aba === "templates" ? <GaleriaCelular e={e} /> : null}
           {aba === "cores" ? <CoresCelular e={e} /> : null}
-          {aba === "sons" ? (
-            <SonsCelular e={e} onAviso={(texto) => setAvisoDesfazer({id: Date.now(), texto})} />
-          ) : null}
+          {aba === "sons" ? <SonsCelular e={e} /> : null}
           {aba === "ajustes" ? (
             <>
               <button type="button" className="bt primario cel-cheio" disabled={e.ocupado || !video} onClick={() => void e.transcrever()}>

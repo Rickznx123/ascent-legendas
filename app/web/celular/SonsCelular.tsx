@@ -1,10 +1,12 @@
 // Aba Sons no celular, no desenho da aba Templates: chips Destaque / Linear (as
 // pastas sons/destaque e sons/linear), cartões embaixo. Tocar num cartão toca uma
-// amostra e, com um bloco daquela família selecionado, aplica a ele; segurar aplica
-// a todos os blocos da família. Embaixo, quantos blocos tocam som e o volume.
-import {useState} from "react";
+// amostra e marca o som para o bloco selecionado daquela família (sem bloco dela,
+// para todos os da família); segurar marca para todos. Embaixo, quantos blocos tocam
+// som e o volume. Nada muda no vídeo até "Aplicar"; sair da aba descarta o marcado.
+import {useEffect, useRef, useState} from "react";
 import {SEM_SOM, blocoPodeTerSom} from "../../../src/sons";
-import type {FrequenciaSom} from "../../../src/sons";
+import type {ConfigEfeitos, FrequenciaSom} from "../../../src/sons";
+import type {Projeto} from "../../../src/motor/projeto";
 import type {TemplateFamily} from "../../../src/types";
 import type {Editor} from "../useEditor";
 import {CartaoSeguravel} from "./CartaoSeguravel";
@@ -24,15 +26,29 @@ const FREQUENCIAS: {valor: FrequenciaSom; nome: string}[] = [
 // Opção de som de um bloco: undefined é o automático.
 type Opcao = {valor: string | undefined; nome: string; arquivo?: string; duracaoMs?: number};
 
+// Som marcado e ainda não aplicado: para um bloco ou (sem bloco) todos os da família.
+type SomPendente = {opcao: Opcao; familia: TemplateFamily; bloco?: number};
+
+// Quanto tempo "Sons aplicados" fica na tela.
+const CONFIRMACAO_MS = 2000;
+
 const segundos = (ms: number) => `${(ms / 1000).toFixed(1).replace(".", ",")} s`;
 const semPasta = (arquivo: string) => (arquivo.split("/").pop() ?? arquivo).replace(/\.[^.]+$/u, "");
 
-export const SonsCelular: React.FC<{e: Editor; onAviso: (texto: string) => void}> = ({e, onAviso}) => {
-  const {blocos, estilo, blocoAcoes, configEfeitos} = e;
+export const SonsCelular: React.FC<{e: Editor}> = ({e}) => {
+  const {blocos, estilo} = e;
   const indice = e.blocoSelecionado;
   const bloco = blocos[indice];
   const [familia, setFamilia] = useState<TemplateFamily>(bloco?.family ?? "destaque");
   const desativado = e.ocupado || !e.projetoDoVideo;
+  // O marcado fica aqui até "Aplicar"; a aba fechada leva junto.
+  const [somPendente, setSomPendente] = useState<SomPendente>();
+  const [efeitosPendentes, setEfeitosPendentes] = useState<Partial<ConfigEfeitos>>({});
+  const configEfeitos = {...e.configEfeitos, ...efeitosPendentes};
+  const pendente = somPendente !== undefined || Object.keys(efeitosPendentes).length > 0;
+  const [aplicado, setAplicado] = useState(false);
+  const timerDoAplicado = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timerDoAplicado.current), []);
 
   const arquivos = e.sons.filter((som) => som.categoria === familia);
   const opcoes: Opcao[] = [
@@ -52,17 +68,34 @@ export const SonsCelular: React.FC<{e: Editor; onAviso: (texto: string) => void}
       e.ouvirSom(arquivo);
     }
   };
-  const aplicarEmTodos = (opcao: Opcao) => {
-    let quantos = 0;
-    const novos = blocos.map((b) => {
-      if (b.family !== familia || !blocoPodeTerSom(b, estilo?.templates[b.template])) {
-        return b;
-      }
-      quantos += 1;
-      return {...b, som: opcao.valor};
-    });
-    e.editarProjeto({blocks: novos});
-    onAviso(`${opcao.nome} em ${quantos} blocos de ${familia}`);
+  const marcar = (opcao: Opcao, todos: boolean) =>
+    setSomPendente({opcao, familia, bloco: todos || !blocoRecebe ? undefined : indice});
+
+  // Uma mudança só no projeto: a prévia, o salvamento e a exportação usam a mesma.
+  const aplicar = () => {
+    const mudanca: Partial<Projeto> = {};
+    if (Object.keys(efeitosPendentes).length > 0) {
+      mudanca.efeitos = configEfeitos;
+    }
+    if (somPendente) {
+      const {opcao, familia: daFamilia, bloco: soUm} = somPendente;
+      mudanca.blocks = blocos.map((b, i) =>
+        (soUm === undefined ? b.family === daFamilia && blocoPodeTerSom(b, estilo?.templates[b.template]) : i === soUm)
+          ? {...b, som: opcao.valor}
+          : b,
+      );
+    }
+    // Como antes: o som dos blocos entra no desfazer; frequência e volume, não.
+    if (mudanca.blocks) {
+      e.editarProjeto(mudanca);
+    } else {
+      e.mudarEfeitos(efeitosPendentes);
+    }
+    setSomPendente(undefined);
+    setEfeitosPendentes({});
+    setAplicado(true);
+    window.clearTimeout(timerDoAplicado.current);
+    timerDoAplicado.current = window.setTimeout(() => setAplicado(false), CONFIRMACAO_MS);
   };
 
   return (
@@ -77,14 +110,10 @@ export const SonsCelular: React.FC<{e: Editor; onAviso: (texto: string) => void}
       <p className="cel-contexto">
         {blocoRecebe ? (
           <>
-            <b>Bloco #{indice + 1}</b> · toque ouve e aplica ao bloco · segure para todos os de {familia}
-          </>
-        ) : bloco && bloco.family !== familia ? (
-          <>
-            Bloco #{indice + 1} é {bloco.family}: toque só ouve · segure para todos os de {familia}
+            <b>Bloco #{indice + 1}</b> · toque ouve e marca para o bloco · segure para todos os de {familia}
           </>
         ) : (
-          <>Toque para ouvir · segure para usar em todos os blocos de {familia}</>
+          <>Toque ouve e marca para todos os blocos de {familia}</>
         )}
       </p>
       {arquivos.length === 0 ? (
@@ -93,19 +122,18 @@ export const SonsCelular: React.FC<{e: Editor; onAviso: (texto: string) => void}
       <div className="cel-cartoes" role="group" aria-label={`Sons de ${familia}`}>
         {opcoes.map((opcao) => {
           const doBloco = blocoRecebe ? blocoRecebe.som === opcao.valor : false;
+          const marcado = somPendente?.familia === familia ? somPendente.opcao.valor === opcao.valor : doBloco;
           return (
             <CartaoSeguravel
               key={opcao.valor ?? "automatico"}
               rotulo={`${opcao.nome}${doBloco ? " (som do bloco)" : ""}`}
-              marcado={doBloco}
+              marcado={marcado}
               desativado={desativado}
               onToque={() => {
                 ouvir(opcao);
-                if (blocoRecebe) {
-                  blocoAcoes.som(indice, opcao.valor);
-                }
+                marcar(opcao, false);
               }}
-              onSegurar={() => aplicarEmTodos(opcao)}
+              onSegurar={() => marcar(opcao, true)}
             >
               <span className="cel-opcao-amostra cel-opcao-icone" aria-hidden="true">
                 {opcao.valor === SEM_SOM ? "∅" : opcao.valor === undefined ? "♺" : "♪"}
@@ -125,7 +153,7 @@ export const SonsCelular: React.FC<{e: Editor; onAviso: (texto: string) => void}
             type="button"
             disabled={desativado || arquivos.length === 0}
             aria-pressed={configEfeitos[familia] === valor}
-            onClick={() => e.mudarEfeitos({[familia]: valor})}
+            onClick={() => setEfeitosPendentes((atuais) => ({...atuais, [familia]: valor}))}
           >
             {nome}
           </button>
@@ -141,9 +169,15 @@ export const SonsCelular: React.FC<{e: Editor; onAviso: (texto: string) => void}
           step={5}
           value={configEfeitos.volume}
           disabled={desativado || e.sons.length === 0}
-          onChange={(event) => e.mudarEfeitos({volume: Number(event.target.value)})}
+          onChange={(event) => setEfeitosPendentes((atuais) => ({...atuais, volume: Number(event.target.value)}))}
         />
       </div>
+      <button type="button" className="bt primario cel-cheio" disabled={desativado || !pendente} onClick={aplicar}>
+        Aplicar
+      </button>
+      <p className="cel-contexto" role="status">
+        {aplicado ? "Sons aplicados" : null}
+      </p>
     </div>
   );
 };
