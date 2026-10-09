@@ -40,6 +40,7 @@ import type {ResumoDaAssinatura} from "./assinaturas";
 import {DIAS_DO_PIX, ErroDoPix, bancoDoPixNoSupabase, cpfValido, motivoParaNaoPagarPix, processadorDePix, vistaDoPix} from "./pix";
 import {LIMITES} from "./cota";
 import {LIMITES_DE_USO, filaComVagas, limiteDePedidos, textoDaFila} from "./limites";
+import {idDoEnvio, registrarEnvio, segundos, semEnderecos} from "./registro";
 
 // Números dos planos para a página de apresentação (quem chega sem login), lidos da
 // configuração: o preço do Mercado Pago (ASSINATURA_VALOR_BRL; sem o Mercado Pago,
@@ -905,7 +906,11 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
         video,
         async (progress) => {
           // Fila geral: com todas as vagas ocupadas, espera a vez ("Na fila, você é o próximo").
+          const pedido = Date.now();
           const liberar = await filaDeTranscricoes.entrar((posicao) => progress(textoDaFila(posicao)));
+          const esperaNaFila = segundos(pedido);
+          const inicio = Date.now();
+          let resultado = "falhou";
           try {
           const anterior = await espaco.lerProjeto(video);
           const ajustes = manterAjustes && anterior?.source === video ? anterior : undefined;
@@ -947,10 +952,18 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
           await espaco.cota?.registrarTranscricao(video, motor, voz.duracaoMs / 1000).catch((erro: unknown) => {
             console.log(`[${video}] Transcrição: não deu para registrar no limite do dia: ${erro instanceof Error ? erro.message : String(erro)}`);
           });
+          resultado = motor;
           // A tela mostra qual reserva foi usada, se não foi o WhisperX.
           return {projeto, avisos};
+          } catch (erro) {
+            resultado = `falhou (${semEnderecos(erro instanceof Error ? erro.message : String(erro)).split("\n")[0].slice(0, 200)})`;
+            throw erro;
           } finally {
             liberar();
+            registrarEnvio(
+              idDoEnvio(contaDe(espaco), video),
+              `transcrição: fila ${esperaNaFila}, ${resultado} em ${segundos(inicio)} | fila de transcrições ${filaDeTranscricoes.ocupadas()} rodando, ${filaDeTranscricoes.esperando()} esperando`,
+            );
           }
         },
         () => undefined,

@@ -31,6 +31,7 @@ import {LIMITES, duracaoEmTexto} from "./cota";
 import type {Espaco} from "./espaco";
 import type {PreviasLeves} from "./previa-leve";
 import type {VideosDasContas} from "./videos";
+import {idDoEnvio, registrarEnvio, segundos} from "./registro";
 import {tituloDoVideo} from "./titulo";
 import type {ArmazenamentoS3} from "./s3";
 
@@ -203,6 +204,7 @@ export const rotasDeEnvio = ({
       if (!envio || !partes?.length) {
         throw new ErroDoEnvio("Envio sem partes.");
       }
+      const inicio = Date.now();
       await s3.send(
         new CompleteMultipartUploadCommand({
           Bucket,
@@ -220,6 +222,8 @@ export const rotasDeEnvio = ({
         await apagar();
         throw new ErroDoEnvio(`O vídeo enviado tem ${megabytes(ContentLength)}; o limite ${textoDoPlano(limite.plano)} é ${megabytes(limite.bytes)}.`, 413);
       }
+      const juntar = segundos(inicio);
+      const inicioDaConferencia = Date.now();
       let duracaoS: number;
       try {
         const metadados = await getVideoMetadata(await armazenamento.enderecoDeLeitura(chave, 600));
@@ -233,7 +237,10 @@ export const rotasDeEnvio = ({
         throw new ErroDoEnvio(`Este vídeo tem ${duracaoEmTexto(duracaoS)}; o limite ${textoDoPlano(limite.plano)} é ${duracaoEmTexto(limite.segundos)} por vídeo.`, 413);
       }
 
-      console.log(`Envio: ${nome} chegou (${megabytes(ContentLength)}, ${duracaoEmTexto(duracaoS)}).`);
+      registrarEnvio(
+        idDoEnvio(espaco.usuario.id, nome),
+        `chegou: ${megabytes(ContentLength)}, ${duracaoEmTexto(duracaoS)}; juntar as partes ${juntar}, conferir com o ffprobe ${segundos(inicioDaConferencia)}`,
+      );
       // Capa e prévia leve, sem esperar (a tela pergunta o estado em /api/previa).
       previas.gerar(espaco.usuario.id, nome);
       return {nome, duracaoS, bytes: ContentLength};

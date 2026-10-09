@@ -20,6 +20,7 @@ import {getSignedUrl} from "@aws-sdk/s3-request-presigner";
 import {execFileAsync, ffmpegPath} from "../../src/motor/ferramentas";
 import {PASTAS_NO_BUCKET} from "./configuracao";
 import {LIMITES_DE_USO, filaComVagas} from "./limites";
+import {idDoEnvio, registrarEnvio, segundos, semEnderecos} from "./registro";
 import type {ArmazenamentoS3} from "./s3";
 
 export type EstadoDaPrevia =
@@ -57,7 +58,6 @@ export const tirarCapa = async (entrada: string, saida: string) => {
   throw new Error("o ffmpeg não tirou a capa");
 };
 
-const horario = () => new Date().toLocaleTimeString("pt-BR", {hour12: false});
 
 export const previasLeves = (armazenamento: ArmazenamentoS3) => {
   const {s3, bucket: Bucket} = armazenamento;
@@ -95,7 +95,7 @@ export const previasLeves = (armazenamento: ArmazenamentoS3) => {
     await s3.send(new PutObjectCommand({Bucket, Key, Body: createReadStream(arquivo), ContentLength: size, ContentType}));
   };
 
-  const converter = async (usuarioId: string, nome: string, origemLocal?: string) => {
+  const converter = async (usuarioId: string, nome: string, origemLocal: string | undefined, esperaNaFila: string) => {
     const {original, video, capa} = chaves(usuarioId, nome);
     // A cópia no disco (até o Bloco 6) é lida mais rápido; sem ela, o S3.
     const entrada = origemLocal && existsSync(origemLocal) ? origemLocal : await armazenamento.enderecoDeLeitura(original, 3600);
@@ -160,8 +160,9 @@ export const previasLeves = (armazenamento: ArmazenamentoS3) => {
       await conversao;
       const {size} = await stat(arquivoDaPrevia);
       await enviar(arquivoDaPrevia, video, "video/mp4");
-      console.log(
-        `[previa ${horario()}] ${nome}: capa em ${msCapa} ms, prévia leve em ${Date.now() - inicio} ms (${(size / 1024 / 1024).toFixed(1)} MB)`,
+      registrarEnvio(
+        idDoEnvio(usuarioId, nome),
+        `prévia: fila ${esperaNaFila}, capa ${(msCapa / 1000).toFixed(1)} s, prévia leve ${segundos(inicio)} (${(size / 1024 / 1024).toFixed(1)} MB) | fila de prévias ${fila.ocupadas()} rodando, ${fila.esperando()} esperando`,
       );
     } finally {
       await rm(pasta, {recursive: true, force: true});
@@ -176,15 +177,16 @@ export const previasLeves = (armazenamento: ArmazenamentoS3) => {
     }
     emAndamento.add(id);
     falhas.delete(id);
+    const entrou = Date.now();
     void fila
       .entrar((posicao) => posicoes.set(id, posicao))
       .then((liberar) => {
         posicoes.delete(id);
-        return converter(usuarioId, nome, origemLocal).finally(liberar);
+        return converter(usuarioId, nome, origemLocal, segundos(entrou)).finally(liberar);
       })
       .catch((erro: unknown) => {
         const mensagem = erro instanceof Error ? erro.message : String(erro);
-        console.log(`[previa ${horario()}] ${nome}: falhou: ${mensagem}`);
+        registrarEnvio(idDoEnvio(usuarioId, nome), `prévia falhou: ${semEnderecos(mensagem).split("\n")[0].slice(0, 200)}`);
         falhas.set(id, "Não deu para preparar a prévia deste vídeo.");
       })
       .finally(() => {
