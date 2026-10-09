@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import {createHmac} from "node:crypto";
 import {describe, it} from "node:test";
-import {TOLERANCIA_MS, assinaturaVigente, planoEfetivo, processadorDeEventos, resumoDaAssinatura} from "./assinaturas";
+import {TOLERANCIA_MS, assinaturaVigente, decidirPedidoDePlano, planoEfetivo, processadorDeEventos, resumoDaAssinatura} from "./assinaturas";
 import type {Assinatura, BancoDeAssinaturas, Evento, PagamentoDaAssinatura, PerfilDaAssinatura} from "./assinaturas";
 import {usoDoPlano} from "./cota";
 import {VALIDADE_DO_WEBHOOK_MS, validarWebhook} from "./mercadopago";
@@ -664,5 +664,80 @@ describe("estorno depois de cancelar (regra: pagamento vigente devolvido, gráti
     t.avancar(31 / (24 * 60));
     await t.processador.verificarAssinaturas();
     assert.equal(planoEfetivo(t.perfil(), t.agora()), "gratis");
+  });
+});
+
+describe("voltar a assinar depois de cancelar", () => {
+  // Pro pago em 07/10 (ciclo até 07/11) e cancelado em 17/10.
+  const proCancelado = async () => {
+    const t = montar({}, {valor: 49.9, nivel: "pro"});
+    t.mp.cobrancas.set("c1", {...cobranca("c1", "approved", "p1"), transaction_amount: 49.9});
+    await t.webhook("subscription_authorized_payment", "c1");
+    t.avancar(10);
+    t.mp.pre = {...t.mp.pre, status: "cancelled"};
+    await t.webhook("subscription_preapproval", PRE);
+    return t;
+  };
+
+  it("a tela mostra cancelada, valendo até o fim do período pago", async () => {
+    const t = await proCancelado();
+    assert.equal(t.resumo().situacao, "cancelada");
+    assert.equal(t.resumo().ate, "2026-11-07T12:00:00.000Z");
+    assert.equal(t.resumo().nivel, "pro");
+  });
+
+  it("ainda valendo: plano maior liberado (regra de subir); igual ou menor recusado até o fim do período", async () => {
+    const t = await proCancelado();
+    assert.deepEqual(decidirPedidoDePlano(t.resumo(), "editor"), {acao: "checkout", subir: true});
+    for (const nivel of ["pro", "basico"] as const) {
+      const pedido = decidirPedidoDePlano(t.resumo(), nivel);
+      assert.equal(pedido.acao, "recusar");
+      assert.equal(pedido.acao === "recusar" && pedido.motivo, "Você pode assinar de novo a partir de 07/11.");
+    }
+  });
+
+  it("depois do fim do período: volta a grátis e assina qualquer plano normalmente", async () => {
+    const t = await proCancelado();
+    t.avancar(22); // 08/11
+    assert.equal(planoEfetivo(t.perfil(), t.agora()), "gratis");
+    assert.equal(t.resumo().situacao, "nenhuma");
+    for (const nivel of ["basico", "pro", "editor"] as const) {
+      assert.deepEqual(decidirPedidoDePlano(t.resumo(), nivel), {acao: "checkout", subir: false});
+    }
+  });
+
+  it("assinar de novo depois do período: o pagamento novo vale, com o nível dele", async () => {
+    const t = await proCancelado();
+    t.avancar(22);
+    t.assinaturas.set("a2", {...t.assinatura(), id: "a2", mp_preapproval_id: "pre-2", status: "pendente", valor: 30, nivel: "basico", pago_ate: null, cancelada_em: null, criado_em: t.agora().toISOString()});
+    t.mp.porId.set("pre-2", {id: "pre-2", status: "authorized", external_reference: CONTA, next_payment_date: "2026-12-08T12:00:00Z"} as Preapproval);
+    t.mp.cobrancas.set("c2", {...cobranca("c2", "approved", "p2", "2026-11-08T12:00:00Z"), preapproval_id: "pre-2", transaction_amount: 30});
+    await t.webhook("subscription_authorized_payment", "c2");
+    assert.equal(planoEfetivo(t.perfil(), t.agora()), "assinante");
+    assert.equal(t.perfil().nivel, "basico");
+    assert.equal(t.resumo().situacao, "ativa");
+  });
+
+  it("cancelar limpa a descida de plano agendada", async () => {
+    const t = montar({}, {valor: 79.9, nivel: "editor"});
+    t.mp.cobrancas.set("c1", {...cobranca("c1", "approved", "p1"), transaction_amount: 79.9});
+    await t.webhook("subscription_authorized_payment", "c1");
+    await t.banco.salvarPerfil(CONTA, {nivel_na_renovacao: "basico"});
+    t.mp.pre = {...t.mp.pre, status: "cancelled"};
+    await t.webhook("subscription_preapproval", PRE);
+    assert.equal(t.perfil().nivel_na_renovacao, null);
+    assert.equal(t.resumo().nivelNaRenovacao, undefined);
+    assert.equal(t.perfil().nivel, "editor");
+  });
+
+  it("ativa: subir abre o checkout, descer agenda, o mesmo plano recusa (ou desfaz a descida)", async () => {
+    const t = montar({}, {valor: 49.9, nivel: "pro"});
+    t.mp.cobrancas.set("c1", {...cobranca("c1", "approved", "p1"), transaction_amount: 49.9});
+    await t.webhook("subscription_authorized_payment", "c1");
+    assert.deepEqual(decidirPedidoDePlano(t.resumo(), "editor"), {acao: "checkout", subir: true});
+    assert.deepEqual(decidirPedidoDePlano(t.resumo(), "basico"), {acao: "descer"});
+    assert.equal(decidirPedidoDePlano(t.resumo(), "pro").acao, "recusar");
+    await t.banco.salvarPerfil(CONTA, {nivel_na_renovacao: "basico"});
+    assert.deepEqual(decidirPedidoDePlano(t.resumo(), "pro"), {acao: "desfazer"});
   });
 });

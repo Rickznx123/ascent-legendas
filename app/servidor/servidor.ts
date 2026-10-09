@@ -35,11 +35,11 @@ import {rotasDeEnvio} from "./envio";
 import {previasLeves, tirarCapa} from "./previa-leve";
 import {videosDasContas} from "./videos";
 import {apiDoMercadoPago, mercadoPagoDoAmbiente, validarWebhook} from "./mercadopago";
-import {assinaturaVigente, bancoNoSupabase, processadorDeEventos, regraDaAssinatura, resumoDaAssinatura} from "./assinaturas";
+import {assinaturaVigente, bancoNoSupabase, decidirPedidoDePlano, processadorDeEventos, regraDaAssinatura, resumoDaAssinatura} from "./assinaturas";
 import type {ResumoDaAssinatura} from "./assinaturas";
 import {DIAS_DO_PIX, ErroDoPix, bancoDoPixNoSupabase, cpfValido, motivoParaNaoPagarPix, processadorDePix, vistaDoPix} from "./pix";
 import {LIMITES} from "./cota";
-import {compararNiveis, nivelValido, planoPago, planosPagos} from "./planos";
+import {nivelValido, planoPago, planosPagos} from "./planos";
 import type {Nivel} from "./planos";
 import type {PlanoPago} from "./planos";
 import {LIMITES_DE_USO, filaComVagas, limiteDePedidos, textoDaFila} from "./limites";
@@ -59,9 +59,6 @@ export type PlanosDaApresentacao = {
 
 // Erro com mensagem já pronta para a tela.
 class ErroParaATela extends Error {}
-// "07/11" no horário de Brasília.
-const dataCurtaBr = (iso: string | undefined) =>
-  iso ? new Date(iso).toLocaleDateString("pt-BR", {day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo"}) : "o fim do período";
 import {rendersNoLambda} from "./renders";
 import type {ExportacaoMontada} from "./renders";
 import type {AwsRegion} from "@remotion/lambda/client";
@@ -536,27 +533,21 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       const nivel = nivelDoPedido(request);
       const plano = planoPago(nivel);
       const resumo = await resumoDaConta(espaco, response.locals.token as string);
-      if (resumo.situacao === "cortesia") throw new Error("A sua conta já é assinante (cortesia), sem cobrança.");
-      if (resumo.situacao === "pix") {
-        throw new Error(`Você está no Pix até ${dataCurtaBr(resumo.ate)}. Depois dessa data, você pode assinar com cartão.`);
-      }
-      if (resumo.situacao === "falhou") throw new Error("A cobrança da sua assinatura falhou. Atualize a forma de pagamento no Mercado Pago antes de trocar de plano.");
+      // Quem decide é decidirPedidoDePlano (assinaturas.ts, com os testes).
+      const pedido = decidirPedidoDePlano(resumo, nivel);
+      if (pedido.acao === "recusar") throw new Error(pedido.motivo);
       const lista = await bancoDasAssinaturas.assinaturasDaConta(espaco.usuario.id);
       const vigente = assinaturaVigente(lista);
-      const nivelAtual = resumo.nivel ?? "basico";
-      const troca = resumo.situacao === "nenhuma" ? 0 : compararNiveis(nivel, nivelAtual);
-      if (resumo.situacao === "cancelada" && troca <= 0) {
-        throw new Error(`Sua assinatura vale até ${dataCurtaBr(resumo.ate)}. Depois dessa data, você pode assinar de novo.`);
-      }
       // Descer, ou desfazer uma descida agendada: o valor das próximas cobranças muda.
-      if (resumo.situacao === "ativa" && vigente && (troca < 0 || (troca === 0 && resumo.nivelNaRenovacao))) {
+      if (pedido.acao === "descer" || pedido.acao === "desfazer") {
+        if (!vigente) throw new Error("Não há assinatura ativa para trocar.");
         await noMercadoPago(`trocar o valor de ${vigente.mp_preapproval_id}`, () => apiMp.alterarValorDaAssinatura(vigente.mp_preapproval_id, plano.valor));
         await bancoDasAssinaturas.salvarAssinatura(vigente.id, {valor: plano.valor, nivel});
-        await bancoDasAssinaturas.salvarPerfil(espaco.usuario.id, {nivel_na_renovacao: troca < 0 ? nivel : null});
-        console.log(`Assinatura: ${espaco.usuario.id} ${troca < 0 ? `desce para ${nivel} na renovação` : "desfez a descida"} (${vigente.mp_preapproval_id}).`);
+        await bancoDasAssinaturas.salvarPerfil(espaco.usuario.id, {nivel_na_renovacao: pedido.acao === "descer" ? nivel : null});
+        console.log(`Assinatura: ${espaco.usuario.id} ${pedido.acao === "descer" ? `desce para ${nivel} na renovação` : "desfez a descida"} (${vigente.mp_preapproval_id}).`);
         return {trocado: true, assinatura: await resumoDaConta(espaco, response.locals.token as string)};
       }
-      if (resumo.situacao === "ativa" && troca === 0) throw new Error(`Você já está no plano ${plano.nome}.`);
+      const troca = pedido.acao === "checkout" && pedido.subir ? 1 : 0;
       const atual = lista[0];
       // Assinar de novo depois de um pagamento recusado: a assinatura recusada é
       // cancelada no Mercado Pago (para ele não tentar cobrar de novo e a pessoa

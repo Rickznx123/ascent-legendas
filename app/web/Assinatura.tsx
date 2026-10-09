@@ -40,7 +40,7 @@ export const avisoDaAssinatura = (resumo: ResumoDaAssinatura | undefined): strin
   if (resumo.situacao === "falhou") {
     return `Não conseguimos cobrar a assinatura. Atualize a forma de pagamento no Mercado Pago${resumo.ate ? ` até ${dataCurta(resumo.ate)}` : ""} para não voltar ao plano grátis.`;
   }
-  if (resumo.situacao === "cancelada") return `Assinatura cancelada: você continua assinante${resumo.ate ? ` até ${dataCurta(resumo.ate)}` : ""}.`;
+  if (resumo.situacao === "cancelada") return `Assinatura cancelada, vale até ${resumo.ate ? dataCurta(resumo.ate) : "o fim do período"}.`;
   if (resumo.situacao === "ativa" && resumo.renovaEm) return `Assinatura ativa · renova em ${dataCurta(resumo.renovaEm)}.`;
   if (resumo.situacao === "cortesia") return "Assinante (cortesia, sem cobrança).";
   if (resumo.situacao === "pix" && resumo.ate) return `Pix · ativo até ${dataCurta(resumo.ate)}`;
@@ -112,6 +112,10 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
   const podePix = situacao === "nenhuma" || (situacao === "pix" && troca >= 0);
   const sobe = troca > 0 && (situacao === "ativa" || situacao === "cancelada" || situacao === "pix");
   const nomeAtual = planos.find((item) => item.nivel === atual)?.nome;
+  // Cancelada e ainda valendo: igual ou menor só quando o período acabar (o servidor
+  // decide igual, em decidirPedidoDePlano).
+  const ateQuando = resumo?.ate ? dataCurta(resumo.ate) : "o fim do período";
+  const bloqueado = (nivel: Nivel) => situacao === "cancelada" && ordem(nivel) <= ordem(atual);
 
   const assinar = async () => {
     setIndo(true);
@@ -159,7 +163,7 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
               role="radio"
               aria-checked={item.nivel === escolhido}
               className={`plano-opcao${item.nivel === "pro" ? " destaque" : ""}`}
-              disabled={indo}
+              disabled={indo || bloqueado(item.nivel)}
               onClick={() => {
                 setEscolhido(item.nivel);
                 setFeito(undefined);
@@ -170,7 +174,9 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
                 {item.nome}
                 {item.nivel === atual ? <em className="plano-opcao-selo">Seu plano</em> : item.nivel === "pro" ? <em className="plano-opcao-selo">Mais escolhido</em> : null}
               </span>
-              <span className="plano-opcao-minutos">{item.minutos} min por mês</span>
+              <span className="plano-opcao-minutos">
+                {bloqueado(item.nivel) ? `Você pode assinar de novo a partir de ${ateQuando}` : `${item.minutos} min por mês`}
+              </span>
               <b className="plano-opcao-preco">{reais(item.valor)}</b>
             </button>
           ))}
@@ -217,7 +223,7 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
             {situacao === "pix"
               ? `Você está no ${nomeAtual} pelo Pix até ${resumo?.ate ? dataCurta(resumo.ate) : "o fim do período"}. Um plano menor pode ser pago depois dessa data.`
               : situacao === "cancelada"
-                ? `Sua assinatura vale até ${resumo?.ate ? dataCurta(resumo.ate) : "o fim do período"}. Para um plano maior, escolha acima.`
+                ? `Assinatura cancelada, vale até ${ateQuando}. Você pode assinar de novo a partir de ${ateQuando}.`
                 : `Você já está no ${nomeAtual}.`}
           </p>
         ) : null}
@@ -276,13 +282,16 @@ export const JanelaGerenciarAssinatura: React.FC<{onFechar: () => void}> = ({onF
             {resumo.nivelNaRenovacao ? ` Na renovação, passa para o ${nomeDo(resumo.nivelNaRenovacao)}.` : ""}
           </p>
         ) : null}
-        {resumo?.disponivel && (resumo.situacao === "ativa" || resumo.situacao === "cancelada") ? (
+        {resumo?.disponivel && (resumo.situacao === "ativa" || (resumo.situacao === "cancelada" && podeSubirDePlano(resumo))) ? (
           <button type="button" className="bt cheio" onClick={() => setTrocando(true)}>
-            Trocar de plano
+            {resumo.situacao === "cancelada" ? "Assinar um plano maior" : "Trocar de plano"}
           </button>
         ) : null}
         {resumo?.situacao === "cancelada" ? (
-          <p>Assinatura cancelada. Você continua assinante{resumo.ate ? ` até ${dataCurta(resumo.ate)}` : ""}, sem novas cobranças.</p>
+          <p>
+            {avisoDaAssinatura(resumo)} Sem novas cobranças. Você pode assinar de novo a partir de {resumo.ate ? dataCurta(resumo.ate) : "o fim do período"}
+            {podeSubirDePlano(resumo) ? ", ou já agora num plano maior." : "."}
+          </p>
         ) : null}
         {resumo?.situacao === "falhou" ? <p className="login-erro">{avisoDaAssinatura(resumo)}</p> : null}
         {resumo?.situacao === "nenhuma" ? <p>Você está no plano grátis.</p> : null}

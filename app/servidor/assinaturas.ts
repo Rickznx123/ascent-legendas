@@ -36,7 +36,7 @@
 // são de assinatura vão para lá.
 import type {SupabaseClient} from "@supabase/supabase-js";
 import type {ApiDoMercadoPago, Pagamento, PagamentoAutorizado, Preapproval} from "./mercadopago";
-import {nivelPeloValor, planoPago, planosPagos} from "./planos";
+import {compararNiveis, nivelPeloValor, planoPago, planosPagos} from "./planos";
 import type {Nivel, PlanoPago} from "./planos";
 
 export const TOLERANCIA_MS = 5 * 24 * 3600 * 1000;
@@ -150,10 +150,11 @@ export const regraDaAssinatura = (
   if ((status === "cancelada" || status === "pausada") && !assinatura.cancelada_em) {
     campos.cancelada_em = agora.toISOString();
   }
-  // Cancelada ou pausada: o assinante vai até o fim do ciclo pago, sem tolerância.
+  // Cancelada ou pausada: o assinante vai até o fim do ciclo pago, sem tolerância, e
+  // uma descida de plano agendada deixa de valer (não há próxima renovação).
   if ((status === "cancelada" || status === "pausada") && perfil.plano_origem === "assinatura" && perfil.plano === "assinante") {
     const fim = perfil.ciclo_fim ?? agora.toISOString();
-    return {assinatura: campos, perfil: {plano_ate: new Date(fim) < agora ? agora.toISOString() : fim}};
+    return {assinatura: campos, perfil: {plano_ate: new Date(fim) < agora ? agora.toISOString() : fim, nivel_na_renovacao: null}};
   }
   // Reativada: volta a tolerância normal sobre o ciclo pago.
   if (status === "autorizada" && assinatura.status !== "autorizada" && perfil.plano_origem === "assinatura" && perfil.ciclo_fim) {
@@ -275,6 +276,38 @@ export const regraDoPagamento = (
     // Grátis na hora (só quem é assinante pela assinatura).
     perfil: perfil.plano_origem === "assinatura" ? {plano: "gratis", plano_ate: agora.toISOString()} : undefined,
   };
+};
+
+// ---------- assinar ou trocar de plano (o que a tela pede) ----------
+// "07/11" no horário de Brasília.
+const dataCurta = (iso: string | undefined) =>
+  iso ? new Date(iso).toLocaleDateString("pt-BR", {day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo"}) : "o fim do período";
+
+// O que fazer quando a tela pede o plano "nivel" no cartão, pela situação da conta:
+//   checkout  abrir o pagamento (assinar, ou subir: pago cheio, o mês recomeça);
+//   descer    trocar o valor das próximas cobranças (vale na renovação);
+//   desfazer  voltar ao valor de hoje (desfaz uma descida agendada);
+//   recusar   não pode agora (motivo para a tela).
+// Cancelada e ainda valendo: só um plano maior; igual ou menor, só quando o período
+// acabar (aí a conta volta a grátis e assina qualquer plano normalmente).
+export type PedidoDePlano =
+  | {acao: "checkout"; subir: boolean}
+  | {acao: "descer" | "desfazer"}
+  | {acao: "recusar"; motivo: string};
+export const decidirPedidoDePlano = (resumo: ResumoDaAssinatura, nivel: Nivel): PedidoDePlano => {
+  const plano = planoPago(nivel);
+  if (resumo.situacao === "cortesia") return {acao: "recusar", motivo: "A sua conta já é assinante (cortesia), sem cobrança."};
+  if (resumo.situacao === "pix") return {acao: "recusar", motivo: `Você está no Pix até ${dataCurta(resumo.ate)}. Depois dessa data, você pode assinar com cartão.`};
+  if (resumo.situacao === "falhou") {
+    return {acao: "recusar", motivo: "A cobrança da sua assinatura falhou. Atualize a forma de pagamento no Mercado Pago antes de trocar de plano."};
+  }
+  if (resumo.situacao === "nenhuma") return {acao: "checkout", subir: false};
+  const troca = compararNiveis(nivel, resumo.nivel ?? "basico");
+  if (troca > 0) return {acao: "checkout", subir: true};
+  if (resumo.situacao === "cancelada") return {acao: "recusar", motivo: `Você pode assinar de novo a partir de ${dataCurta(resumo.ate)}.`};
+  if (troca < 0) return {acao: "descer"};
+  if (resumo.nivelNaRenovacao) return {acao: "desfazer"};
+  return {acao: "recusar", motivo: `Você já está no plano ${plano.nome}.`};
 };
 
 // ---------- resumo para a tela ----------
