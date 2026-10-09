@@ -9,6 +9,12 @@
 // pagamento aprovado. A consulta acontece também a cada webhook validado (tópico
 // payment) e na verificação periódica (os Pix pendentes dos últimos 2 dias).
 //
+// Planos (migração 009): o Pix é do plano escolhido (Básico, Pro ou Editor), com o
+// valor dele; o nível só vale com o pagamento aprovado, de valor igual ou maior que o
+// do Pix (definido pelo servidor). Um Pix de plano maior com um período valendo
+// começa na hora (o período e os minutos recomeçam); do mesmo plano, soma os dias; de
+// plano menor, só depois que o período atual acabar.
+//
 // Regras (decisões da 2d):
 //   - aprovado: 30 dias de assinante a partir da aprovação; com um período de Pix
 //     ainda valendo, os 30 dias somam ao fim dele (o ciclo de minutos novo começa
@@ -25,6 +31,8 @@ import {ESTORNOS, planoEfetivo} from "./assinaturas";
 import type {PerfilDaAssinatura, ResumoDaAssinatura} from "./assinaturas";
 import {semCpf} from "./mercadopago";
 import type {ApiDoMercadoPago, Pagamento} from "./mercadopago";
+import {compararNiveis, planoPago} from "./planos";
+import type {Nivel} from "./planos";
 
 const DIA = 24 * 3600 * 1000;
 export const DIAS_DO_PIX = 30;
@@ -48,13 +56,15 @@ export type PixPagamento = {
   periodo_fim: string | null;
   estornado_em: string | null;
   criado_em: string;
+  // Plano deste Pix (migração 009; vazio vale Básico).
+  nivel?: Nivel;
 };
 
 export type BancoDoPix = {
   pixPorId: (id: string) => Promise<PixPagamento | undefined>;
   pixPorPagamento: (mpPaymentId: string) => Promise<PixPagamento | undefined>;
   ultimoPixDaConta: (usuarioId: string) => Promise<PixPagamento | undefined>;
-  criarPix: (linha: {id: string; usuario_id: string; valor: number}) => Promise<PixPagamento>;
+  criarPix: (linha: {id: string; usuario_id: string; valor: number; nivel: Nivel}) => Promise<PixPagamento>;
   salvarPix: (id: string, campos: Partial<PixPagamento>) => Promise<void>;
   // Para a verificação periódica: criando ou pendentes criados depois de "desde".
   pixParaConferir: (desde: Date) => Promise<PixPagamento[]>;
@@ -67,8 +77,13 @@ export const cortesia = (perfil: PerfilDaAssinatura): boolean => perfil.plano ==
 
 // Quem pode gerar um Pix, pela situação da tela (resumoDaAssinatura): o grátis e quem
 // já está no Pix (para somar dias). Cortesia e assinatura por cartão valendo, não.
-export const motivoParaNaoPagarPix = (resumo: ResumoDaAssinatura): string | undefined => {
+// No Pix, um plano menor que o atual só depois que o período atual acabar.
+export const motivoParaNaoPagarPix = (resumo: ResumoDaAssinatura, nivel: Nivel = "basico"): string | undefined => {
   if (!resumo.disponivel) return "O pagamento não está disponível agora.";
+  if (resumo.situacao === "pix" && resumo.nivel && compararNiveis(nivel, resumo.nivel) < 0) {
+    const fim = resumo.ate ? new Date(resumo.ate).toLocaleDateString("pt-BR", {day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo"}) : "o fim do período";
+    return `Você está no plano ${planoPago(resumo.nivel).nome} até ${fim}. O ${planoPago(nivel).nome} pode ser pago depois dessa data.`;
+  }
   if (resumo.situacao === "nenhuma" || resumo.situacao === "pix") return undefined;
   if (resumo.situacao === "cortesia") return "A sua conta já é assinante (cortesia), sem cobrança.";
   return "A sua assinatura por cartão está valendo. O Pix fica disponível quando ela terminar.";
@@ -102,16 +117,23 @@ export const regraDoPixAprovado = (
   if (perfil.plano_origem === "assinatura" && planoEfetivo(perfil, aprovadoEm) === "assinante") {
     return {pix: aprovado, motivo: "assinatura por cartão valendo: plano não mexido (estornar à mão)"};
   }
-  // Um período de Pix ainda valendo: os 30 dias somam ao fim dele.
+  // Um período de Pix ainda valendo: do mesmo plano (ou menor), os 30 dias somam ao
+  // fim dele; de um plano maior, o Pix novo começa na hora (período e minutos novos).
+  const nivel = pix.nivel ?? "basico";
   const fimAtual = perfil.plano_ate ? new Date(perfil.plano_ate) : undefined;
-  const soma = perfil.plano_origem === "pix" && perfil.plano === "assinante" && fimAtual !== undefined && fimAtual > aprovadoEm;
+  const valendo = perfil.plano_origem === "pix" && perfil.plano === "assinante" && fimAtual !== undefined && fimAtual > aprovadoEm;
+  const nivelAtual = perfil.nivel ?? "basico";
+  const soma = valendo && compararNiveis(nivel, nivelAtual) <= 0;
   const inicio = soma ? fimAtual : aprovadoEm;
   const fim = new Date(inicio.getTime() + PERIODO_DO_PIX_MS);
   return {
     pix: {...aprovado, periodo_inicio: inicio.toISOString(), periodo_fim: fim.toISOString()},
     perfil: soma
       ? {plano_ate: fim.toISOString()}
-      : {plano: "assinante", plano_origem: "pix", ciclo_inicio: inicio.toISOString(), ciclo_fim: fim.toISOString(), plano_ate: fim.toISOString()},
+      : {plano: "assinante", plano_origem: "pix", ciclo_inicio: inicio.toISOString(), ciclo_fim: fim.toISOString(), plano_ate: fim.toISOString(), nivel, nivel_na_renovacao: null},
+    // Plano menor pago com um maior valendo (só se os dois Pix foram gerados antes): soma
+    // os dias no plano atual.
+    motivo: soma && compararNiveis(nivel, nivelAtual) < 0 ? `Pix do ${nivel} com o ${nivelAtual} valendo: dias somados no ${nivelAtual}` : undefined,
   };
 };
 
@@ -265,18 +287,20 @@ export const processadorDePix = ({
   // Gera um Pix para a conta (ou devolve o que ainda está dentro do prazo). Quem chama
   // já conferiu se a conta pode pagar (motivoParaNaoPagarPix).
   const MARGEM_DO_PRAZO_MS = 5 * 60_000;
-  const gerar = async (usuario: {id: string; email: string}, valor: number, cpf?: string): Promise<PixPagamento> => {
+  const gerar = async (usuario: {id: string; email: string}, valor: number, cpf?: string, nivel: Nivel = "basico"): Promise<PixPagamento> => {
     const ultimo = await banco.ultimoPixDaConta(usuario.id);
     if (ultimo && (ultimo.status === "pendente" || ultimo.status === "criando")) {
       // Antes de largar o anterior, confere se ele foi pago.
       await consultar(ultimo, 0).catch((erro: unknown) => registrar(`conferir ${ultimo.id}: ${semCpf(erro instanceof Error ? erro.message : String(erro))}`));
       const atual = await banco.pixPorId(ultimo.id);
-      if (atual?.status === "pendente" && atual.qr_code && atual.expira_em && new Date(atual.expira_em).getTime() - agora().getTime() > MARGEM_DO_PRAZO_MS) {
+      // O mesmo Pix só se for do mesmo plano e valor (trocou de plano: um Pix novo).
+      const mesmoPlano = (atual?.nivel ?? "basico") === nivel && Math.abs(Number(atual?.valor) - valor) < 0.005;
+      if (mesmoPlano && atual?.status === "pendente" && atual.qr_code && atual.expira_em && new Date(atual.expira_em).getTime() - agora().getTime() > MARGEM_DO_PRAZO_MS) {
         return atual;
       }
     }
     const id = randomUUID();
-    await banco.criarPix({id, usuario_id: usuario.id, valor});
+    await banco.criarPix({id, usuario_id: usuario.id, valor, nivel});
     const expiraEm = new Date(agora().getTime() + VALIDADE_DO_PIX_MS);
     let pagamento: Pagamento;
     try {
@@ -338,7 +362,7 @@ export const processadorDePix = ({
 };
 
 // ---------- banco no Supabase (chave secreta) ----------
-const CAMPOS = "id, usuario_id, mp_payment_id, status, valor, expira_em, qr_code, qr_code_base64, aprovado_em, periodo_inicio, periodo_fim, estornado_em, criado_em";
+const CAMPOS = "id, usuario_id, mp_payment_id, status, valor, expira_em, qr_code, qr_code_base64, aprovado_em, periodo_inicio, periodo_fim, estornado_em, criado_em, nivel";
 export const bancoDoPixNoSupabase = (admin: SupabaseClient, perfis: Pick<BancoDoPix, "perfil" | "salvarPerfil">): BancoDoPix => {
   const falha = (acao: string, erro: {message: string} | null) => {
     if (erro) throw new Error(`Pix: não foi possível ${acao}: ${erro.message}`);

@@ -22,7 +22,7 @@ const montar = (perfilInicial: Partial<PerfilDaAssinatura> = {}) => {
     pixPorId: async (id) => (linhas.has(id) ? {...linhas.get(id)!} : undefined),
     pixPorPagamento: async (mp) => [...linhas.values()].find((l) => l.mp_payment_id === mp),
     ultimoPixDaConta: async (conta) => [...linhas.values()].filter((l) => l.usuario_id === conta).at(-1),
-    criarPix: async ({id, usuario_id, valor}) => {
+    criarPix: async ({id, usuario_id, valor, nivel}) => {
       const linha: PixPagamento = {
         id,
         usuario_id,
@@ -37,6 +37,7 @@ const montar = (perfilInicial: Partial<PerfilDaAssinatura> = {}) => {
         periodo_fim: null,
         estornado_em: null,
         criado_em: relogio.toISOString(),
+        nivel,
       };
       linhas.set(id, linha);
       return {...linha};
@@ -99,7 +100,7 @@ const montar = (perfilInicial: Partial<PerfilDaAssinatura> = {}) => {
     avancar: (ms: number) => {
       relogio = new Date(relogio.getTime() + ms);
     },
-    resumo: () => resumoDaAssinatura(perfil, undefined, relogio, true, 30),
+    resumo: () => resumoDaAssinatura(perfil, undefined, relogio, true),
   };
 };
 
@@ -118,7 +119,8 @@ describe("Pix: regras de cada caso", () => {
     assert.equal(perfil.plano_origem, "pix");
     assert.equal(perfil.ciclo_inicio, "2026-10-08T12:05:00.000Z");
     assert.equal(perfil.plano_ate, new Date(new Date("2026-10-08T12:05:00Z").getTime() + PERIODO_DO_PIX_MS).toISOString());
-    assert.deepEqual(t.resumo(), {disponivel: true, valor: 30, situacao: "pix", ate: perfil.plano_ate!});
+    const {planos: _planos, ...resumo} = t.resumo();
+    assert.deepEqual(resumo, {disponivel: true, valor: 30, nivel: "basico", situacao: "pix", ate: perfil.plano_ate!});
   });
 
   it("aprovado pela tela conferindo (sem webhook), e o mesmo aprovado de novo não soma", async () => {
@@ -251,12 +253,12 @@ describe("Pix: regras de cada caso", () => {
   });
 
   it("quem pode gerar Pix: o grátis e quem já está no Pix; cartão cancelado ainda valendo, não", () => {
-    const base = {disponivel: true, valor: 30};
+    const base = {disponivel: true, valor: 30, planos: []};
     assert.equal(motivoParaNaoPagarPix({...base, situacao: "nenhuma"}), undefined);
     assert.equal(motivoParaNaoPagarPix({...base, situacao: "pix", ate: "2026-11-07T12:00:00Z"}), undefined);
     assert.ok(motivoParaNaoPagarPix({...base, situacao: "cancelada"}));
     assert.ok(motivoParaNaoPagarPix({...base, situacao: "falhou"}));
-    assert.ok(motivoParaNaoPagarPix({disponivel: false, valor: 30, situacao: "nenhuma"}));
+    assert.ok(motivoParaNaoPagarPix({disponivel: false, valor: 30, planos: [], situacao: "nenhuma"}));
   });
 });
 
@@ -324,5 +326,65 @@ describe("Pix: Mercado Pago e dados do pagador", () => {
     t.avancar(3 * 60_000);
     await t.pix.verificar();
     assert.equal(t.perfil().plano, "assinante");
+  });
+});
+
+describe("Pix por plano (Básico, Pro e Editor)", () => {
+  const pagar = async (t: ReturnType<typeof montar>, nivel: "basico" | "pro" | "editor", valor: number, quando: string) => {
+    const gerado = await t.pix.gerar(t.usuario, valor, undefined, nivel);
+    t.mudar(gerado.mp_payment_id!, {status: "approved", date_approved: quando});
+    await t.pix.doPagamento(gerado.mp_payment_id!);
+    return gerado;
+  };
+
+  it("Pix do Pro aprovado: nível Pro por 30 dias", async () => {
+    const t = montar();
+    await pagar(t, "pro", 49.9, "2026-10-08T12:00:00Z");
+    assert.equal(t.perfil().plano, "assinante");
+    assert.equal(t.perfil().nivel, "pro");
+    assert.equal(t.resumo().nivel, "pro");
+  });
+
+  it("valor pago menor que o do plano: não ativa", async () => {
+    const t = montar();
+    const gerado = await t.pix.gerar(t.usuario, 79.9, undefined, "editor");
+    t.mudar(gerado.mp_payment_id!, {status: "approved", date_approved: "2026-10-08T12:00:00Z", transaction_amount: 30});
+    await t.pix.doPagamento(gerado.mp_payment_id!);
+    assert.equal(t.perfil().plano, "gratis");
+  });
+
+  it("subir no Pix: o Pix do Editor começa na hora (período e minutos novos)", async () => {
+    const t = montar();
+    await pagar(t, "basico", 30, "2026-10-08T12:00:00Z");
+    t.avancar(10 * 24 * 3600 * 1000);
+    await pagar(t, "editor", 79.9, "2026-10-18T12:00:00Z");
+    assert.equal(t.perfil().nivel, "editor");
+    assert.equal(t.perfil().ciclo_inicio, "2026-10-18T12:00:00.000Z");
+    assert.equal(t.perfil().plano_ate, new Date(new Date("2026-10-18T12:00:00Z").getTime() + PERIODO_DO_PIX_MS).toISOString());
+  });
+
+  it("mesmo plano no Pix: os dias somam", async () => {
+    const t = montar();
+    await pagar(t, "pro", 49.9, "2026-10-08T12:00:00Z");
+    const fim = t.perfil().plano_ate!;
+    t.avancar(10 * 24 * 3600 * 1000);
+    await pagar(t, "pro", 49.9, "2026-10-18T12:00:00Z");
+    assert.equal(t.perfil().plano_ate, new Date(new Date(fim).getTime() + PERIODO_DO_PIX_MS).toISOString());
+    assert.equal(t.perfil().nivel, "pro");
+  });
+
+  it("descer no Pix: só depois que o período atual acabar", async () => {
+    const t = montar();
+    await pagar(t, "editor", 79.9, "2026-10-08T12:00:00Z");
+    assert.match(motivoParaNaoPagarPix(t.resumo(), "basico")!, /Editor até/u);
+    assert.equal(motivoParaNaoPagarPix(t.resumo(), "editor"), undefined);
+  });
+
+  it("trocar de plano antes de pagar gera outro Pix (com o valor novo)", async () => {
+    const t = montar();
+    const basico = await t.pix.gerar(t.usuario, 30, undefined, "basico");
+    const pro = await t.pix.gerar(t.usuario, 49.9, undefined, "pro");
+    assert.notEqual(pro.id, basico.id);
+    assert.equal(Number(pro.valor), 49.9);
   });
 });

@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import {createHmac} from "node:crypto";
 import {describe, it} from "node:test";
-import {TOLERANCIA_MS, planoEfetivo, processadorDeEventos, resumoDaAssinatura} from "./assinaturas";
+import {TOLERANCIA_MS, assinaturaVigente, planoEfetivo, processadorDeEventos, resumoDaAssinatura} from "./assinaturas";
 import type {Assinatura, BancoDeAssinaturas, Evento, PagamentoDaAssinatura, PerfilDaAssinatura} from "./assinaturas";
 import {usoDoPlano} from "./cota";
 import {VALIDADE_DO_WEBHOOK_MS, validarWebhook} from "./mercadopago";
@@ -95,6 +95,7 @@ const montar = (perfilInicial: Partial<PerfilDaAssinatura> = {}, assinaturaInici
     },
     assinaturaPorPreapproval: async (id) => [...assinaturas.values()].find((a) => a.mp_preapproval_id === id),
     assinaturaDaConta: async (conta) => [...assinaturas.values()].filter((a) => a.usuario_id === conta).at(-1),
+    assinaturasDaConta: async (conta) => [...assinaturas.values()].filter((a) => a.usuario_id === conta).reverse(),
     criarAssinatura: async (linha) => {
       const nova = {...linha, id: `a${assinaturas.size + 1}`, criado_em: relogio.toISOString(), pago_ate: null, proxima_cobranca: null, cobranca_falhou_em: null, cancelada_em: null, estornada_em: null};
       assinaturas.set(nova.id, nova);
@@ -128,6 +129,7 @@ const montar = (perfilInicial: Partial<PerfilDaAssinatura> = {}, assinaturaInici
     busca: [] as PagamentoAutorizado[],
     porId: new Map<string, Preapproval>(),
     consultas: [] as string[],
+    valores: [] as [string, number][],
   };
   const api: ApiDoMercadoPago = {
     criarAssinatura: async () => mp.pre,
@@ -137,7 +139,16 @@ const montar = (perfilInicial: Partial<PerfilDaAssinatura> = {}, assinaturaInici
     },
     cancelarAssinatura: async (id) => {
       mp.canceladas.push(id);
+      const outra = mp.porId.get(id);
+      if (outra) {
+        mp.porId.set(id, {...outra, status: "cancelled"});
+        return mp.porId.get(id)!;
+      }
       mp.pre = {...mp.pre, status: "cancelled"};
+      return mp.pre;
+    },
+    alterarValorDaAssinatura: async (id, valor) => {
+      mp.valores.push([id, valor]);
       return mp.pre;
     },
     pagamentoAutorizado: async (id) => {
@@ -172,7 +183,9 @@ const montar = (perfilInicial: Partial<PerfilDaAssinatura> = {}, assinaturaInici
       relogio = new Date(relogio.getTime() + dias * 24 * 3600 * 1000);
     },
     agora: () => relogio,
-    resumo: () => resumoDaAssinatura(perfil, assinaturas.get("a1"), relogio, true, 30),
+    // Como o servidor: a assinatura que vale (a mais nova já paga).
+    resumo: () => resumoDaAssinatura(perfil, assinaturaVigente([...assinaturas.values()].reverse()), relogio, true),
+    assinaturas,
   };
 };
 
@@ -226,7 +239,8 @@ describe("regras de cada caso", () => {
     assert.equal(perfil.ciclo_inicio, "2026-10-07T12:00:00.000Z");
     assert.equal(perfil.ciclo_fim, "2026-11-07T12:00:00.000Z");
     assert.equal(new Date(perfil.plano_ate!).getTime(), new Date("2026-11-07T12:00:00Z").getTime() + TOLERANCIA_MS);
-    assert.deepEqual(t.resumo(), {disponivel: true, valor: 30, situacao: "ativa", renovaEm: "2026-11-07T12:00:00.000Z"});
+    const {planos: _planos, ...resumo} = t.resumo();
+    assert.deepEqual(resumo, {disponivel: true, valor: 30, nivel: "basico", situacao: "ativa", renovaEm: "2026-11-07T12:00:00.000Z"});
   });
 
   it("os 30 minutos contam pelo ciclo da assinatura", () => {
@@ -287,7 +301,8 @@ describe("regras de cada caso", () => {
     await t.webhook("subscription_preapproval", PRE);
     assert.equal(t.assinatura().status, "cancelada");
     assert.equal(t.perfil().plano_ate, "2026-11-07T12:00:00.000Z");
-    assert.deepEqual(t.resumo(), {disponivel: true, valor: 30, situacao: "cancelada", ate: "2026-11-07T12:00:00.000Z"});
+    const {planos: _planos, ...resumo} = t.resumo();
+    assert.deepEqual(resumo, {disponivel: true, valor: 30, nivel: "basico", situacao: "cancelada", ate: "2026-11-07T12:00:00.000Z"});
     t.avancar(21); // 07/11 + 1 dia
     assert.equal(planoEfetivo(t.perfil(), t.agora()), "gratis");
   });
@@ -462,5 +477,132 @@ describe("verificação periódica", () => {
     t.avancar(30.5);
     assert.equal((await t.processador.verificarAssinaturas()).length, 1);
     assert.deepEqual(t.mp.consultas, [PRE]);
+  });
+});
+
+// ---------- planos Básico, Pro e Editor (migração 009) ----------
+describe("planos: nível pelo valor cobrado e troca de plano", () => {
+  const PRE2 = "pre-2";
+  const cobrancaDe = (pre: string, id: string, status: string, pagamento: string, valor: number, data: string): PagamentoAutorizado => ({
+    ...cobranca(id, status, pagamento, data),
+    preapproval_id: pre,
+    transaction_amount: valor,
+  });
+  // Básico pago em 07/10; 10 dias depois, um checkout de troca (a2) aberto.
+  const comBasicoPago = async (nivelNovo: "pro" | "editor", valor: number) => {
+    const t = montar();
+    t.mp.cobrancas.set("c1", cobranca("c1", "approved", "p1"));
+    await t.webhook("subscription_authorized_payment", "c1");
+    t.avancar(10);
+    t.assinaturas.set("a2", {...t.assinatura(), id: "a2", mp_preapproval_id: PRE2, status: "pendente", valor, nivel: nivelNovo, pago_ate: null, proxima_cobranca: null, criado_em: t.agora().toISOString()});
+    t.mp.porId.set(PRE2, {id: PRE2, status: "authorized", external_reference: CONTA, next_payment_date: "2026-11-17T12:00:00Z"} as Preapproval);
+    return t;
+  };
+
+  it("assinar o Pro: a cobrança de R$ 49,90 aprovada dá o nível Pro", async () => {
+    const t = montar({}, {valor: 49.9, nivel: "pro"});
+    t.mp.cobrancas.set("c1", {...cobranca("c1", "approved", "p1"), transaction_amount: 49.9});
+    await t.webhook("subscription_authorized_payment", "c1");
+    assert.equal(t.perfil().plano, "assinante");
+    assert.equal(t.perfil().nivel, "pro");
+    assert.equal(t.resumo().nivel, "pro");
+    assert.equal(t.resumo().valor, 49.9);
+  });
+
+  it("valor que não é de nenhum plano: assinante, mas o nível não muda", async () => {
+    const t = montar({nivel: "basico"});
+    t.mp.cobrancas.set("c1", {...cobranca("c1", "approved", "p1"), transaction_amount: 12.34});
+    await t.webhook("subscription_authorized_payment", "c1");
+    assert.equal(t.perfil().plano, "assinante");
+    assert.equal(t.perfil().nivel, "basico");
+  });
+
+  it("subir: o pagamento novo aprovado dá o Pro na hora, o mês recomeça e a antiga é cancelada", async () => {
+    const t = await comBasicoPago("pro", 49.9);
+    t.mp.cobrancas.set("c2", cobrancaDe(PRE2, "c2", "approved", "p2", 49.9, "2026-10-17T12:00:00Z"));
+    await t.webhook("subscription_authorized_payment", "c2");
+    assert.equal(t.perfil().nivel, "pro");
+    assert.equal(t.perfil().ciclo_inicio, "2026-10-17T12:00:00.000Z", "o ciclo (e os minutos) recomeça no pagamento novo");
+    assert.equal(t.perfil().ciclo_fim, "2026-11-17T12:00:00.000Z");
+    assert.deepEqual(t.mp.canceladas, [PRE], "a antiga só é cancelada depois do pagamento novo");
+    assert.equal(t.assinatura().status, "cancelada");
+    // O aviso de cancelamento da antiga não mexe no plano novo.
+    const planoAte = t.perfil().plano_ate;
+    await t.webhook("subscription_preapproval", PRE);
+    assert.equal(t.perfil().plano_ate, planoAte);
+    assert.equal(t.resumo().situacao, "ativa");
+  });
+
+  it("subir com o checkout ainda aberto: nada muda e a antiga não é cancelada", async () => {
+    const t = await comBasicoPago("editor", 79.9);
+    t.mp.porId.set(PRE2, {id: PRE2, status: "pending", external_reference: CONTA} as Preapproval);
+    await t.webhook("subscription_preapproval", PRE2);
+    assert.equal(t.perfil().nivel, "basico");
+    assert.deepEqual(t.mp.canceladas, []);
+  });
+
+  it("subir com o pagamento recusado: a nova é cancelada e o Básico continua igual", async () => {
+    const t = await comBasicoPago("pro", 49.9);
+    const antes = {...t.perfil()};
+    t.mp.cobrancas.set("c2", cobrancaDe(PRE2, "c2", "rejected", "p2", 49.9, "2026-10-17T12:00:00Z"));
+    await t.webhook("subscription_authorized_payment", "c2");
+    assert.deepEqual(t.perfil(), antes, "nada muda no perfil: nível, ciclo, minutos e validade");
+    assert.deepEqual(t.mp.canceladas, [PRE2]);
+    assert.equal(t.assinaturas.get("a2")!.status, "cancelada");
+    assert.equal(t.assinatura().status, "autorizada");
+  });
+
+  it("estorno de um pagamento da assinatura antiga, depois de subir: o plano novo continua", async () => {
+    const t = await comBasicoPago("pro", 49.9);
+    t.mp.cobrancas.set("c2", cobrancaDe(PRE2, "c2", "approved", "p2", 49.9, "2026-10-17T12:00:00Z"));
+    await t.webhook("subscription_authorized_payment", "c2");
+    t.mp.pagamentos.set("p1", {id: "p1", status: "refunded"});
+    await t.webhook("payment", "p1");
+    assert.equal(planoEfetivo(t.perfil(), t.agora()), "assinante");
+    assert.equal(t.perfil().nivel, "pro");
+  });
+
+  it("estorno do pagamento do plano novo: grátis na hora", async () => {
+    const t = await comBasicoPago("pro", 49.9);
+    t.mp.cobrancas.set("c2", cobrancaDe(PRE2, "c2", "approved", "p2", 49.9, "2026-10-17T12:00:00Z"));
+    await t.webhook("subscription_authorized_payment", "c2");
+    t.mp.pagamentos.set("p2", {id: "p2", status: "refunded"});
+    await t.webhook("payment", "p2");
+    assert.equal(planoEfetivo(t.perfil(), t.agora()), "gratis");
+  });
+
+  it("descer: vale na próxima cobrança, com o valor novo; até lá, o nível de antes", async () => {
+    const t = montar({}, {valor: 79.9, nivel: "editor"});
+    t.mp.cobrancas.set("c1", {...cobranca("c1", "approved", "p1"), transaction_amount: 79.9});
+    await t.webhook("subscription_authorized_payment", "c1");
+    // A tela pediu o Básico: o servidor troca o valor no Mercado Pago e agenda.
+    await t.banco.salvarPerfil(CONTA, {nivel_na_renovacao: "basico"});
+    assert.equal(t.perfil().nivel, "editor");
+    assert.equal(t.resumo().nivelNaRenovacao, "basico");
+    t.avancar(31);
+    t.mp.pre = {...t.mp.pre, next_payment_date: "2026-12-07T12:00:00Z"};
+    t.mp.cobrancas.set("c2", {...cobranca("c2", "approved", "p2", "2026-11-07T12:00:00Z"), transaction_amount: 30});
+    await t.webhook("subscription_authorized_payment", "c2");
+    assert.equal(t.perfil().nivel, "basico");
+    assert.equal(t.perfil().nivel_na_renovacao, null);
+    assert.equal(t.resumo().nivelNaRenovacao, undefined);
+  });
+
+  it("cancelar no Pro: Pro até o fim do ciclo pago", async () => {
+    const t = montar({}, {valor: 49.9, nivel: "pro"});
+    t.mp.cobrancas.set("c1", {...cobranca("c1", "approved", "p1"), transaction_amount: 49.9});
+    await t.webhook("subscription_authorized_payment", "c1");
+    t.mp.pre = {...t.mp.pre, status: "cancelled"};
+    await t.webhook("subscription_preapproval", PRE);
+    assert.equal(t.perfil().nivel, "pro");
+    assert.equal(t.perfil().plano_ate, "2026-11-07T12:00:00.000Z");
+  });
+
+  it("ativação pelo resumo do Mercado Pago usa o último valor cobrado", async () => {
+    const t = montar({}, {valor: 79.9, nivel: "editor"});
+    t.mp.pre = {...t.mp.pre, summarized: {charged_quantity: 1, last_charged_date: "2026-10-07T12:00:00Z", last_charged_amount: 79.9, semaphore: "green"}} as Preapproval;
+    await t.webhook("subscription_preapproval", PRE);
+    assert.equal(t.perfil().plano, "assinante");
+    assert.equal(t.perfil().nivel, "editor");
   });
 });

@@ -35,11 +35,12 @@ import {rotasDeEnvio} from "./envio";
 import {previasLeves, tirarCapa} from "./previa-leve";
 import {videosDasContas} from "./videos";
 import {apiDoMercadoPago, mercadoPagoDoAmbiente, validarWebhook} from "./mercadopago";
-import {bancoNoSupabase, processadorDeEventos, regraDaAssinatura, resumoDaAssinatura} from "./assinaturas";
+import {assinaturaVigente, bancoNoSupabase, processadorDeEventos, regraDaAssinatura, resumoDaAssinatura} from "./assinaturas";
 import type {ResumoDaAssinatura} from "./assinaturas";
 import {DIAS_DO_PIX, ErroDoPix, bancoDoPixNoSupabase, cpfValido, motivoParaNaoPagarPix, processadorDePix, vistaDoPix} from "./pix";
 import {LIMITES} from "./cota";
-import {planosPagos} from "./planos";
+import {compararNiveis, nivelValido, planoPago, planosPagos} from "./planos";
+import type {Nivel} from "./planos";
 import type {PlanoPago} from "./planos";
 import {LIMITES_DE_USO, filaComVagas, limiteDePedidos, textoDaFila} from "./limites";
 import {idDoEnvio, memoriaMB, registrarEnvio, segundos, semEnderecos} from "./registro";
@@ -197,7 +198,11 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   const pixMp = apiMp && bancoDasAssinaturas && contas ? processadorDePix({banco: bancoDoPixNoSupabase(contas.admin, bancoDasAssinaturas), api: apiMp}) : undefined;
   const eventosMp =
     apiMp && bancoDasAssinaturas ? processadorDeEventos({banco: bancoDasAssinaturas, api: apiMp, outroPagamento: pixMp?.doPagamento}) : undefined;
-  console.log(mercadoPago ? `Assinatura: Mercado Pago ligado (R$ ${mercadoPago.valor} por mês ou 30 dias por Pix).` : "Assinatura: desligada (sem MERCADOPAGO_ACCESS_TOKEN).");
+  console.log(
+    mercadoPago
+      ? `Assinatura: Mercado Pago ligado (${planosPagos().map((p) => `${p.nome} R$ ${p.valor} / ${p.minutos} min`).join(", ")}; por mês ou 30 dias por Pix).`
+      : "Assinatura: desligada (sem MERCADOPAGO_ACCESS_TOKEN).",
+  );
   const processarEventosMp = () =>
     void eventosMp
       ?.processarPendentes()
@@ -488,11 +493,19 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     }),
   );
 
-  // Resumo da assinatura para a tela (sem a migração 007: nenhuma assinatura).
+  // Resumo da assinatura para a tela (sem a migração 007: nenhuma assinatura). A
+  // assinatura que vale é a mais nova já paga (um checkout de troca de plano aberto
+  // não muda a situação).
   const resumoDaConta = async (espaco: Espaco, token: string): Promise<ResumoDaAssinatura> => {
     const perfil = await contas!.perfil(espaco.usuario!, token);
-    const assinatura = await bancoDasAssinaturas?.assinaturaDaConta(espaco.usuario!.id).catch(() => undefined);
-    return resumoDaAssinatura(perfil.assinatura, assinatura, new Date(), Boolean(apiMp), mercadoPago?.valor ?? 30);
+    const lista = (await bancoDasAssinaturas?.assinaturasDaConta(espaco.usuario!.id).catch(() => undefined)) ?? [];
+    return resumoDaAssinatura(perfil.assinatura, assinaturaVigente(lista), new Date(), Boolean(apiMp));
+  };
+  // Plano pedido pela tela (só escolhe o checkout; o nível vale pelo valor pago).
+  const nivelDoPedido = (request: Request): Nivel => {
+    const pedido = (request.body as {nivel?: unknown} | undefined)?.nivel ?? "basico";
+    if (!nivelValido(pedido)) throw new Error("Plano desconhecido.");
+    return pedido;
   };
 
   // "Assinar": cria a assinatura no Mercado Pago e devolve o checkout (init_point).
@@ -508,20 +521,43 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       throw new Error(SEM_CHECKOUT);
     }
   };
+  // Corpo: {nivel} (basico, pro ou editor). Sem assinatura: checkout do plano. Com a
+  // assinatura por cartão valendo: subir abre o checkout do plano novo (pago cheio, o
+  // mês recomeça; a antiga só é cancelada com o pagamento novo aprovado, veja
+  // assinaturas.ts); descer muda o valor das próximas cobranças (o nível troca na
+  // renovação); o mesmo plano com uma descida agendada desfaz a descida.
   app.post(
     "/api/assinatura",
-    handle(async (_request, response) => {
+    handle(async (request, response) => {
       const espaco = espacoDe(response);
       if (!apiMp || !mercadoPago || !bancoDasAssinaturas || !espaco.usuario) {
         throw new Error("A assinatura não está disponível agora.");
       }
+      const nivel = nivelDoPedido(request);
+      const plano = planoPago(nivel);
       const resumo = await resumoDaConta(espaco, response.locals.token as string);
       if (resumo.situacao === "cortesia") throw new Error("A sua conta já é assinante (cortesia), sem cobrança.");
       if (resumo.situacao === "pix") {
         throw new Error(`Você está no Pix até ${dataCurtaBr(resumo.ate)}. Depois dessa data, você pode assinar com cartão.`);
       }
-      if (resumo.situacao !== "nenhuma") throw new Error("Você já é assinante. Para mudar, use Gerenciar assinatura.");
-      const atual = await bancoDasAssinaturas.assinaturaDaConta(espaco.usuario.id);
+      if (resumo.situacao === "falhou") throw new Error("A cobrança da sua assinatura falhou. Atualize a forma de pagamento no Mercado Pago antes de trocar de plano.");
+      const lista = await bancoDasAssinaturas.assinaturasDaConta(espaco.usuario.id);
+      const vigente = assinaturaVigente(lista);
+      const nivelAtual = resumo.nivel ?? "basico";
+      const troca = resumo.situacao === "nenhuma" ? 0 : compararNiveis(nivel, nivelAtual);
+      if (resumo.situacao === "cancelada" && troca <= 0) {
+        throw new Error(`Sua assinatura vale até ${dataCurtaBr(resumo.ate)}. Depois dessa data, você pode assinar de novo.`);
+      }
+      // Descer, ou desfazer uma descida agendada: o valor das próximas cobranças muda.
+      if (resumo.situacao === "ativa" && vigente && (troca < 0 || (troca === 0 && resumo.nivelNaRenovacao))) {
+        await noMercadoPago(`trocar o valor de ${vigente.mp_preapproval_id}`, () => apiMp.alterarValorDaAssinatura(vigente.mp_preapproval_id, plano.valor));
+        await bancoDasAssinaturas.salvarAssinatura(vigente.id, {valor: plano.valor, nivel});
+        await bancoDasAssinaturas.salvarPerfil(espaco.usuario.id, {nivel_na_renovacao: troca < 0 ? nivel : null});
+        console.log(`Assinatura: ${espaco.usuario.id} ${troca < 0 ? `desce para ${nivel} na renovação` : "desfez a descida"} (${vigente.mp_preapproval_id}).`);
+        return {trocado: true, assinatura: await resumoDaConta(espaco, response.locals.token as string)};
+      }
+      if (resumo.situacao === "ativa" && troca === 0) throw new Error(`Você já está no plano ${plano.nome}.`);
+      const atual = lista[0];
       // Assinar de novo depois de um pagamento recusado: a assinatura recusada é
       // cancelada no Mercado Pago (para ele não tentar cobrar de novo e a pessoa
       // pagar duas vezes) e um checkout novo é aberto.
@@ -532,7 +568,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
         await bancoDasAssinaturas.salvarAssinatura(atual.id, efeito.assinatura);
         if (efeito.perfil) await bancoDasAssinaturas.salvarPerfil(espaco.usuario.id, efeito.perfil);
         console.log(`Assinatura: recusada cancelada antes do novo checkout de ${espaco.usuario.id} (${atual.mp_preapproval_id}).`);
-      } else if (atual?.status === "pendente" && atual.init_point && Date.now() - new Date(atual.criado_em).getTime() < 60 * 60 * 1000) {
+      } else if (atual?.status === "pendente" && atual.init_point && (atual.nivel ?? "basico") === nivel && Date.now() - new Date(atual.criado_em).getTime() < 60 * 60 * 1000) {
         // Tocou em Assinar de novo logo depois: o mesmo checkout.
         return {endereco: atual.init_point};
       }
@@ -540,7 +576,8 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
         apiMp.criarAssinatura({
           usuarioId: espaco.usuario!.id,
           email: espaco.usuario!.email,
-          valor: mercadoPago.valor,
+          valor: plano.valor,
+          nome: plano.nome,
           voltaPara: `${configuracaoDoAmbiente().enderecoDoApp}/?assinatura=retorno`,
         }),
       );
@@ -552,10 +589,11 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
         usuario_id: espaco.usuario.id,
         mp_preapproval_id: pre.id,
         status: "pendente",
-        valor: mercadoPago.valor,
+        valor: plano.valor,
+        nivel,
         init_point: pre.init_point,
       });
-      console.log(`Assinatura: checkout aberto para ${espaco.usuario.id} (${pre.id}).`);
+      console.log(`Assinatura: checkout ${troca > 0 ? `de troca para ${nivel}` : `do ${nivel}`} aberto para ${espaco.usuario.id} (${pre.id}).`);
       return {endereco: pre.init_point};
     }),
   );
@@ -573,10 +611,12 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       }
       const perfil = await contas.perfil(espaco.usuario, response.locals.token as string);
       const assinatura = await resumoDaConta(espaco, response.locals.token as string);
-      // Recusado: a cobrança da assinatura atual falhou e o plano não foi ativado.
+      // O checkout mais novo: pago (pago_ate) ou recusado (a cobrança falhou sem nunca
+      // ter sido paga; numa troca de plano, a nova já foi cancelada e o plano antigo segue).
       const atual = await bancoDasAssinaturas?.assinaturaDaConta(espaco.usuario.id).catch(() => undefined);
-      const recusado = assinatura.situacao === "nenhuma" && Boolean(atual && atual.status !== "cancelada" && atual.cobranca_falhou_em);
-      return {plano: perfil.plano, assinatura, recusado};
+      const pago = Boolean(atual?.pago_ate) && perfil.plano === "assinante";
+      const recusado = !pago && Boolean(atual?.cobranca_falhou_em) && (assinatura.situacao === "nenhuma" || atual?.status === "cancelada");
+      return {plano: perfil.plano, assinatura, pago, recusado};
     }),
   );
 
@@ -588,7 +628,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       if (!apiMp || !bancoDasAssinaturas || !espaco.usuario) {
         throw new Error("A assinatura não está disponível agora.");
       }
-      const atual = await bancoDasAssinaturas.assinaturaDaConta(espaco.usuario.id);
+      const atual = assinaturaVigente(await bancoDasAssinaturas.assinaturasDaConta(espaco.usuario.id));
       if (!atual || atual.status === "cancelada") throw new Error("Não há assinatura ativa para cancelar.");
       const pre = await apiMp.cancelarAssinatura(atual.mp_preapproval_id).catch((erro: unknown) => {
         console.log(`Mercado Pago: cancelar ${atual.mp_preapproval_id}: ${erro instanceof Error ? erro.message : String(erro)}`);
@@ -627,7 +667,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     const espaco = espacoDe(response);
     if (!contas || !espaco.usuario) throw new ErroParaATela("Entre na sua conta.");
     if (!pixMp || !mercadoPago) throw new ErroParaATela("O pagamento por Pix não está disponível agora.");
-    return {espaco, usuario: espaco.usuario, pix: pixMp, valor: mercadoPago.valor};
+    return {espaco, usuario: espaco.usuario, pix: pixMp};
   };
   // O último Pix da conta (para a tela retomar um código ainda dentro do prazo).
   app.get(
@@ -642,9 +682,11 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   app.post(
     "/api/pix",
     rotaDoPix(async (request, response) => {
-      const {espaco, usuario, pix, valor} = contaDoPix(response);
+      const {espaco, usuario, pix} = contaDoPix(response);
+      // Corpo: {cpf?, nivel}. O valor é o do plano (definido aqui, não pela tela).
+      const nivel = nivelDoPedido(request);
       const resumo = await resumoDaConta(espaco, response.locals.token as string);
-      const motivo = motivoParaNaoPagarPix(resumo);
+      const motivo = motivoParaNaoPagarPix(resumo, nivel);
       if (motivo) throw new ErroParaATela(motivo);
       const recebido = String((request.body as {cpf?: unknown} | undefined)?.cpf ?? "").trim();
       const cpf = recebido ? cpfValido(recebido) : undefined;
@@ -657,7 +699,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
           .then(() => bancoDasAssinaturas.salvarAssinatura(cartao.id, {status: "cancelada", cancelada_em: new Date().toISOString()}))
           .catch((erro: unknown) => console.log(`Pix: cancelar o checkout de cartão ${cartao.mp_preapproval_id}: ${erro instanceof Error ? erro.message : String(erro)}`));
       }
-      return {pix: vistaDoPix(await pix.gerar({id: usuario.id, email: usuario.email}, valor, cpf))};
+      return {pix: vistaDoPix(await pix.gerar({id: usuario.id, email: usuario.email}, planoPago(nivel).valor, cpf, nivel))};
     }),
   );
   // A tela do Pix conferindo se o pagamento caiu (o servidor consulta o Mercado Pago).

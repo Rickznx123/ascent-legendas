@@ -2,7 +2,7 @@
 // (POST /v1/payments) e a validação dos webhooks. Só no servidor: o token nunca sai daqui.
 //   MERCADOPAGO_ACCESS_TOKEN     token da aplicação (de teste ou de produção)
 //   MERCADOPAGO_WEBHOOK_SECRET   assinatura secreta dos webhooks (painel → Webhooks)
-//   ASSINATURA_VALOR_BRL         preço mensal (padrão 30)
+//   ASSINATURA_VALOR_BRL         preço mensal do Básico (padrão 30; os outros planos em planos.ts)
 // Sem o token, não há assinatura: o botão "Assinar" não aparece e nada mais muda.
 import {createHmac, timingSafeEqual} from "node:crypto";
 
@@ -90,7 +90,10 @@ export const dataDoMercadoPago = (data: Date): string =>
 export const semCpf = (texto: string): string => texto.replace(/(?<!\d)\d{3}\.?\d{3}\.?\d{3}-?\d{2}(?!\d)/gu, "[cpf]");
 
 export type ApiDoMercadoPago = {
-  criarAssinatura: (pedido: {usuarioId: string; email: string; valor: number; voltaPara: string}) => Promise<Preapproval>;
+  // nome: o nome do plano, que aparece no checkout e na fatura ("Ascent Legendas - Pro").
+  criarAssinatura: (pedido: {usuarioId: string; email: string; valor: number; nome: string; voltaPara: string}) => Promise<Preapproval>;
+  // Troca o valor das próximas cobranças (descer de plano); a do ciclo pago não muda.
+  alterarValorDaAssinatura: (id: string, valor: number) => Promise<Preapproval>;
   assinatura: (id: string) => Promise<Preapproval>;
   cancelarAssinatura: (id: string) => Promise<Preapproval>;
   pagamentoAutorizado: (id: string) => Promise<PagamentoAutorizado>;
@@ -119,9 +122,9 @@ export const apiDoMercadoPago = (config: ConfigDoMercadoPago): ApiDoMercadoPago 
   return {
     // Assinatura sem plano associado, com pagamento pendente: a pessoa escolhe o
     // meio de pagamento no checkout do Mercado Pago (init_point).
-    criarAssinatura: ({usuarioId, email, valor, voltaPara}) =>
+    criarAssinatura: ({usuarioId, email, valor, nome, voltaPara}) =>
       chamar<Preapproval>("POST", "/preapproval", {
-        reason: "Ascent Legendas - Assinante",
+        reason: `Ascent Legendas - ${nome}`,
         external_reference: usuarioId,
         payer_email: email,
         auto_recurring: {frequency: 1, frequency_type: "months", transaction_amount: valor, currency_id: "BRL"},
@@ -130,6 +133,8 @@ export const apiDoMercadoPago = (config: ConfigDoMercadoPago): ApiDoMercadoPago 
       }),
     assinatura: (id) => chamar<Preapproval>("GET", `/preapproval/${encodeURIComponent(id)}`),
     cancelarAssinatura: (id) => chamar<Preapproval>("PUT", `/preapproval/${encodeURIComponent(id)}`, {status: "cancelled"}),
+    alterarValorDaAssinatura: (id, valor) =>
+      chamar<Preapproval>("PUT", `/preapproval/${encodeURIComponent(id)}`, {auto_recurring: {transaction_amount: valor, currency_id: "BRL"}}),
     pagamentoAutorizado: (id) => chamar<PagamentoAutorizado>("GET", `/authorized_payments/${encodeURIComponent(id)}`),
     cobrancasDaAssinatura: async (preapprovalId) =>
       (
