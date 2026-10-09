@@ -40,7 +40,7 @@ import type {ResumoDaAssinatura} from "./assinaturas";
 import {DIAS_DO_PIX, ErroDoPix, bancoDoPixNoSupabase, cpfValido, motivoParaNaoPagarPix, processadorDePix, vistaDoPix} from "./pix";
 import {LIMITES} from "./cota";
 import {LIMITES_DE_USO, filaComVagas, limiteDePedidos, textoDaFila} from "./limites";
-import {idDoEnvio, registrarEnvio, segundos, semEnderecos} from "./registro";
+import {idDoEnvio, memoriaMB, registrarEnvio, segundos, semEnderecos} from "./registro";
 
 // Números dos planos para a página de apresentação (quem chega sem login), lidos da
 // configuração: o preço do Mercado Pago (ASSINATURA_VALOR_BRL; sem o Mercado Pago,
@@ -170,9 +170,18 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   }
   app.use(express.json({limit: "20mb"}));
 
-  // Saúde, para o Render saber que o servidor subiu (sem login, sem dados).
-  app.get("/saude", (_request, response) => {
-    response.json({ok: true});
+  // Saúde, para o Render saber que o servidor está de pé (sem login, sem dados de
+  // ninguém). Antes do login e do limite de pedidos, e só com números da memória (sem
+  // banco nem S3): responde na hora mesmo com a fila cheia. /saude é o nome antigo.
+  app.get(["/api/saude", "/saude"], (_request, response) => {
+    const fila = (vagas: {ocupadas: () => number; esperando: () => number}) => ({rodando: vagas.ocupadas(), esperando: vagas.esperando()});
+    response.setHeader("Cache-Control", "no-store");
+    response.json({
+      ok: true,
+      memoriaMB: memoriaMB(),
+      ligadoHaS: Math.round(process.uptime()),
+      filas: {previas: previas?.fila(), transcricoes: fila(filaDeTranscricoes), sons: fila(filaDeSons)},
+    });
   });
 
   // Assinatura pelo Mercado Pago (Etapa 2c, veja assinaturas.ts). Sem

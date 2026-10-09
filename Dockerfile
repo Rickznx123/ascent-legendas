@@ -25,5 +25,5 @@ ENV NODE_ENV=production \
     PORT=10000
 EXPOSE 10000
 
-# Saúde: GET /saude (configurar no Render como Health Check Path).
+# Saúde: GET /api/saude (configurar no Render como Health Check Path; /saude também vale).
 CMD ["npx", "tsx", "app/servidor/index.ts", "--producao"]
