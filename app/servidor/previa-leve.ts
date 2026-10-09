@@ -9,7 +9,8 @@
 // sem marca de rotação). O render final continua usando o original.
 // A tela pergunta o estado (GET /api/previa) e recebe endereços assinados de
 // leitura; enquanto a prévia não fica pronta, mostra a capa e pergunta de novo.
-// Uma conversão por vez, para caber na memória do servidor.
+// Conversões na fila (LIMITES_DE_USO.previasAoMesmoTempo, padrão 1): a tela mostra a
+// posição. O ffmpeg roda com prioridade baixa: o servidor segue respondendo.
 import {createReadStream, existsSync} from "node:fs";
 import {mkdtemp, rm, stat} from "node:fs/promises";
 import os from "node:os";
@@ -18,13 +19,15 @@ import {GetObjectCommand, HeadObjectCommand, PutObjectCommand} from "@aws-sdk/cl
 import {getSignedUrl} from "@aws-sdk/s3-request-presigner";
 import {execFileAsync, ffmpegPath} from "../../src/motor/ferramentas";
 import {PASTAS_NO_BUCKET} from "./configuracao";
+import {LIMITES_DE_USO, filaComVagas} from "./limites";
 import type {ArmazenamentoS3} from "./s3";
 
 export type EstadoDaPrevia =
   // Vídeo só no disco (ou sem S3): a tela usa o endereço de sempre (/media).
   // capa: JPG feito pelo servidor a partir do arquivo no disco (GET /capa/<nome>).
   | {estado: "local"; capa?: string}
-  | {estado: "preparando"; capa?: string}
+  // fila: posição na fila das conversões (vazio: já convertendo).
+  | {estado: "preparando"; capa?: string; fila?: number}
   | {estado: "falhou"; mensagem: string; capa?: string}
   | {estado: "pronta"; video: string; capa?: string};
 
@@ -66,7 +69,8 @@ export const previasLeves = (armazenamento: ArmazenamentoS3) => {
   // Conversões pedidas e ainda não terminadas, e as que falharam (com o motivo).
   const emAndamento = new Set<string>();
   const falhas = new Map<string, string>();
-  let fila: Promise<unknown> = Promise.resolve();
+  const fila = filaComVagas(LIMITES_DE_USO.previasAoMesmoTempo);
+  const posicoes = new Map<string, number>();
 
   const quandoMudou = async (Key: string): Promise<Date | undefined> => {
     try {
@@ -104,7 +108,7 @@ export const previasLeves = (armazenamento: ArmazenamentoS3) => {
       const msCapa = Date.now() - inicio;
 
       const arquivoDaPrevia = path.join(pasta, "previa.mp4");
-      await execFileAsync(
+      const conversao = execFileAsync(
         ffmpegPath(),
         [
           "-hide_banner",
@@ -147,6 +151,13 @@ export const previasLeves = (armazenamento: ArmazenamentoS3) => {
         ],
         {maxBuffer: 16 * 1024 * 1024, timeout: PRAZO_DA_PREVIA_MS},
       );
+      // Prioridade baixa: com 1 CPU, a conversão não tira a vez das rotas (nem da saúde).
+      try {
+        if (conversao.child.pid) os.setPriority(conversao.child.pid, 15);
+      } catch {
+        // Sem permissão para mudar a prioridade: segue normal.
+      }
+      await conversao;
       const {size} = await stat(arquivoDaPrevia);
       await enviar(arquivoDaPrevia, video, "video/mp4");
       console.log(
@@ -165,14 +176,21 @@ export const previasLeves = (armazenamento: ArmazenamentoS3) => {
     }
     emAndamento.add(id);
     falhas.delete(id);
-    fila = fila
-      .then(() => converter(usuarioId, nome, origemLocal))
+    void fila
+      .entrar((posicao) => posicoes.set(id, posicao))
+      .then((liberar) => {
+        posicoes.delete(id);
+        return converter(usuarioId, nome, origemLocal).finally(liberar);
+      })
       .catch((erro: unknown) => {
         const mensagem = erro instanceof Error ? erro.message : String(erro);
         console.log(`[previa ${horario()}] ${nome}: falhou: ${mensagem}`);
         falhas.set(id, "Não deu para preparar a prévia deste vídeo.");
       })
-      .finally(() => emAndamento.delete(id));
+      .finally(() => {
+        emAndamento.delete(id);
+        posicoes.delete(id);
+      });
   };
 
   // Estado da prévia de um vídeo. Vídeo no S3 sem prévia (enviado antes do bloco 4,
@@ -190,7 +208,7 @@ export const previasLeves = (armazenamento: ArmazenamentoS3) => {
     // Prévia e capa de um envio anterior com o mesmo nome não valem.
     const capaAtual = dataDaCapa && dataDaCapa >= dataDoOriginal ? await assinar(capa) : undefined;
     if (estavaPreparando || emAndamento.has(id)) {
-      return {estado: "preparando", capa: capaAtual};
+      return {estado: "preparando", capa: capaAtual, fila: posicoes.get(id)};
     }
     if (falhas.has(id) && !tentarDeNovo) {
       return {estado: "falhou", mensagem: falhas.get(id)!, capa: capaAtual};
@@ -199,10 +217,11 @@ export const previasLeves = (armazenamento: ArmazenamentoS3) => {
       return {estado: "pronta", video: await assinar(video), capa: capaAtual};
     }
     gerar(usuarioId, nome, origemLocal);
-    return {estado: "preparando", capa: capaAtual};
+    return {estado: "preparando", capa: capaAtual, fila: posicoes.get(id)};
   };
 
-  return {gerar, estado};
+  // Para a saúde e o log: conversões rodando e esperando.
+  return {gerar, estado, fila: () => ({rodando: fila.ocupadas(), esperando: fila.esperando()})};
 };
 
 export type PreviasLeves = ReturnType<typeof previasLeves>;

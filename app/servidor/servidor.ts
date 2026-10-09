@@ -39,7 +39,7 @@ import {bancoNoSupabase, processadorDeEventos, regraDaAssinatura, resumoDaAssina
 import type {ResumoDaAssinatura} from "./assinaturas";
 import {DIAS_DO_PIX, ErroDoPix, bancoDoPixNoSupabase, cpfValido, motivoParaNaoPagarPix, processadorDePix, vistaDoPix} from "./pix";
 import {LIMITES} from "./cota";
-import {LIMITES_DE_USO, filaComVagas, limiteDePedidos} from "./limites";
+import {LIMITES_DE_USO, filaComVagas, limiteDePedidos, textoDaFila} from "./limites";
 
 // Números dos planos para a página de apresentação (quem chega sem login), lidos da
 // configuração: o preço do Mercado Pago (ASSINATURA_VALOR_BRL; sem o Mercado Pago,
@@ -668,11 +668,27 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   app.get("/api/sons", handle(() => listarSons(root)));
 
   // Um som da pasta sons/, para a prévia e o botão de ouvir. Os sons tocados
-  // (tocados/..., veja somTocado em src/sons.ts) são gerados na primeira vez.
+  // (tocados/..., veja somTocado em src/sons.ts) são gerados na primeira vez: a prévia
+  // pede todos de uma vez, então vão para a fila (um ffmpeg por som) e o mesmo som
+  // pedido duas vezes é gerado uma só.
   const pastaDosSonsTocados = path.join(os.tmpdir(), "legendas-dinamicas-sons");
+  const filaDeSons = filaComVagas(LIMITES_DE_USO.sonsAoMesmoTempo);
+  const sonsSendoFeitos = new Map<string, Promise<string | undefined>>();
+  const somTocado = (relativo: string): Promise<string | undefined> => {
+    let feito = sonsSendoFeitos.get(relativo);
+    if (!feito) {
+      feito = filaDeSons
+        .entrar()
+        .then((liberar) => somTocadoEmCache(root, relativo, pastaDosSonsTocados).finally(liberar))
+        .catch(() => undefined)
+        .finally(() => sonsSendoFeitos.delete(relativo));
+      sonsSendoFeitos.set(relativo, feito);
+    }
+    return feito;
+  };
   app.get("/sons/*", async (request, response) => {
     const relativo = String((request.params as Record<string, string>)[0] ?? "");
-    const arquivo = caminhoDoSom(root, relativo) ?? (await somTocadoEmCache(root, relativo, pastaDosSonsTocados).catch(() => undefined));
+    const arquivo = caminhoDoSom(root, relativo) ?? (await somTocado(relativo));
     if (!arquivo) {
       response.status(404).send("Som não encontrado em sons/.");
       return;
@@ -723,7 +739,16 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // antes de existir a detecção (a transcrição nova já salva a voz).
   app.get(
     "/api/voz",
-    handle(async (request, response) => detectarVozDoVideo(await videos.entrada(espacoDe(response), String(request.query.nome ?? "")))),
+    handle(async (request, response) => {
+      const entrada = await videos.entrada(espacoDe(response), String(request.query.nome ?? ""));
+      // Extrai o áudio do vídeo inteiro: na mesma fila das transcrições.
+      const liberar = await filaDeTranscricoes.entrar();
+      try {
+        return await detectarVozDoVideo(entrada);
+      } finally {
+        liberar();
+      }
+    }),
   );
 
   app.get(
@@ -879,8 +904,8 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
         chave,
         video,
         async (progress) => {
-          // Fila geral: com todas as vagas ocupadas, espera a vez ("Na fila, posição N").
-          const liberar = await filaDeTranscricoes.entrar((posicao) => progress(`Na fila, posição ${posicao}`));
+          // Fila geral: com todas as vagas ocupadas, espera a vez ("Na fila, você é o próximo").
+          const liberar = await filaDeTranscricoes.entrar((posicao) => progress(textoDaFila(posicao)));
           try {
           const anterior = await espaco.lerProjeto(video);
           const ajustes = manterAjustes && anterior?.source === video ? anterior : undefined;

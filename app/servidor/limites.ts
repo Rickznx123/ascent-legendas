@@ -2,11 +2,13 @@
 //   - uma transcrição e uma exportação por conta de cada vez;
 //   - fila geral: até 20 renders no Lambda e 3 transcrições ao mesmo tempo; acima
 //     disso, "Na fila, posição N", e a tarefa segue sozinha quando abre vaga;
+//   - o que pesa no próprio servidor (ffmpeg): 1 prévia leve e 2 sons tocados ao
+//     mesmo tempo, para caber em 1 CPU / 2 GB (medido com scripts/medir-carga.ts);
 //   - pedidos por minuto, por conta (sem login, por endereço): 60 no geral e 10 nas
 //     rotas que custam (transcrever, exportar e abrir um envio).
 // A fila de renders fica na tabela renders (sobrevive a um reinício, veja renders.ts);
 // a de transcrições, na memória (uma transcrição leva segundos).
-// FILA_RENDERS e FILA_TRANSCRICOES (ambiente) trocam as vagas, para testes.
+// FILA_RENDERS, FILA_TRANSCRICOES, FILA_PREVIAS e FILA_SONS (ambiente) trocam as vagas.
 import type {NextFunction, Request, Response} from "express";
 
 const doAmbiente = (nome: string, padrao: number) => {
@@ -16,11 +18,18 @@ const doAmbiente = (nome: string, padrao: number) => {
 
 export const LIMITES_DE_USO = {
   rendersAoMesmoTempo: doAmbiente("FILA_RENDERS", 20),
-  // 3 transcrições: cabe no plano Starter do Render (512 MB); cada uma extrai o áudio com o ffmpeg.
+  // 3 transcrições: cada uma extrai o áudio com o ffmpeg (segundos) e espera o WhisperX.
   transcricoesAoMesmoTempo: doAmbiente("FILA_TRANSCRICOES", 3),
+  // Prévia leve (H.264 do vídeo inteiro): a etapa mais pesada, ocupa a CPU toda.
+  previasAoMesmoTempo: doAmbiente("FILA_PREVIAS", 1),
+  // Sons tocados da prévia do editor (um ffmpeg curto por som).
+  sonsAoMesmoTempo: doAmbiente("FILA_SONS", 2),
   pedidosPorMinuto: 60,
   pedidosCarosPorMinuto: 10,
 };
+
+// O que a tela mostra enquanto espera a vez (começa com "Na fila": a tela reconhece).
+export const textoDaFila = (posicao: number): string => (posicao <= 1 ? "Na fila, você é o próximo" : `Na fila, posição ${posicao}`);
 
 // Fila com vagas (a primeira a chegar é a primeira a sair). entrar() espera a vez e
 // devolve a função que libera a vaga; aoMudar recebe a posição na fila (1 = a

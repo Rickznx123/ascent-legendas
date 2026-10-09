@@ -24,7 +24,7 @@ import type {Contas} from "./contas";
 import type {DecisaoDeExportacao} from "./cota";
 import type {Espaco} from "./espaco";
 import type {ArmazenamentoS3} from "./s3";
-import {LIMITES_DE_USO} from "./limites";
+import {LIMITES_DE_USO, textoDaFila} from "./limites";
 import {siteDaVersao} from "./site-lambda";
 import type {SiteDoLambda} from "./site-lambda";
 
@@ -179,7 +179,7 @@ export const rendersNoLambda = ({
         .select("id", {count: "exact", head: true})
         .eq("situacao", "fila")
         .lt("criado_em", linha.criado_em);
-      return {id: linha.id, video: linha.video, estado: "andamento", etapa: `Na fila, posição ${(count ?? 0) + 1}`, fracao: 0};
+      return {id: linha.id, video: linha.video, estado: "andamento", etapa: textoDaFila((count ?? 0) + 1), fracao: 0};
     }
     return {
       id: linha.id,

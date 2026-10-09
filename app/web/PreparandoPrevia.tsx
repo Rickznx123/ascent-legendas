@@ -25,7 +25,11 @@ export const PreparandoPrevia: React.FC<{
         ) : (
           <>
             <span className="preparando-previa-roda" aria-hidden="true" />
-            <span>Preparando a prévia…</span>
+            <span>
+              {estado?.estado === "preparando" && estado.fila
+                ? `Na fila para preparar a prévia: ${estado.fila === 1 ? "você é o próximo" : `posição ${estado.fila}`}`
+                : "Preparando a prévia…"}
+            </span>
           </>
         )}
       </div>
