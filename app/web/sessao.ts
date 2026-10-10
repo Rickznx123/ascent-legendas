@@ -146,7 +146,8 @@ export const entrar = async (email: string, senha: string): Promise<void> => {
 };
 
 // Cria a conta; o Supabase manda o link de confirmação (uma vez só por conta).
-export const criarConta = async (email: string, senha: string): Promise<void> => {
+// Devolve o id da conta nova.
+export const criarConta = async (email: string, senha: string): Promise<string | undefined> => {
   const {data, error} = await cliente!.auth.signUp({email, password: senha, options: {emailRedirectTo: voltaDoEmail()}});
   if (error) throw traduzir(error);
   // E-mail que já tem conta confirmada: o Supabase não dá erro (para não revelar
@@ -154,6 +155,7 @@ export const criarConta = async (email: string, senha: string): Promise<void> =>
   if (data.user && (data.user.identities ?? []).length === 0) {
     throw traduzir({code: "user_already_exists"});
   }
+  return data.user?.id;
 };
 
 export const reenviarConfirmacao = async (email: string): Promise<void> => {

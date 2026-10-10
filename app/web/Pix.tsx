@@ -1,10 +1,11 @@
 // Pix de 30 dias pelo Mercado Pago (Etapa 2d): a tela do Pix dentro do app e o aviso
 // de vencimento. Quem decide o plano é o servidor (consultando o Mercado Pago, veja
 // app/servidor/pix.ts); aqui só se mostra.
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useEffect, useRef, useState} from "react";
 import {api} from "./api";
 import type {Nivel, VistaDoPix} from "./api";
 import {useConta} from "./conta";
+import {inicioDoCheckout} from "./meta";
 
 const dataCurta = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", {day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo"});
 const reais = (valor: number) => valor.toLocaleString("pt-BR", {style: "currency", currency: "BRL"});
@@ -64,11 +65,15 @@ export const JanelaPix: React.FC<{nivel?: Nivel; onFechar: () => void}> = ({nive
   const faltam = useFaltam(pix?.expiraEm);
   const venceu = pix?.estado === "vencido" || (pix?.estado === "pendente" && pix.expiraEm !== undefined && faltam === 0);
 
+  const contouCheckout = useRef(false);
   const gerar = useCallback(async (comCpf?: string) => {
     setGerando(true);
     setErro(undefined);
     try {
       const resposta = await api.gerarPix(nivel, comCpf);
+      // Um InitiateCheckout por janela (gerar de novo, com CPF ou vencido, não conta).
+      if (!contouCheckout.current) inicioDoCheckout(resposta.pix.valor);
+      contouCheckout.current = true;
       setPix(resposta.pix);
       setPedeCpf(false);
     } catch (falha) {

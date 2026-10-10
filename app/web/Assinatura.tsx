@@ -29,6 +29,7 @@ import {api} from "./api";
 import type {Nivel, ResumoDaAssinatura} from "./api";
 import {useConta} from "./conta";
 import {JanelaPix} from "./Pix";
+import {inicioDoCheckout} from "./meta";
 
 // Datas no horário de Brasília ("07/11").
 const dataCurta = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", {day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo"});
@@ -125,6 +126,7 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
       if (resposta.endereco) {
         // O checkout é do Mercado Pago; a volta é para /?assinatura=retorno.
         marcarCheckout(true);
+        inicioDoCheckout(plano?.valor);
         window.location.href = resposta.endereco;
         return;
       }

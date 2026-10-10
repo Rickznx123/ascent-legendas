@@ -60,6 +60,7 @@ export type PlanosDaApresentacao = {
 // Erro com mensagem já pronta para a tela.
 class ErroParaATela extends Error {}
 import {rendersNoLambda} from "./renders";
+import {assinaturasComMeta, cookieDoPedido, metaDoAmbiente, pixComMeta, scriptDoPixel} from "./meta";
 import type {ExportacaoMontada} from "./renders";
 import type {AwsRegion} from "@remotion/lambda/client";
 import {tituloDoVideo} from "./titulo";
@@ -190,9 +191,11 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // MERCADOPAGO_ACCESS_TOKEN, não há assinatura: o "Assinar" não aparece.
   const mercadoPago = contas ? mercadoPagoDoAmbiente() : undefined;
   const apiMp = mercadoPago ? apiDoMercadoPago(mercadoPago) : undefined;
-  const bancoDasAssinaturas = contas ? bancoNoSupabase(contas.admin) : undefined;
+  // Pixel da Meta e API de Conversões (veja meta.ts): o Purchase sai quando um pagamento é aprovado.
+  const meta = contas ? metaDoAmbiente(contas.admin, configuracaoDoAmbiente().enderecoDoApp) : undefined;
+  const bancoDasAssinaturas = contas ? assinaturasComMeta(bancoNoSupabase(contas.admin), meta) : undefined;
   // Pix avulso de 30 dias (Etapa 2d, veja pix.ts): o mesmo token e o mesmo webhook.
-  const pixMp = apiMp && bancoDasAssinaturas && contas ? processadorDePix({banco: bancoDoPixNoSupabase(contas.admin, bancoDasAssinaturas), api: apiMp}) : undefined;
+  const pixMp = apiMp && bancoDasAssinaturas && contas ? processadorDePix({banco: pixComMeta(bancoDoPixNoSupabase(contas.admin, bancoDasAssinaturas), meta), api: apiMp}) : undefined;
   const eventosMp =
     apiMp && bancoDasAssinaturas ? processadorDeEventos({banco: bancoDasAssinaturas, api: apiMp, outroPagamento: pixMp?.doPagamento}) : undefined;
   console.log(
@@ -392,6 +395,22 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       videosNoGratis: LIMITES.videosNoGratis,
     };
     response.json(contas ? {...config, planos} : config);
+  });
+
+  // O Pixel da Meta com o ID do servidor (vazio sem META_PIXEL_ID), em todas as páginas.
+  app.get("/pixel.js", (_request, response) => {
+    response.setHeader("Cache-Control", "no-cache");
+    response.type("application/javascript").send(scriptDoPixel());
+  });
+
+  // Conta criada no navegador (Supabase): o CompleteRegistration pelo servidor, com o
+  // event_id do navegador. Sem login, como o cadastro; meta.ts só aceita conta recém-criada.
+  app.post("/api/meta/cadastro", (request: Request, response: Response) => {
+    response.status(204).end();
+    const {usuario, eventId} = (request.body ?? {}) as {usuario?: unknown; eventId?: unknown};
+    if (!meta || typeof usuario !== "string" || !/^[0-9a-f-]{36}$/iu.test(usuario) || typeof eventId !== "string" || !/^[\w-]{8,64}$/u.test(eventId)) return;
+    const cookie = request.headers.cookie;
+    void meta.cadastro(usuario, eventId, {fbp: cookieDoPedido(cookie, "_fbp"), fbc: cookieDoPedido(cookie, "_fbc"), ip: request.ip, ua: request.header("user-agent")});
   });
 
   // Todas as outras rotas: com login, o token do usuário é validado e o pedido

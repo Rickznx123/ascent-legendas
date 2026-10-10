@@ -4,6 +4,7 @@
 // e-mail, ainda não têm senha: entram pelo "Esqueci minha senha".
 // O botão do Google só aparece com LOGIN_GOOGLE=1 no .env do servidor.
 import {useState} from "react";
+import {contaCriada} from "./meta";
 import {CampoDeSenha, problemaDaSenhaNova} from "./Senha";
 import {SENHA_MINIMA, criarConta, entrar, entrarComGoogle, noAppInstalado, pedirRedefinicao, reenviarConfirmacao} from "./sessao";
 
@@ -84,7 +85,7 @@ export const TelaDeLogin: React.FC<{google: boolean; aviso?: string; vistaInicia
         return;
       }
       void executar(async () => {
-        await criarConta(endereco, senha);
+        contaCriada(await criarConta(endereco, senha));
         setReenviado(false);
         setEnviado({tipo: "confirmacao", email: endereco});
       });
