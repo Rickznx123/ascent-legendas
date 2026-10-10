@@ -60,7 +60,10 @@ export type PlanosDaApresentacao = {
 // Erro com mensagem já pronta para a tela.
 class ErroParaATela extends Error {}
 import {rendersNoLambda} from "./renders";
-import {assinaturasComMeta, cookieDoPedido, metaDoAmbiente, pixComMeta, scriptDoPixel} from "./meta";
+import {cookieDoPedido, metaDoAmbiente, scriptDoPixel} from "./meta";
+import {boasVindasDoAmbiente} from "./boas-vindas";
+import {assinaturasAoAprovar, pixAoAprovar} from "./pagamento-aprovado";
+import type {AoAprovar} from "./pagamento-aprovado";
 import type {ExportacaoMontada} from "./renders";
 import type {AwsRegion} from "@remotion/lambda/client";
 import {tituloDoVideo} from "./titulo";
@@ -191,11 +194,20 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // MERCADOPAGO_ACCESS_TOKEN, não há assinatura: o "Assinar" não aparece.
   const mercadoPago = contas ? mercadoPagoDoAmbiente() : undefined;
   const apiMp = mercadoPago ? apiDoMercadoPago(mercadoPago) : undefined;
-  // Pixel da Meta e API de Conversões (veja meta.ts): o Purchase sai quando um pagamento é aprovado.
+  // Pagamento aprovado (cartão ou Pix): o Purchase da Meta (veja meta.ts) e, no primeiro
+  // da conta, o e-mail de boas-vindas (veja boas-vindas.ts).
   const meta = contas ? metaDoAmbiente(contas.admin, configuracaoDoAmbiente().enderecoDoApp) : undefined;
-  const bancoDasAssinaturas = contas ? assinaturasComMeta(bancoNoSupabase(contas.admin), meta) : undefined;
+  const boasVindas = contas ? boasVindasDoAmbiente(contas.admin) : undefined;
+  const aoAprovar: AoAprovar | undefined =
+    meta || boasVindas
+      ? ({usuarioId, id, valor, nivel}) => {
+          void meta?.compra(usuarioId, id, valor);
+          void boasVindas?.(usuarioId, nivel);
+        }
+      : undefined;
+  const bancoDasAssinaturas = contas ? assinaturasAoAprovar(bancoNoSupabase(contas.admin), aoAprovar) : undefined;
   // Pix avulso de 30 dias (Etapa 2d, veja pix.ts): o mesmo token e o mesmo webhook.
-  const pixMp = apiMp && bancoDasAssinaturas && contas ? processadorDePix({banco: pixComMeta(bancoDoPixNoSupabase(contas.admin, bancoDasAssinaturas), meta), api: apiMp}) : undefined;
+  const pixMp = apiMp && bancoDasAssinaturas && contas ? processadorDePix({banco: pixAoAprovar(bancoDoPixNoSupabase(contas.admin, bancoDasAssinaturas), aoAprovar), api: apiMp}) : undefined;
   const eventosMp =
     apiMp && bancoDasAssinaturas ? processadorDeEventos({banco: bancoDasAssinaturas, api: apiMp, outroPagamento: pixMp?.doPagamento}) : undefined;
   console.log(

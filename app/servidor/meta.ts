@@ -4,8 +4,6 @@
 // Uma falha na Meta só vai para o log: nunca quebra o cadastro nem o pagamento.
 import {createHash} from "node:crypto";
 import type {SupabaseClient} from "@supabase/supabase-js";
-import type {BancoDeAssinaturas} from "./assinaturas";
-import type {BancoDoPix} from "./pix";
 
 const API_DA_META = "https://graph.facebook.com/v21.0";
 // Só aceita o CompleteRegistration de uma conta criada há pouco (a rota é pública).
@@ -114,34 +112,3 @@ export const metaDoAmbiente = (admin: SupabaseClient, enderecoDoApp: string): Me
     },
   };
 };
-
-// Purchase quando um pagamento de assinatura (cartão) fica aprovado pela primeira vez.
-// Só observa a gravação: as regras do pagamento continuam as de assinaturas.ts.
-export const assinaturasComMeta = (banco: BancoDeAssinaturas, meta: Meta | undefined): BancoDeAssinaturas =>
-  meta
-    ? {
-        ...banco,
-        salvarPagamento: async (pagamento) => {
-          const aprovado = pagamento.status === "approved";
-          const antes = aprovado ? await banco.pagamento(pagamento.mp_payment_id).catch(() => undefined) : undefined;
-          await banco.salvarPagamento(pagamento);
-          if (aprovado && antes?.status !== "approved") void meta.compra(pagamento.usuario_id, `compra-${pagamento.mp_payment_id}`, pagamento.valor);
-        },
-      }
-    : banco;
-
-// Purchase quando um Pix fica aprovado (regraDoPixAprovado só aprova uma vez).
-export const pixComMeta = (banco: BancoDoPix, meta: Meta | undefined): BancoDoPix =>
-  meta
-    ? {
-        ...banco,
-        salvarPix: async (id, campos) => {
-          await banco.salvarPix(id, campos);
-          if (campos.status !== "aprovado") return;
-          void banco
-            .pixPorId(id)
-            .then((pix) => (pix ? meta.compra(pix.usuario_id, `pix-${id}`, Number(pix.valor)) : undefined))
-            .catch((erro: unknown) => registrar(`Purchase (pix-${id}) falhou: ${mensagem(erro)}`));
-        },
-      }
-    : banco;
