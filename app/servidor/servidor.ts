@@ -72,6 +72,7 @@ import {s3DoAmbiente} from "./s3";
 import type {ConfigDoLogin} from "./contas";
 import {espacoDoUsuario, espacoLocal} from "./espaco";
 import type {Espaco} from "./espaco";
+import {EXTENSAO_DE_AUDIO, ORIGEM_DO_PLUGIN, REGRAS_DO_PLUGIN, blocosParaOPlugin, rotasDoPlugin} from "./plugin";
 
 export type OpcoesServidor = {
   porta: number;
@@ -458,6 +459,9 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   if (contas && armazenamento && previas) {
     app.use("/api/envio", rotasDeEnvio({contas, armazenamento, previas, videos, espacoDe}));
   }
+
+  // Plugin do Premiere: os blocos de um áudio já transcrito (veja plugin.ts).
+  app.use("/api/plugin", rotasDoPlugin({root, espacoDe}));
 
   // Prévia leve e capa do vídeo (veja previa-leve.ts). Sem S3, ou vídeo só no disco:
   // "local", e a tela usa /media como sempre. tentar=1: tenta de novo uma que falhou.
@@ -954,20 +958,27 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     "/api/transcrever",
     handle(async (request, response) => {
       const espaco = espacoDe(response);
-      const {video, pacote, paleta, manterAjustes} = request.body as {
+      const {video, pacote, paleta, manterAjustes, origem} = request.body as {
         video: string;
         pacote?: string;
         paleta?: string;
         manterAjustes?: boolean;
+        // "plugin": o áudio da sequência do Premiere (veja plugin.ts).
+        origem?: string;
       };
+      const doPlugin = origem === ORIGEM_DO_PLUGIN;
+      if (doPlugin !== EXTENSAO_DE_AUDIO.test(String(video ?? ""))) {
+        throw new Error(doPlugin ? "O plugin transcreve só áudio (.wav, .m4a, .mp3 ou .aac)." : "Escolha um vídeo para transcrever.");
+      }
       await videos.fonte(espaco, video);
       const chave = chaveDaTarefa(espaco, video);
       const atual = transcricoes.emAndamento(chave);
       if (atual) {
         return atual;
       }
-      if (espaco.cota) {
-        const decisao = await espaco.cota.podeTranscrever();
+      // O plugin segue as regras dele (plugin.ts); o app, a cota do plano.
+      const decisao = doPlugin ? await REGRAS_DO_PLUGIN.podeTranscrever(espaco) : await espaco.cota?.podeTranscrever();
+      if (decisao) {
         if (!decisao.permitido) {
           response.status(429).json({mensagem: decisao.motivo, codigo: "limite-transcricoes", uso: decisao.uso});
           return undefined;
@@ -1022,6 +1033,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       voz,
       words,
       blocks,
+      ...(doPlugin ? {origem: ORIGEM_DO_PLUGIN} : {}),
     };
     await espaco.salvarProjeto(projeto);
     // A tela mostra qual reserva foi usada, se não foi o WhisperX.
@@ -1031,6 +1043,13 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
             console.log(`[${video}] Transcrição: não deu para registrar no limite do dia: ${erro instanceof Error ? erro.message : String(erro)}`);
           });
           resultado = motor;
+          if (doPlugin) {
+            // O áudio só servia para transcrever: sai do S3 (o projeto fica, com os blocos).
+            await videos.remover(espaco, video).catch((erro: unknown) => {
+              console.log(`[${video}] Plugin: não deu para apagar o áudio: ${erro instanceof Error ? erro.message : String(erro)}`);
+            });
+            return {...(await blocosParaOPlugin(root, projeto)), avisos};
+          }
           // A tela mostra qual reserva foi usada, se não foi o WhisperX.
           return {projeto, avisos};
           } catch (erro) {
