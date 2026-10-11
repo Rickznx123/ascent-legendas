@@ -9,6 +9,8 @@
 // Limites do plano (LIMITES.envio): tamanho conferido ao abrir e depois de fechar;
 // duração conferida ao abrir (a que o navegador mediu) e, valendo, pelo ffprobe no
 // arquivo do S3. Fora do limite, o arquivo é apagado.
+// O mesmo envio recebe o áudio curto do plugin do Premiere (.wav, .m4a, .mp3, .aac): limites das
+// regras do plugin (plugin.ts), duração pelo ffprobe sem faixa de vídeo, sem prévia, fora da lista.
 // O vídeo enviado fica só no S3 (desde o bloco 6): a lista, a prévia, a
 // transcrição e a exportação leem de lá.
 import path from "node:path";
@@ -24,7 +26,7 @@ import {
 import {getSignedUrl} from "@aws-sdk/s3-request-presigner";
 import express from "express";
 import type {Request, Response} from "express";
-import {getVideoMetadata} from "../../src/motor/ferramentas";
+import {getMediaDuration, getVideoMetadata} from "../../src/motor/ferramentas";
 import {PASTAS_NO_BUCKET} from "./configuracao";
 import type {Contas} from "./contas";
 import {LIMITES, duracaoEmTexto} from "./cota";
@@ -34,6 +36,7 @@ import type {VideosDasContas} from "./videos";
 import {idDoEnvio, registrarEnvio, segundos} from "./registro";
 import {tituloDoVideo} from "./titulo";
 import type {ArmazenamentoS3} from "./s3";
+import {EXTENSAO_DE_AUDIO, REGRAS_DO_PLUGIN} from "./plugin";
 
 // Cada parte tem 5 MB (o mínimo do S3; a última, o que sobrar): numa interrupção,
 // perde-se no máximo o que estava pela metade em cada parte em andamento.
@@ -52,16 +55,22 @@ class ErroDoEnvio extends Error {
   }
 }
 
+const TIPOS_DE_AUDIO: Record<string, string> = {".wav": "audio/wav", ".m4a": "audio/mp4", ".mp3": "audio/mpeg", ".aac": "audio/aac"};
+
 const tipoDoVideo = (nome: string): string => {
   const extensao = path.extname(nome).toLowerCase();
-  return extensao === ".mov" ? "video/quicktime" : extensao === ".webm" ? "video/webm" : extensao === ".mkv" ? "video/x-matroska" : "video/mp4";
+  return TIPOS_DE_AUDIO[extensao] ?? extensao === ".mov" ? "video/quicktime" : extensao === ".webm" ? "video/webm" : extensao === ".mkv" ? "video/x-matroska" : "video/mp4";
 };
 
 const megabytes = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 
 // Nome do arquivo como fica na lista: só o nome (sem pastas), sem caracteres de controle.
+// Também aceita o áudio do plugin do Premiere (veja plugin.ts), que não entra na lista de vídeos.
 const nomeSeguro = (nome: unknown): string => {
   const limpo = path.basename(String(nome ?? "")).replace(/[\u0000-\u001f\u007f\\/]/gu, "").trim();
+  if (EXTENSAO_DE_AUDIO.test(limpo)) {
+    return limpo;
+  }
   if (!EXTENSAO_DE_VIDEO.test(limpo) || limpo.toLowerCase() === "saida.mp4") {
     throw new ErroDoEnvio("Escolha um vídeo .mp4, .mov, .mkv ou .webm.");
   }
@@ -111,11 +120,13 @@ export const rotasDeEnvio = ({
     }
     return texto;
   };
-  const limiteDo = async (usuario: NonNullable<Espaco["usuario"]>, token: string) => {
+  // O áudio do plugin segue as regras do plugin (plugin.ts); o vídeo, as do envio.
+  const limiteDo = async (usuario: NonNullable<Espaco["usuario"]>, token: string, nome: string) => {
     const {plano} = await contas.perfil(usuario, token);
-    return {plano, ...LIMITES.envio[plano]};
+    return {plano, ...(EXTENSAO_DE_AUDIO.test(nome) ? REGRAS_DO_PLUGIN.envio(plano) : LIMITES.envio[plano])};
   };
   const textoDoPlano = (plano: string) => (plano === "assinante" ? "do plano Assinante" : "do plano grátis");
+  const qual = (nome: string) => (EXTENSAO_DE_AUDIO.test(nome) ? "áudio" : "vídeo");
 
   rotas.post(
     "/iniciar",
@@ -126,14 +137,14 @@ export const rotasDeEnvio = ({
       if (!Number.isFinite(bytes) || bytes <= 0) {
         throw new ErroDoEnvio("Arquivo vazio.");
       }
-      const limite = await limiteDo(espaco.usuario, response.locals.token as string);
+      const limite = await limiteDo(espaco.usuario, response.locals.token as string, nome);
       if (bytes > limite.bytes) {
-        throw new ErroDoEnvio(`Este vídeo tem ${megabytes(bytes)}; o limite ${textoDoPlano(limite.plano)} é ${megabytes(limite.bytes)} por vídeo.`, 413);
+        throw new ErroDoEnvio(`Este ${qual(nome)} tem ${megabytes(bytes)}; o limite ${textoDoPlano(limite.plano)} é ${megabytes(limite.bytes)} por ${qual(nome)}.`, 413);
       }
       // A duração que o navegador mediu (a que vale é medida no fim, no servidor).
       if (Number.isFinite(Number(duracaoS)) && Number(duracaoS) > limite.segundos + 1) {
         throw new ErroDoEnvio(
-          `Este vídeo tem ${duracaoEmTexto(Number(duracaoS))}; o limite ${textoDoPlano(limite.plano)} é ${duracaoEmTexto(limite.segundos)} por vídeo.`,
+          `Este ${qual(nome)} tem ${duracaoEmTexto(Number(duracaoS))}; o limite ${textoDoPlano(limite.plano)} é ${duracaoEmTexto(limite.segundos)} por ${qual(nome)}.`,
           413,
         );
       }
@@ -215,34 +226,40 @@ export const rotasDeEnvio = ({
       );
       // Confere o que chegou: tamanho e duração de verdade (o ffprobe lê pelo
       // endereço assinado, sem baixar o arquivo). Fora do limite: apaga.
-      const limite = await limiteDo(espaco.usuario, response.locals.token as string);
+      const limite = await limiteDo(espaco.usuario, response.locals.token as string, nome);
       const apagar = () => s3.send(new DeleteObjectCommand({Bucket, Key: chave}));
       const {ContentLength = 0} = await s3.send(new HeadObjectCommand({Bucket, Key: chave}));
       if (ContentLength > limite.bytes) {
         await apagar();
-        throw new ErroDoEnvio(`O vídeo enviado tem ${megabytes(ContentLength)}; o limite ${textoDoPlano(limite.plano)} é ${megabytes(limite.bytes)}.`, 413);
+        throw new ErroDoEnvio(`O ${qual(nome)} enviado tem ${megabytes(ContentLength)}; o limite ${textoDoPlano(limite.plano)} é ${megabytes(limite.bytes)}.`, 413);
       }
       const juntar = segundos(inicio);
       const inicioDaConferencia = Date.now();
       let duracaoS: number;
+      const audio = EXTENSAO_DE_AUDIO.test(nome);
       try {
-        const metadados = await getVideoMetadata(await armazenamento.enderecoDeLeitura(chave, 600));
-        duracaoS = metadados.durationInFrames / metadados.fps;
+        const endereco = await armazenamento.enderecoDeLeitura(chave, 600);
+        if (audio) {
+          duracaoS = await getMediaDuration(endereco);
+        } else {
+          const metadados = await getVideoMetadata(endereco);
+          duracaoS = metadados.durationInFrames / metadados.fps;
+        }
       } catch {
         await apagar();
-        throw new ErroDoEnvio("Não deu para ler este arquivo como vídeo. Tente outro arquivo.");
+        throw new ErroDoEnvio(`Não deu para ler este arquivo como ${qual(nome)}. Tente outro arquivo.`);
       }
       if (duracaoS > limite.segundos + 1) {
         await apagar();
-        throw new ErroDoEnvio(`Este vídeo tem ${duracaoEmTexto(duracaoS)}; o limite ${textoDoPlano(limite.plano)} é ${duracaoEmTexto(limite.segundos)} por vídeo.`, 413);
+        throw new ErroDoEnvio(`Este ${qual(nome)} tem ${duracaoEmTexto(duracaoS)}; o limite ${textoDoPlano(limite.plano)} é ${duracaoEmTexto(limite.segundos)} por ${qual(nome)}.`, 413);
       }
 
       registrarEnvio(
         idDoEnvio(espaco.usuario.id, nome),
         `chegou: ${megabytes(ContentLength)}, ${duracaoEmTexto(duracaoS)}; juntar as partes ${juntar}, conferir com o ffprobe ${segundos(inicioDaConferencia)}`,
       );
-      // Capa e prévia leve, sem esperar (a tela pergunta o estado em /api/previa).
-      previas.gerar(espaco.usuario.id, nome);
+      // Capa e prévia leve, sem esperar (a tela pergunta o estado em /api/previa). O áudio do plugin não tem.
+      if (!audio) previas.gerar(espaco.usuario.id, nome);
       return {nome, duracaoS, bytes: ContentLength};
     }),
   );

@@ -42,6 +42,8 @@ export type Projeto = {
   posicao?: {x: number; y: number};
   // Entrada dos lineares que aceitam letra por letra (pacote C). Sem valor: por palavra.
   entradaLinear?: EntradaLinear;
+  // Projeto criado pelo plugin do Premiere (veja app/servidor/plugin.ts): fica fora da lista do app.
+  origem?: "plugin";
   // Blocos excluídos na interface (fora do vídeo; podem ser restaurados).
   excluidos?: CaptionBlock[];
   words: Word[];

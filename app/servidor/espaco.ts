@@ -78,6 +78,10 @@ export const pastaDoUsuario = (root: string, usuario: Usuario): string => {
 
 type Linha = {id: string; video: string | null; dados: Projeto; atualizado_em: string};
 
+// Os projetos do plugin do Premiere (dados.origem = "plugin", veja plugin.ts) ficam fora da lista
+// do app e do "último editado"; o projeto de um vídeo pedido pelo nome continua sendo lido.
+const SEM_O_PLUGIN = "dados->>origem.is.null,dados->>origem.neq.plugin";
+
 export const espacoDoUsuario = (root: string, contas: Contas, usuario: Usuario, token: string): Espaco => {
   const pasta = pastaDoUsuario(root, usuario);
   const banco = contas.doUsuario(token);
@@ -150,6 +154,7 @@ export const espacoDoUsuario = (root: string, contas: Contas, usuario: Usuario, 
       const {data, error} = await banco
         .from("projetos")
         .select("dados")
+        .or(SEM_O_PLUGIN)
         .order("atualizado_em", {ascending: false})
         .limit(1)
         .maybeSingle();
@@ -175,7 +180,7 @@ export const espacoDoUsuario = (root: string, contas: Contas, usuario: Usuario, 
       return (data ?? []).length > 0;
     },
     projetos: async () => {
-      const {data, error} = await banco.from("projetos").select("video, blocos:dados->blocks").order("atualizado_em", {ascending: false});
+      const {data, error} = await banco.from("projetos").select("video, blocos:dados->blocks").or(SEM_O_PLUGIN).order("atualizado_em", {ascending: false});
       if (error) throw falha("listar os projetos", error);
       return (data as {video: string | null; blocos: unknown[] | null}[])
         .filter((linha): linha is {video: string; blocos: unknown[] | null} => Boolean(linha.video))

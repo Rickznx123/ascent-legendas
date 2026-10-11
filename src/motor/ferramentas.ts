@@ -109,6 +109,17 @@ const parseFrameRate = (value: string | undefined): number => {
   return fps;
 };
 
+// Duração de qualquer mídia (o áudio do plugin do Premiere não tem faixa de vídeo,
+// então getVideoMetadata não serve). Erro se o ffprobe não acha a duração.
+export const getMediaDuration = async (inputPath: string): Promise<number> => {
+  const {stdout} = await execFileAsync(ffprobePath(), ["-v", "error", "-show_entries", "format=duration", "-of", "json", inputPath]);
+  const duracao = Number((JSON.parse(stdout) as ProbeOutput).format?.duration);
+  if (!Number.isFinite(duracao) || duracao <= 0) {
+    throw new Error("Não foi possível descobrir a duração do arquivo.");
+  }
+  return duracao;
+};
+
 export const getVideoMetadata = async (inputPath: string): Promise<VideoMetadata> => {
   const {stdout} = await execFileAsync(ffprobePath(), [
     "-v",
