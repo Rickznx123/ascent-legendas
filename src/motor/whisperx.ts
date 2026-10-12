@@ -101,7 +101,8 @@ export const transcreverWhisperX = async (
     token = process.env.REPLICATE_API_TOKEN?.trim(),
     prazoMs = 60_000,
     onProgress = () => undefined,
-  }: {token?: string; prazoMs?: number; onProgress?: (etapa: string) => void} = {},
+    log = () => undefined,
+  }: {token?: string; prazoMs?: number; onProgress?: (etapa: string) => void; log?: (texto: string) => void} = {},
 ): Promise<{words: Word[]; semTempo: string[]; execucao: ExecucaoWhisperX}> => {
   if (!token) {
     throw new ErroDoReplicate("Falta REPLICATE_API_TOKEN no .env.");
@@ -109,11 +110,15 @@ export const transcreverWhisperX = async (
   const inicio = Date.now();
   const chamar = cliente(token, inicio + prazoMs);
   const restante = () => prazoMs - (Date.now() - inicio);
+  const desde = (ms: number) => `${((Date.now() - ms) / 1000).toFixed(1)} s`;
+  let etapa = Date.now();
 
   // O schema da versão fixada precisa ter os campos que a chamada usa.
+  log("WhisperX: consulta da versão do modelo começou.");
   const versao = await chamar<{openapi_schema: {components: {schemas: {Input: {properties: Record<string, unknown>}}}}}>(
     `/models/${MODELO_WHISPERX}/versions/${VERSAO_WHISPERX}`,
   );
+  log(`WhisperX: consulta da versão terminou em ${desde(etapa)}.`);
   const campos = versao.openapi_schema.components.schemas.Input.properties;
   const faltando = CAMPOS_USADOS.filter((campo) => !(campo in campos));
   if (faltando.length > 0) {
@@ -123,6 +128,8 @@ export const transcreverWhisperX = async (
   onProgress("Enviando o áudio...");
   const temp = mkdtempSync(path.join(os.tmpdir(), "legendas-whisperx-"));
   let bytes: Buffer;
+  etapa = Date.now();
+  log("WhisperX: conversão do áudio para MP3 começou.");
   try {
     const audio = path.join(temp, "audio.mp3");
     await execFileAsync(ffmpegPath(), ["-y", "-i", inputPath, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libmp3lame", "-b:a", "64k", audio]);
@@ -130,13 +137,17 @@ export const transcreverWhisperX = async (
   } finally {
     rmSync(temp, {recursive: true, force: true});
   }
+  log(`WhisperX: MP3 pronto em ${desde(etapa)} (${(bytes.length / 1024 / 1024).toFixed(1)} MB); envio do áudio ao Replicate começou.`);
+  etapa = Date.now();
   const form = new FormData();
   form.append("content", new Blob([new Uint8Array(bytes)], {type: "audio/mpeg"}), "audio.mp3");
   const arquivo = await chamar<{id: string; urls: {get: string}}>("/files", {method: "POST", body: form});
   const envioDoAudioS = (Date.now() - inicio) / 1000;
+  log(`WhisperX: envio do áudio terminou em ${desde(etapa)}; criação da previsão começou.`);
 
   try {
     onProgress("Transcrevendo com o WhisperX...");
+    etapa = Date.now();
     let previsao = await chamar<Previsao>("/predictions", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
@@ -145,15 +156,32 @@ export const transcreverWhisperX = async (
         input: {audio_file: arquivo.urls.get, language: "pt", align_output: true, debug: true},
       }),
     });
+    // Cada mudança de status (starting: máquina ligando ou na fila do Replicate).
+    const criada = Date.now();
+    let status = previsao.status;
+    let desdeOStatus = criada;
+    log(`WhisperX: previsão ${previsao.id} criada em ${desde(etapa)}, status ${status}.`);
+    const aoMudar = () => {
+      if (previsao.status !== status) {
+        log(`WhisperX: previsão ${previsao.id} ${status} → ${previsao.status}: ficou ${desde(desdeOStatus)} em ${status} (${desde(criada)} desde a criação).`);
+        status = previsao.status;
+        desdeOStatus = Date.now();
+      }
+    };
     while (!["succeeded", "failed", "canceled"].includes(previsao.status)) {
       if (restante() <= 0) {
+        log(`WhisperX: previsão ${previsao.id} passou do prazo em ${status} (há ${desde(desdeOStatus)}); cancelando.`);
         // O cancelamento tem um prazo próprio (o da transcrição já acabou).
         await cliente(token, Date.now() + 10_000)(`/predictions/${previsao.id}/cancel`, {method: "POST"}).catch(() => undefined);
         throw new ErroDoReplicate(`O WhisperX passou de ${prazoMs / 1000} s (execução ${previsao.id} cancelada).`);
       }
       await new Promise((r) => setTimeout(r, Math.min(500, Math.max(0, restante()))));
       previsao = await chamar<Previsao>(`/predictions/${previsao.id}`);
+      aoMudar();
     }
+    log(
+      `WhisperX: previsão ${previsao.id} terminou (${previsao.status}) em ${desde(criada)} desde a criação; pelo Replicate: espera ${segundos(previsao.created_at, previsao.started_at).toFixed(1)} s, processamento ${(previsao.metrics?.predict_time ?? 0).toFixed(1)} s.`,
+    );
     if (previsao.status !== "succeeded" || !previsao.output) {
       throw new ErroDoReplicate(`O WhisperX terminou como ${previsao.status}: ${previsao.error ?? ""}`);
     }

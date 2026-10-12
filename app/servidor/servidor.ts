@@ -988,6 +988,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
           const liberar = await filaDeTranscricoes.entrar((posicao) => progress(textoDaFila(posicao)));
           const esperaNaFila = segundos(pedido);
           const inicio = Date.now();
+          console.log(`[${video}] Transcrição: saiu da fila de transcrições depois de ${esperaNaFila}; começou.`);
           let resultado = "falhou";
           try {
           const anterior = await espaco.lerProjeto(video);
@@ -1002,6 +1003,8 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
             onProgress: progress,
             log: (texto) => console.log(`[${video}] ${texto}`),
           });
+    const inicioDosBlocos = Date.now();
+    console.log(`[${video}] Transcrição: montagem dos blocos começou.`);
     progress("Escolhendo os layouts...");
     const style = await loadStyle(root, {pacote, paleta});
     const semente = novaSemente();
@@ -1023,7 +1026,10 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       words,
       blocks,
     };
+    console.log(`[${video}] Transcrição: montagem dos blocos terminou em ${segundos(inicioDosBlocos)} (${blocks.length} blocos); salvar o projeto começou.`);
+    const inicioDoSalvamento = Date.now();
     await espaco.salvarProjeto(projeto);
+    console.log(`[${video}] Transcrição: projeto salvo em ${segundos(inicioDoSalvamento)}.`);
     // A tela mostra qual reserva foi usada, se não foi o WhisperX.
           // Conta no limite do dia só agora, que terminou. Uma falha ao gravar não
           // desfaz a transcrição (fica no log).
