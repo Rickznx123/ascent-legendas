@@ -81,6 +81,7 @@ export const transcrever = async (
   };
   const inicio = Date.now();
   onProgress("Extraindo o áudio...");
+  log("Transcrição: extração do áudio começou.");
   const {audio: inputPath, apagar} = await extrairAudioParaTranscrever(video);
   const extracaoS = (Date.now() - inicio) / 1000;
   log(`Transcrição: áudio extraído em ${extracaoS.toFixed(1)} s.`);
@@ -115,13 +116,16 @@ const transcreverAudio = async (
   let vozS = 0;
   const deteccao = detectarVozDoVideo(inputPath).then((voz) => {
     vozS = (Date.now() - inicio) / 1000;
+    log(`Transcrição: detecção de voz terminou ${vozS.toFixed(1)} s depois do começo da transcrição.`);
     return voz;
   });
   // Sem rejeição solta se a transcrição falhar antes.
   deteccao.catch(() => undefined);
   const pronta = async (resto: Omit<Transcricao, "voz" | "avisos" | "transcricaoS" | "vozS">): Promise<Transcricao> => {
     const transcricaoS = (Date.now() - inicio) / 1000;
+    const esperaDaVoz = Date.now();
     const voz = await deteccao;
+    log(`Transcrição: espera pela detecção de voz depois do texto pronto: ${((Date.now() - esperaDaVoz) / 1000).toFixed(1)} s.`);
     log(`Transcrição: ${resto.motor === "whisperx" ? "WhisperX (Replicate)" : resto.motor === "groq" ? "Groq" : "Whisper local"}, ${resto.words.length} palavras em ${transcricaoS.toFixed(1)} s.`);
     return {...resto, voz, avisos, transcricaoS, vozS};
   };
@@ -129,7 +133,7 @@ const transcreverAudio = async (
   if (!local || semWhisperLocal) {
     if (process.env.REPLICATE_API_TOKEN?.trim()) {
       try {
-        const {words, semTempo, execucao} = await transcreverWhisperX(inputPath, {prazoMs: PRAZO_DO_WHISPERX_MS, onProgress});
+        const {words, semTempo, execucao} = await transcreverWhisperX(inputPath, {prazoMs: PRAZO_DO_WHISPERX_MS, onProgress, log: (texto) => log(`Transcrição: ${texto}`)});
         if (semTempo.length > 0) {
           log(`Transcrição: ${semTempo.length} palavras sem tempo do alinhador (${semTempo.join(", ")}), no espaço entre as vizinhas.`);
         }
@@ -146,7 +150,10 @@ const transcreverAudio = async (
     if (process.env.GROQ_API_KEY?.trim()) {
       try {
         onProgress("Transcrevendo com a Groq...");
+        const inicioDaGroq = Date.now();
+        log("Transcrição: Groq começou.");
         const {words} = await transcreverGroq(inputPath);
+        log(`Transcrição: Groq terminou em ${((Date.now() - inicioDaGroq) / 1000).toFixed(1)} s.`);
         return await pronta({words, motor: "groq", model: `groq/${MODELO_GROQ}`});
       } catch (erro) {
         if (semWhisperLocal) {
