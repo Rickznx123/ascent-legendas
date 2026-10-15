@@ -15,13 +15,13 @@ projeto e usá-las nos vídeos exportados.
 | Hanken Grotesk (300, 400, 800) | [@fontsource/hanken-grotesk@5.3.0](https://www.npmjs.com/package/@fontsource/hanken-grotesk) | OFL-1.1 | D e E |
 | Urbanist (itálica 500) | [@fontsource/urbanist@5.3.0](https://www.npmjs.com/package/@fontsource/urbanist) | OFL-1.1 | E |
 | EB Garamond (itálica 700) | [@fontsource/eb-garamond@5.3.0](https://www.npmjs.com/package/@fontsource/eb-garamond) | OFL-1.1 | E |
-| Poppins (600, 700, 800) | [@fontsource/poppins@5.3.0](https://www.npmjs.com/package/@fontsource/poppins) | OFL-1.1 | G |
+| Montserrat (700) | [@fontsource/montserrat@5.3.0](https://www.npmjs.com/package/@fontsource/montserrat) | OFL-1.1 | G |
 
 Inter Tight 700 entrou em 08/10/2026 para o pacote F, baixada de
 `https://cdn.jsdelivr.net/npm/@fontsource/inter-tight@5.3.0/files/`.
 
-Poppins entrou em 15/10/2026 para o pacote G, do mesmo endereço
-(`https://cdn.jsdelivr.net/npm/@fontsource/poppins@5.3.0/files/`).
+Montserrat 700 entrou em 15/10/2026 para o pacote G (no lugar da Poppins), do mesmo endereço
+(`https://cdn.jsdelivr.net/npm/@fontsource/montserrat@5.3.0/files/`).
 
 Para acrescentar uma fonte: baixe os dois arquivos do mesmo pacote e versão,
 registre-os em `src/fontes.ts` e acrescente uma linha aqui.

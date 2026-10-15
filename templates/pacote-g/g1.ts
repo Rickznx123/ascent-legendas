@@ -3,7 +3,7 @@ import {ACENDE, APOIO, BLOCO, FORTE, KW, SOBE, TX} from "./_estilos";
 
 /*
  * G1 — APOIO E CHAVE
- * Centralizado. Apoio semibold de 7% em cima e palavra-chave extrabold com 76% da
+ * Centralizado. Apoio bold de 7% em cima e palavra-chave bold com 76% da
  * largura (teto 22%).
  */
 const template: CaptionTemplate = {

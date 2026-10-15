@@ -12,11 +12,14 @@ import type {EntranceAnimation} from "../../src/types";
  *   var(--brilho-2)   brilho espalhado (--g2 da referência)
  *   var(--cor-sombra) cor da sombra
  * O degradê da palavra-chave (--chave) é aplicado pelo motor no .tx.
- * Tudo em minúsculas por text-transform (o texto salvo não muda).
+ * Tudo em Montserrat Bold; o texto aparece como foi transcrito.
  */
 
 // --sans
-export const SANS = "'Poppins', Helvetica, Arial, sans-serif";
+export const SANS = "'Montserrat', Helvetica, Arial, sans-serif";
+
+// --sombra-linear: sombra escura fixa, sem brilho, igual em todas as paletas.
+export const SOMBRA_LINEAR = "0 .25cqw .5cqw rgba(0,0,0,.55), 0 .6cqw 2.4cqw rgba(0,0,0,.45)";
 
 // --sombra da referência: no G o apoio também brilha, com as cores da paleta.
 export const SOMBRA =
@@ -33,25 +36,24 @@ export const BLOCO: CSSProperties = {
   textShadow: SOMBRA,
   whiteSpace: "nowrap",
   fontFamily: SANS,
-  textTransform: "lowercase",
+  fontWeight: 700,
   fontSize: 16,
 };
 
-// .apoio — semibold.
+// .apoio — bold.
 export const APOIO: CSSProperties = {
-  fontWeight: 600,
+  fontWeight: 700,
   letterSpacing: "-.02em",
   lineHeight: 1,
 };
 
-// .forte — palavra-chave extrabold. Família e minúsculas repetidas aqui porque a
-// medida da palavra-chave (data-w) lê só o estilo dela.
+// .forte — palavra-chave bold. Família repetida aqui porque a medida da
+// palavra-chave (data-w) lê só o estilo dela.
 export const FORTE: CSSProperties = {
   fontFamily: SANS,
-  fontWeight: 800,
-  letterSpacing: "-.035em",
+  fontWeight: 700,
+  letterSpacing: "-.03em",
   lineHeight: 0.92,
-  textTransform: "lowercase",
 };
 
 // .rot — rótulo comercial: caixa-alta pequena e espaçada.

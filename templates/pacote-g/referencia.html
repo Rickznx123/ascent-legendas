@@ -6,11 +6,12 @@
 <title>Layouts de legenda, pacote G</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&display=swap" rel="stylesheet">
 <style>
 :root{
   --pagina:#0c0d12; --texto:#f2f0ec; --suave:#9a968f;
-  --sans:'Poppins',Helvetica,Arial,sans-serif;
+  --sans:'Montserrat',Helvetica,Arial,sans-serif;
+  --sombra-linear:0 .25cqw .5cqw rgba(0,0,0,.55),0 .6cqw 2.4cqw rgba(0,0,0,.45);
   --ui:Helvetica,Arial,sans-serif;
   /* paleta ciano (padrão do pacote G) */
   --chave:linear-gradient(180deg,#ffffff 0%,#ffffff 55%,#d9f6ff 100%);
@@ -44,13 +45,13 @@ body.claro .q{background:#efece6}
 
 /* ---------- peças comuns do pacote G: uma sans geométrica, minúsculas, brilho ciano ---------- */
 .b{position:absolute;left:50%;top:68%;transform:translate(-50%,-50%);width:max-content;max-width:90cqw;
-  color:#fff;text-align:center;text-shadow:var(--sombra);white-space:nowrap;font-family:var(--sans);text-transform:lowercase}
+  color:#fff;text-align:center;text-shadow:var(--sombra);white-space:nowrap;font-family:var(--sans);font-weight:700}
 .esq{text-align:left}
 .dir{text-align:right}
-/* apoio: semibold */
-.apoio{font-weight:600;letter-spacing:-.02em;line-height:1}
-/* palavra-chave: extrabold */
-.forte{font-weight:800;letter-spacing:-.035em;line-height:.92}
+/* apoio: bold */
+.apoio{font-weight:700;letter-spacing:-.02em;line-height:1}
+/* palavra-chave: bold */
+.forte{font-weight:700;letter-spacing:-.03em;line-height:.92}
 /* rótulo comercial: caixa-alta pequena e espaçada */
 .rot{font-weight:700;font-size:4.2cqw;letter-spacing:.16em;text-transform:uppercase;line-height:1}
 .dois{display:flex;justify-content:space-between;padding:0 .2em}
@@ -88,10 +89,10 @@ body.claro .q{background:#efece6}
 .g6 .c{font-size:6.4cqw;margin-top:.08em}
 /* ---------- G7: linha única mista (como a referência) ---------- */
 .g7{font-size:8.6cqw}
-.g7 .apoio{font-weight:700}
 .g7 .kw{vertical-align:baseline}
 /* ---------- linear ---------- */
-.lin{font-weight:700;font-size:8.4cqw;letter-spacing:-.025em;line-height:1}
+/* linear: branco com sombra escura, sem brilho, em qualquer paleta */
+.lin{font-size:7.6cqw;letter-spacing:-.02em;line-height:1;text-shadow:var(--sombra-linear)}
 
 figcaption{padding:12px 2px 0}
 figcaption b{display:block;font:700 16px/1.2 var(--ui);margin-bottom:6px}
@@ -101,8 +102,8 @@ figcaption span{display:block;color:var(--suave);font-size:13.5px;line-height:1.
 <body class="ciano">
 <header>
   <div>
-    <h1>pacote g</h1>
-    <p>Comercial e sério: uma sans geométrica só (Poppins 600 a 800), em minúsculas, letra branca com brilho ciano em volta, como na referência. Sete layouts de destaque e o linear de 3 palavras. A palavra-chave entra "acendendo".</p>
+    <h1>Pacote G</h1>
+    <p>Comercial e sério, tudo em Montserrat Bold. Nos destaques, letra branca com brilho na cor da paleta em volta (ciano por padrão). No linear, branco com sombra escura, sem brilho, em qualquer paleta. O texto aparece como foi transcrito, sem forçar minúsculas.</p>
   </div>
   <div class="botoes">
     <button data-paleta="ciano" aria-pressed="true">Ciano</button>
@@ -121,7 +122,7 @@ figcaption span{display:block;color:var(--suave);font-size:13.5px;line-height:1.
       <div class="apoio a"><span class="w">existe</span> <span class="w" style="--d:.08s">um</span></div>
       <span class="kw"><span class="tx forte w acende" data-w="76" data-max="22" style="--d:.2s">propósito.</span></span>
     </div></div>
-    <figcaption><b>G1. Apoio e chave</b><span>Centralizado. Apoio semibold de 7% em cima e palavra-chave extrabold com 76% da largura (teto 22%).</span></figcaption>
+    <figcaption><b>G1. Apoio e chave</b><span>Centralizado. Apoio bold de 7% em cima e palavra-chave bold com 76% da largura (teto 22%).</span></figcaption>
   </figure>
 
   <figure>
@@ -129,7 +130,7 @@ figcaption span{display:block;color:var(--suave);font-size:13.5px;line-height:1.
       <div class="rot dois"><span class="w">estaremos</span><span class="w" style="--d:.08s">com</span></div>
       <span class="kw"><span class="tx forte w acende" data-w="72" data-max="26" style="--d:.2s">preços</span></span>
     </div></div>
-    <figcaption><b>G2. Dois rótulos</b><span>Duas palavras em caixa-alta espaçada (4,2%) nas pontas de cima. Palavra-chave extrabold com 72% da largura (teto 26%).</span></figcaption>
+    <figcaption><b>G2. Dois rótulos</b><span>Duas palavras em caixa-alta espaçada (4,2%) nas pontas de cima. Palavra-chave bold com 72% da largura (teto 26%).</span></figcaption>
   </figure>
 
   <figure>
@@ -169,14 +170,14 @@ figcaption span{display:block;color:var(--suave);font-size:13.5px;line-height:1.
     <div class="q"><div class="b g7">
       <span class="apoio w">existe</span> <span class="apoio w" style="--d:.08s">um</span> <span class="kw inl"><span class="tx forte w acende" style="--d:.18s;font-size:1.25em">propósito.</span></span>
     </div></div>
-    <figcaption><b>G7. Linha única mista</b><span>Igual à referência: uma linha só, apoio bold de 8,6% e a palavra-chave na mesma linha, 25% maior e extrabold. Para blocos de 2 a 4 palavras curtas.</span></figcaption>
+    <figcaption><b>G7. Linha única mista</b><span>Igual à referência: uma linha só, apoio bold de 8,6% e a palavra-chave na mesma linha, 25% maior e bold. Para blocos de 2 a 4 palavras curtas.</span></figcaption>
   </figure>
 
   <figure>
     <div class="q"><div class="b lin">
-      <span class="w">agora</span> <span class="w" style="--d:.08s">você</span> <span class="w" style="--d:.16s">pode</span>
+      <span class="w">Dois</span> <span class="w" style="--d:.08s">amigos</span> <span class="w" style="--d:.16s">goianos</span>
     </div></div>
-    <figcaption><b>Linear, até 3 palavras</b><span>Respiro entre os destaques: bold de 8,4%, uma linha só, branco com o brilho da paleta e sem palavra-chave pintada.</span></figcaption>
+    <figcaption><b>Linear, até 3 palavras</b><span>Respiro entre os destaques: Montserrat Bold de 7,6%, uma linha só, branco com sombra escura e sem brilho, igual em todas as paletas.</span></figcaption>
   </figure>
 </main>
 
