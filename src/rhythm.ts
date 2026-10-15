@@ -96,6 +96,7 @@ const regraVale = (rule: LayoutRule, texts: string[], keywordIndex: number, hasE
   (rule.protectedExpression === undefined || rule.protectedExpression === hasExpression) &&
   (rule.eloDepois === undefined || rule.eloDepois === temEloDepois(texts, keywordIndex)) &&
   inRange(texts.length, rule.words) &&
+  (rule.maxCaracteres === undefined || texts.join(" ").length <= rule.maxCaracteres) &&
   inRange(keywordIndex, rule.before) &&
   inRange(texts.length - keywordIndex - 1, rule.after);
 

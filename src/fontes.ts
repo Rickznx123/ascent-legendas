@@ -7,6 +7,7 @@
 //   pacote D — Hanken Grotesk 300/400/800
 //   pacote E — Urbanist itálica 500, Hanken Grotesk 800 e EB Garamond itálica 700
 //   pacote F — Inter Tight 700 e Instrument Serif itálica
+//   pacote G — Poppins 600/700/800
 // São as instâncias estáticas no peso exato (Fontsource 5.3.0, das fontes do Google),
 // em dois arquivos por fonte: latin e latin-ext, com os mesmos intervalos do Google.
 // Origem e licença (OFL) de cada uma: fontes/ORIGEM.md.
@@ -36,6 +37,12 @@ import interTightLatinExt700 from "../fontes/inter-tight-latin-ext-700-normal.wo
 import interTightLatinExt800 from "../fontes/inter-tight-latin-ext-800-normal.woff2";
 import interTightLatinExt800Italic from "../fontes/inter-tight-latin-ext-800-italic.woff2";
 import interTightLatinExt900Italic from "../fontes/inter-tight-latin-ext-900-italic.woff2";
+import poppinsLatin600 from "../fontes/poppins-latin-600-normal.woff2";
+import poppinsLatin700 from "../fontes/poppins-latin-700-normal.woff2";
+import poppinsLatin800 from "../fontes/poppins-latin-800-normal.woff2";
+import poppinsLatinExt600 from "../fontes/poppins-latin-ext-600-normal.woff2";
+import poppinsLatinExt700 from "../fontes/poppins-latin-ext-700-normal.woff2";
+import poppinsLatinExt800 from "../fontes/poppins-latin-ext-800-normal.woff2";
 import playfairLatin500Italic from "../fontes/playfair-display-latin-500-italic.woff2";
 import playfairLatinExt500Italic from "../fontes/playfair-display-latin-ext-500-italic.woff2";
 import urbanistLatin500Italic from "../fontes/urbanist-latin-500-italic.woff2";
@@ -69,6 +76,9 @@ const FONTES: Fonte[] = [
   {familia: "Hanken Grotesk", peso: "800", estilo: "normal", arquivos: {latin: hankenLatin800, latinExt: hankenLatinExt800}},
   {familia: "Urbanist", peso: "500", estilo: "italic", arquivos: {latin: urbanistLatin500Italic, latinExt: urbanistLatinExt500Italic}},
   {familia: "EB Garamond", peso: "700", estilo: "italic", arquivos: {latin: ebGaramondLatin700Italic, latinExt: ebGaramondLatinExt700Italic}},
+  {familia: "Poppins", peso: "600", estilo: "normal", arquivos: {latin: poppinsLatin600, latinExt: poppinsLatinExt600}},
+  {familia: "Poppins", peso: "700", estilo: "normal", arquivos: {latin: poppinsLatin700, latinExt: poppinsLatinExt700}},
+  {familia: "Poppins", peso: "800", estilo: "normal", arquivos: {latin: poppinsLatin800, latinExt: poppinsLatinExt800}},
 ];
 
 const carregar = (familia: string, url: string, descritores: FontFaceDescriptors): Promise<unknown> => {

@@ -62,6 +62,8 @@ export type CaptionStructure =
   | "topo-selo" // topo (última palavra com ênfase), palavra-chave, selo embaixo
   | "dois-rotulos" // palavras de cima nas duas pontas, palavra-chave, complemento
   | "pilha" // duas linhas antes da palavra-chave (a de baixo é a última palavra antes dela)
+  | "etiqueta" // apoio em cima entre dois traços (styles.traco), palavra-chave embaixo
+  | "linha-mista" // tudo numa linha só: apoio e palavra-chave lado a lado
   | "dupla" // dois blocos seguidos na tela ao mesmo tempo (veja CaptionTemplate.pair)
   | "papeis" // linhas com papéis: etiqueta em caixa, destaque na cor, corpo, leve, miudinho (veja src/papeis.ts)
   | "linear"; // palavras em sequência
@@ -96,6 +98,8 @@ export type EntranceAnimation = {
   keyframes?: {
     opacity?: [number, number][];
     brightness?: [number, number][];
+    // Desfoque em em; com ele, fromBlurEm é ignorado.
+    blur?: [number, number][];
   };
 };
 
@@ -183,6 +187,8 @@ export type CaptionTemplate = {
     // Ênfase da última palavra do rodapé ou do topo (o .forte do pacote B).
     emphasis?: CSSProperties;
     complement?: CSSProperties;
+    // Cada um dos dois traços em volta do apoio (estrutura "etiqueta").
+    traco?: CSSProperties;
   };
   keywordFit?: KeywordFit;
   // Entrada de cada parte do layout. Só word e keyword são obrigatórias; as outras
@@ -240,6 +246,8 @@ export type LayoutRule = {
   // Depois da palavra-chave, só artigos e preposições e uma última palavra forte
   // ("tudo em segundos"): os dois destaques com o elo miúdo do pacote F.
   eloDepois?: boolean;
+  // Máximo de caracteres do bloco (palavras unidas por espaço).
+  maxCaracteres?: number;
 };
 
 export type PackageConfig = {

@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Layouts de legenda, pacote G</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --pagina:#0c0d12; --texto:#f2f0ec; --suave:#9a968f;
+  --sans:'Poppins',Helvetica,Arial,sans-serif;
+  --ui:Helvetica,Arial,sans-serif;
+  /* paleta ciano (padrão do pacote G) */
+  --chave:linear-gradient(180deg,#ffffff 0%,#ffffff 55%,#d9f6ff 100%);
+  --g1:rgba(70,200,255,.95); --g2:rgba(20,110,255,.55);
+  --sombra:0 0 .35cqw rgba(60,190,255,.9),0 0 1.6cqw rgba(30,140,255,.6),0 .4cqw 1.6cqw rgba(0,0,0,.55);
+}
+body.branco{--chave:linear-gradient(180deg,#fff,#fff);--g1:rgba(255,255,255,.55);--g2:rgba(255,255,255,.25);
+  --sombra:0 0 .35cqw rgba(255,255,255,.5),0 .4cqw 1.8cqw rgba(0,0,0,.6)}
+body.dourado{--chave:linear-gradient(180deg,#fff3c4 0%,#e9c46a 35%,#b8862b 62%,#f1d27a 100%);--g1:rgba(233,190,90,.7);--g2:rgba(200,150,40,.35);
+  --sombra:0 0 .35cqw rgba(240,200,110,.7),0 0 1.4cqw rgba(200,150,40,.4),0 .4cqw 1.6cqw rgba(0,0,0,.55)}
+body.vermelho{--chave:linear-gradient(180deg,#ffffff 0%,#ffd9d6 100%);--g1:rgba(255,50,40,.9);--g2:rgba(220,0,0,.5);
+  --sombra:0 0 .35cqw rgba(255,60,50,.85),0 0 1.6cqw rgba(220,0,0,.55),0 .4cqw 1.6cqw rgba(0,0,0,.55)}
+body.verde{--chave:linear-gradient(180deg,#ffffff 0%,#e3ffd0 100%);--g1:rgba(110,255,80,.85);--g2:rgba(40,200,0,.45);
+  --sombra:0 0 .35cqw rgba(110,255,80,.8),0 0 1.6cqw rgba(40,200,0,.5),0 .4cqw 1.6cqw rgba(0,0,0,.55)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--pagina);color:var(--texto);font-family:var(--ui);padding:32px 20px 56px}
+header{max-width:1100px;margin:0 auto 28px;display:flex;flex-wrap:wrap;gap:16px;align-items:end;justify-content:space-between}
+h1{font:800 32px/1 var(--sans);letter-spacing:-.03em;margin:0 0 8px}
+header p{margin:0;color:var(--suave);font-size:15px;max-width:58ch;line-height:1.5}
+.botoes{display:flex;flex-wrap:wrap;gap:8px}
+button{font:600 14px var(--ui);color:var(--texto);background:transparent;border:1px solid #4a4a54;border-radius:8px;padding:10px 14px;cursor:pointer}
+button:hover{background:#24242b}
+button[aria-pressed="true"]{background:#f2f0ec;color:#16161a;border-color:#f2f0ec}
+button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+main{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:28px 20px}
+figure{margin:0}
+.q{position:relative;aspect-ratio:9/16;container-type:inline-size;overflow:hidden;border-radius:10px;
+  background:radial-gradient(120% 70% at 50% 35%,#4a4d55 0%,#23252c 55%,#121318 100%)}
+body.cena .q{background:linear-gradient(180deg,#d8cdbf 0%,#cbbba8 30%,#6a4a35 44%,#553a29 66%,#e6e2dc 76%,#d9d4cc 100%)}
+body.claro .q{background:#efece6}
+
+/* ---------- peças comuns do pacote G: uma sans geométrica, minúsculas, brilho ciano ---------- */
+.b{position:absolute;left:50%;top:68%;transform:translate(-50%,-50%);width:max-content;max-width:90cqw;
+  color:#fff;text-align:center;text-shadow:var(--sombra);white-space:nowrap;font-family:var(--sans);text-transform:lowercase}
+.esq{text-align:left}
+.dir{text-align:right}
+/* apoio: semibold */
+.apoio{font-weight:600;letter-spacing:-.02em;line-height:1}
+/* palavra-chave: extrabold */
+.forte{font-weight:800;letter-spacing:-.035em;line-height:.92}
+/* rótulo comercial: caixa-alta pequena e espaçada */
+.rot{font-weight:700;font-size:4.2cqw;letter-spacing:.16em;text-transform:uppercase;line-height:1}
+.dois{display:flex;justify-content:space-between;padding:0 .2em}
+
+/* palavra-chave: preenchimento da paleta + brilho no elemento de fora */
+.kw{display:block;filter:drop-shadow(0 0 .5cqw var(--g1)) drop-shadow(0 0 3cqw var(--g2)) drop-shadow(0 .5cqw 1.6cqw rgba(0,0,0,.45))}
+.kw.inl{display:inline-block}
+.tx{display:inline-block;padding:.06em .1em;margin:-.06em -.1em;text-shadow:none;
+  background:var(--chave);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+
+/* ---------- animações: sóbrias ---------- */
+.w{display:inline-block;animation:sobe .42s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--d,0s)}
+.w.acende{animation-name:acende;animation-duration:.6s;animation-timing-function:cubic-bezier(.16,1,.3,1)}
+.w.lado{animation-name:lado;animation-duration:.5s;animation-timing-function:cubic-bezier(.16,1,.3,1)}
+@keyframes sobe{from{opacity:0;transform:translateY(.3em)}to{opacity:1;transform:none}}
+/* ACENDE: entra estourando de luz e assenta */
+@keyframes acende{0%{opacity:0;filter:blur(.1em) brightness(2.2);transform:scale(.95)}45%{opacity:1;filter:blur(0) brightness(1.6)}100%{opacity:1;filter:none;transform:none}}
+@keyframes lado{from{opacity:0;transform:translateX(-.6em)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.w{animation:none}}
+
+/* ---------- G1: apoio em cima, chave pesada ---------- */
+.g1 .a{font-size:7cqw;margin-bottom:.06em}
+/* ---------- G2: dois rótulos nas pontas ---------- */
+.g2 .dois{margin-bottom:.22em}
+/* ---------- G3: pilha à esquerda ---------- */
+.g3 .l1{font-size:6cqw}
+.g3 .l2{font-size:10cqw;margin-top:.02em}
+.g3 .kw{margin-top:.02em}
+/* ---------- G4: chave sozinha ---------- */
+/* ---------- G5: etiqueta com linha ---------- */
+.g5 .et{display:flex;align-items:center;gap:.5em;justify-content:center;margin-bottom:.4em}
+.g5 .et::before,.g5 .et::after{content:"";height:.3cqw;width:9cqw;background:currentColor;border-radius:1px;box-shadow:var(--sombra)}
+/* ---------- G6: apoio, chave, complemento à direita ---------- */
+.g6 .a{font-size:6.4cqw;text-align:left;margin:0 0 .04em .1em}
+.g6 .c{font-size:6.4cqw;margin-top:.08em}
+/* ---------- G7: linha única mista (como a referência) ---------- */
+.g7{font-size:8.6cqw}
+.g7 .apoio{font-weight:700}
+.g7 .kw{vertical-align:baseline}
+/* ---------- linear ---------- */
+.lin{font-weight:700;font-size:8.4cqw;letter-spacing:-.025em;line-height:1}
+
+figcaption{padding:12px 2px 0}
+figcaption b{display:block;font:700 16px/1.2 var(--ui);margin-bottom:6px}
+figcaption span{display:block;color:var(--suave);font-size:13.5px;line-height:1.5}
+</style>
+</head>
+<body class="ciano">
+<header>
+  <div>
+    <h1>pacote g</h1>
+    <p>Comercial e sério: uma sans geométrica só (Poppins 600 a 800), em minúsculas, letra branca com brilho ciano em volta, como na referência. Sete layouts de destaque e o linear de 3 palavras. A palavra-chave entra "acendendo".</p>
+  </div>
+  <div class="botoes">
+    <button data-paleta="ciano" aria-pressed="true">Ciano</button>
+    <button data-paleta="branco" aria-pressed="false">Branco</button>
+    <button data-paleta="dourado" aria-pressed="false">Dourado</button>
+    <button data-paleta="vermelho" aria-pressed="false">Vermelho</button>
+    <button data-paleta="verde" aria-pressed="false">Verde</button>
+    <button id="fundo">Trocar fundo</button>
+    <button id="repetir">Repetir animação</button>
+  </div>
+</header>
+
+<main>
+  <figure>
+    <div class="q"><div class="b g1">
+      <div class="apoio a"><span class="w">existe</span> <span class="w" style="--d:.08s">um</span></div>
+      <span class="kw"><span class="tx forte w acende" data-w="76" data-max="22" style="--d:.2s">propósito.</span></span>
+    </div></div>
+    <figcaption><b>G1. Apoio e chave</b><span>Centralizado. Apoio semibold de 7% em cima e palavra-chave extrabold com 76% da largura (teto 22%).</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b g2">
+      <div class="rot dois"><span class="w">estaremos</span><span class="w" style="--d:.08s">com</span></div>
+      <span class="kw"><span class="tx forte w acende" data-w="72" data-max="26" style="--d:.2s">preços</span></span>
+    </div></div>
+    <figcaption><b>G2. Dois rótulos</b><span>Duas palavras em caixa-alta espaçada (4,2%) nas pontas de cima. Palavra-chave extrabold com 72% da largura (teto 26%).</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b esq g3">
+      <div class="apoio l1"><span class="w">clique</span></div>
+      <div class="apoio l2"><span class="w" style="--d:.1s">no link</span></div>
+      <span class="kw"><span class="tx forte w acende" data-w="62" data-max="24" style="--d:.24s">da bio</span></span>
+    </div></div>
+    <figcaption><b>G3. Pilha crescente</b><span>Alinhado à esquerda: apoio de 6%, apoio de 10% (a última palavra antes da chave) e a palavra-chave com 62% da largura (teto 24%).</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b g4">
+      <span class="kw"><span class="tx forte w acende" data-w="80" data-max="24">resultado</span></span>
+    </div></div>
+    <figcaption><b>G4. Chave sozinha</b><span>Bloco de uma palavra: só a palavra-chave, com 80% da largura (teto 24%).</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b g5">
+      <div class="rot et"><span class="w">sem</span>&nbsp;<span class="w" style="--d:.08s">complicação</span></div>
+      <span class="kw"><span class="tx forte w acende" data-w="66" data-max="24" style="--d:.22s">automático</span></span>
+    </div></div>
+    <figcaption><b>G5. Etiqueta com linhas</b><span>Apoio em caixa-alta espaçada entre dois traços finos brilhantes, no estilo de rótulo de comercial. Palavra-chave com 66% da largura (teto 24%).</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b dir g6">
+      <div class="apoio a"><span class="w">contar</span> <span class="w" style="--d:.08s">com</span></div>
+      <span class="kw"><span class="tx forte w acende" data-w="78" data-max="22" style="--d:.2s">depilação</span></span>
+      <div class="apoio c"><span class="w lado" style="--d:.4s">a</span> <span class="w lado" style="--d:.48s">laser</span></div>
+    </div></div>
+    <figcaption><b>G6. Apoio, chave e complemento</b><span>Apoio de 6,4% em cima à esquerda, palavra-chave com 78% da largura (teto 22%) e complemento de 6,4% embaixo à direita, deslizando da esquerda.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b g7">
+      <span class="apoio w">existe</span> <span class="apoio w" style="--d:.08s">um</span> <span class="kw inl"><span class="tx forte w acende" style="--d:.18s;font-size:1.25em">propósito.</span></span>
+    </div></div>
+    <figcaption><b>G7. Linha única mista</b><span>Igual à referência: uma linha só, apoio bold de 8,6% e a palavra-chave na mesma linha, 25% maior e extrabold. Para blocos de 2 a 4 palavras curtas.</span></figcaption>
+  </figure>
+
+  <figure>
+    <div class="q"><div class="b lin">
+      <span class="w">agora</span> <span class="w" style="--d:.08s">você</span> <span class="w" style="--d:.16s">pode</span>
+    </div></div>
+    <figcaption><b>Linear, até 3 palavras</b><span>Respiro entre os destaques: bold de 8,4%, uma linha só, branco com o brilho da paleta e sem palavra-chave pintada.</span></figcaption>
+  </figure>
+</main>
+
+<script>
+function ajustar(){
+  document.querySelectorAll('[data-w]').forEach(function(el){
+    var W=el.closest('.q').clientWidth;
+    el.style.fontSize='100px';
+    var larg=el.offsetWidth||1;
+    var alvo=100*(parseFloat(el.dataset.w)/100*W)/larg;
+    var teto=parseFloat(el.dataset.max)/100*W;
+    el.style.fontSize=Math.min(alvo,teto).toFixed(1)+'px';
+  });
+}
+function repetir(){
+  document.querySelectorAll('.w').forEach(function(el){
+    el.style.animation='none';void el.offsetWidth;el.style.animation='';
+  });
+}
+var paleta='ciano',fundos=['','cena','claro'],fundo=0;
+function aplicar(){document.body.className=(paleta+' '+fundos[fundo]).trim();}
+document.querySelectorAll('[data-paleta]').forEach(function(bt){
+  bt.addEventListener('click',function(){
+    paleta=bt.dataset.paleta;aplicar();
+    document.querySelectorAll('[data-paleta]').forEach(function(o){o.setAttribute('aria-pressed',o===bt?'true':'false');});
+  });
+});
+document.getElementById('fundo').addEventListener('click',function(){fundo=(fundo+1)%fundos.length;aplicar();});
+document.getElementById('repetir').addEventListener('click',repetir);
+ajustar();
+if(document.fonts&&document.fonts.ready){document.fonts.ready.then(ajustar);}
+window.addEventListener('resize',ajustar);
+</script>
+</body>
+</html>

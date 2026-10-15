@@ -1,4 +1,4 @@
-import {useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
+import {Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import type {CSSProperties, ReactNode} from "react";
 import {
   AbsoluteFill,
@@ -255,7 +255,9 @@ const AnimatedWord: React.FC<{
   const translateX = (animation.fromTranslateXEm ?? 0) * (1 - progress);
   const translateY = animation.fromTranslateYEm * (1 - progress);
   const scale = animation.fromScale + (1 - animation.fromScale) * progress;
-  const blur = animation.fromBlurEm * (1 - progress);
+  const blur = animation.keyframes?.blur
+    ? sampleKeyframes(animation.keyframes.blur, linear, ease)
+    : animation.fromBlurEm * (1 - progress);
   // Quadros-chave (ex.: a piscada): a curva vale em cada trecho, como no CSS.
   const opacity = animation.keyframes?.opacity
     ? sampleKeyframes(animation.keyframes.opacity, linear, ease)
@@ -736,6 +738,61 @@ const BlockContent: React.FC<{
         {extraLine(after)}
       </>
     );
+  }
+
+  if (template.structure === "etiqueta") {
+    // Linha em flex com um traço de cada lado; o espaço entre as palavras é fixo
+    // (não some no flex), como o &nbsp; da referência do pacote G.
+    return (
+      <>
+        {before.length > 0 ? (
+          <div style={styles.support}>
+            <span style={styles.traco} />
+            {spacedWords(before, anim.top).map((parte) => (parte === " " ? " " : parte))}
+            <span style={styles.traco} />
+          </div>
+        ) : null}
+        <div>{keywordElement}</div>
+        {extraLine(after)}
+      </>
+    );
+  }
+
+  if (template.structure === "linha-mista") {
+    // Uma linha só: apoio e palavra-chave lado a lado (a chave no tamanho em em do
+    // estilo dela), reduzida por inteiro se passar da largura máxima do bloco.
+    const basePx = emPx(styles.block.fontSize, videoWidth);
+    const tamanhoDaChave = String(styles.keyword?.fontSize ?? "");
+    const chavePx = basePx * (tamanhoDaChave.endsWith("em") ? Number.parseFloat(tamanhoDaChave) : 1);
+    const apoio = {...styles.block, ...styles.support};
+    const largura =
+      words.reduce(
+        (soma, word, index) =>
+          soma +
+          (index === keywordIndex
+            ? larguraDoTexto(cleanWord(word.text), {...styles.block, ...styles.keyword}, chavePx)
+            : larguraDoTexto(cleanWord(word.text), apoio, basePx)),
+        0,
+      ) +
+      (words.length - 1) * larguraDoTexto(" ", apoio, basePx);
+    const maximoPx = (Number.parseFloat(String(styles.block.maxWidth ?? "90")) / 100) * videoWidth;
+    const escala = basePx > 0 ? Math.min(1, maximoPx / Math.max(1, largura)) : 1;
+    const linha = words.flatMap((word, index) => [
+      index > 0 ? " " : null,
+      index === keywordIndex ? (
+        <Fragment key="chave">{keywordElement}</Fragment>
+      ) : (
+        <AnimatedWord
+          key={`${word.startMs}-${index}`}
+          text={cleanWord(word.text)}
+          startMs={word.startMs}
+          faladaMs={word.faladaMs}
+          animation={animations.word}
+          style={styles.support}
+        />
+      ),
+    ]);
+    return escala < 1 ? <span style={{fontSize: `${escala.toFixed(3)}em`}}>{linha}</span> : <>{linha}</>;
   }
 
   if (template.structure === "tres-linhas") {
