@@ -3,6 +3,12 @@ import type {Posicao} from "../../src/posicao";
 import type {AssignedCaptionBlock, EntradaLinear} from "../../src/types";
 import {ControlesDePosicao} from "./ControlesDePosicao";
 import {tempoDoBloco} from "./quadro";
+import {AGRUPAMENTO_CONFIG} from "../../src/agrupamento-config";
+
+// "Tempo após a fala": de 0 a 1,2 s, começando em 0,3 s quando a pessoa mexe.
+const PERMANENCIA_MAXIMA_MS = 1200;
+const PERMANENCIA_PADRAO_MS = 300;
+const segundos = (ms: number) => `${(ms / 1000).toFixed(1).replace(".", ",")}s`;
 
 type Props = {
   temProjeto: boolean;
@@ -10,6 +16,9 @@ type Props = {
   // Sincronia das legendas em ms (positivo atrasa, negativo adianta).
   sincroniaMs: number;
   onSincronia: (valor: number) => void;
+  // "Tempo após a fala" em ms (vazio: o da configuração, até a pessoa mexer).
+  permanenciaMs: number | undefined;
+  onPermanencia: (valor: number) => void;
   // Sincronia precisa: palavras grudadas na voz e troca de blocos protegida.
   sincroniaPrecisa: boolean;
   // Detectando a voz do áudio (projeto transcrito antes da detecção).
@@ -37,6 +46,8 @@ export const PainelGeral: React.FC<Props> = ({
   ocupado,
   sincroniaMs,
   onSincronia,
+  permanenciaMs,
+  onPermanencia,
   sincroniaPrecisa,
   detectandoVoz,
   onSincroniaPrecisa,
@@ -74,6 +85,26 @@ export const PainelGeral: React.FC<Props> = ({
             }
           }}
         />
+      </div>
+      <div className="campo" title="Quanto cada bloco fica na tela depois do fim da última palavra (sem passar do início do seguinte)">
+        <label htmlFor="geral-permanencia">Tempo após a fala</label>
+        <span className="campo-direita">
+          <input
+            id="geral-permanencia"
+            type="range"
+            min={0}
+            max={PERMANENCIA_MAXIMA_MS}
+            step={100}
+            value={permanenciaMs ?? PERMANENCIA_PADRAO_MS}
+            disabled={ocupado || !temProjeto}
+            onChange={(event) => onPermanencia(Number(event.target.value))}
+          />
+          <span className={permanenciaMs === undefined ? "suave" : undefined}>
+            {permanenciaMs === undefined
+              ? `Automático (${segundos(AGRUPAMENTO_CONFIG.tempos.permanenciaMaximaMs)})`
+              : segundos(permanenciaMs)}
+          </span>
+        </span>
       </div>
       <div
         className="campo"

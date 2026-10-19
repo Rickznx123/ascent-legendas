@@ -35,6 +35,9 @@ export type Projeto = {
   // Sincronia precisa: as palavras grudam na voz do áudio e a troca de blocos
   // protege a última palavra (veja src/encaixe.ts e src/tempos.ts). Sem valor: desligada.
   sincroniaPrecisa?: boolean;
+  // "Tempo após a fala" em ms (0 a 1200): quanto cada bloco fica depois da última
+  // palavra. Sem valor: AGRUPAMENTO_CONFIG.tempos.permanenciaMaximaMs.
+  permanenciaMs?: number;
   // Trechos de voz do áudio (detectados na transcrição, veja src/motor/voz.ts).
   voz?: VozDoAudio;
   // Posição geral das legendas: centro do bloco em % da largura e da altura.

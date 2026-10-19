@@ -146,6 +146,7 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
               sonsUrl={api.sonsUrl}
               sincroniaMs={e.sincroniaMs}
               precisa={e.precisa}
+              permanenciaMs={e.permanenciaMs}
               marcaDagua={e.marcaDagua}
               onQuadro={e.aoMudarQuadro}
               posicao={projetoDoVideo?.posicao}
@@ -265,6 +266,8 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
                 ocupado={e.ocupado}
                 sincroniaMs={e.sincroniaMs}
                 onSincronia={(valor) => e.atualizarProjeto({sincroniaMs: valor})}
+                permanenciaMs={e.permanenciaMs}
+                onPermanencia={(valor) => e.atualizarProjeto({permanenciaMs: valor})}
                 sincroniaPrecisa={e.sincroniaPrecisa}
                 detectandoVoz={e.detectandoVoz}
                 onSincroniaPrecisa={e.alternarSincroniaPrecisa}
@@ -359,6 +362,9 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
               onPosicaoDoBloco={blocoAcoes.posicaoDoBloco}
               onJuntar={blocoAcoes.juntar}
               onRevisar={blocoAcoes.revisar}
+              sincroniaMs={e.sincroniaMs}
+              tempoAtualMs={e.tempoAtualMs}
+              onTempo={blocoAcoes.tempo}
               onExcluirBloco={(b) => {
                 blocoAcoes.excluirBloco(b);
                 onFecharFolha();

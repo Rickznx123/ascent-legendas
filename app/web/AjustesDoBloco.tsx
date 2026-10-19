@@ -10,6 +10,7 @@ import type {AssignedCaptionBlock, EfeitoSonoro} from "../../src/types";
 import {ControlesDePosicao} from "./ControlesDePosicao";
 import {Palavra, SelosDoBloco} from "./ListaDeBlocos";
 import {tempoDoBloco} from "./quadro";
+import {TempoDoBloco} from "./TempoDoBloco";
 
 type Props = {
   indice: number;
@@ -43,6 +44,10 @@ type Props = {
   onJuntar: (bloco: number) => void;
   onRevisar: (bloco: number) => void;
   onExcluirBloco: (bloco: number) => void;
+  // Início e fim do bloco à mão (veja TempoDoBloco).
+  sincroniaMs: number;
+  tempoAtualMs: () => number;
+  onTempo: (bloco: number, tempo: {inicioMs?: number; fimMs?: number}) => void;
 };
 
 const AUTOMATICO = "";
@@ -123,6 +128,9 @@ export const AjustesDoBloco: React.FC<Props> = ({
   onJuntar,
   onRevisar,
   onExcluirBloco,
+  sincroniaMs,
+  tempoAtualMs,
+  onTempo,
 }) => {
   const bloco = blocos[indice];
   if (!bloco) {
@@ -217,6 +225,16 @@ export const AjustesDoBloco: React.FC<Props> = ({
           ))}
         </span>
       </div>
+
+      <TempoDoBloco
+        indice={indice}
+        bloco={bloco}
+        timing={timeline[indice]}
+        sincroniaMs={sincroniaMs}
+        tempoAtualMs={tempoAtualMs}
+        ocupado={ocupado}
+        onTempo={onTempo}
+      />
 
       <div className="campo">
         <span className="rotulo">Som</span>

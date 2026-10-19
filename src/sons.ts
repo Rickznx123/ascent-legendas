@@ -172,6 +172,8 @@ export const planejarEfeitos = (
   cortesMs: number[] = [],
   // Sincronia precisa, como nas legendas.
   precisa?: SincroniaPrecisa,
+  // "Tempo após a fala" do projeto, como nas legendas.
+  permanenciaMs?: number,
 ): EfeitoSonoro[] => {
   if (sons.length === 0) {
     return [];
@@ -179,7 +181,7 @@ export const planejarEfeitos = (
   const random = createRandom((semente ^ SAL_DA_SEMENTE) >>> 0);
   // Tempos de tela, os mesmos das legendas (veja src/entrada.ts).
   const blocks = blocosNaTela(blocosDaFala, templates, sincroniaMs, precisa);
-  const timeline = computeTimeline(blocks, cortesMs, precisa?.fps);
+  const timeline = computeTimeline(blocks, cortesMs, precisa?.fps, permanenciaMs);
   const daCategoria = (categoria: string) => sons.filter((som) => som.categoria === categoria);
   const manual = (block: AssignedCaptionBlock): ArquivoSom | undefined =>
     daCategoria(categoriaDoBloco(block)).find((som) => som.arquivo === block.som);

@@ -1,6 +1,6 @@
 import {existsSync} from "node:fs";
 import path from "node:path";
-import {agrupamentoDoEstilo, agruparParaEstilo, assignForStyle, markShortBlocks, novaSemente, regroupAndPreserveManualFields} from "./motor/blocos";
+import {agrupamentoDoEstilo, agruparParaEstilo, assignForStyle, markShortBlocks, temposManuaisPerdidos, novaSemente, regroupAndPreserveManualFields} from "./motor/blocos";
 import {exportBlockFrames} from "./motor/conferencia";
 import {listarSons} from "./motor/pasta-sons";
 import {renderVideo} from "./motor/exportar";
@@ -141,6 +141,10 @@ const main = async () => {
       options.regroup || savedBlocks.length === 0
         ? regroupAndPreserveManualFields(words, savedBlocks, agrupamentoDoEstilo(style))
         : savedBlocks;
+    const perdidos = options.regroup ? temposManuaisPerdidos(savedBlocks, blocks) : 0;
+    if (perdidos > 0) {
+      console.warn(`Aviso: com a nova divisão, ${perdidos} bloco(s) perderam o início/fim manual.`);
+    }
     console.log(
       options.regroup
         ? "Reutilizando transcricao.json e refazendo a divisão..."
@@ -187,6 +191,7 @@ const main = async () => {
     semente,
     efeitos: saved?.efeitos,
     ...sincronia,
+    permanenciaMs: saved?.permanenciaMs,
     voz,
     posicao: saved?.posicao,
     excluidos: saved?.excluidos,
@@ -210,10 +215,11 @@ const main = async () => {
       palette: style.palette,
       palettes: style.paletas,
       video,
-      efeitos: planejarEfeitos(assignedBlocks, style.templates, await listarSons(projectRoot), efeitos, semente, sincroniaMs, cortesMs, precisa),
+      efeitos: planejarEfeitos(assignedBlocks, style.templates, await listarSons(projectRoot), efeitos, semente, sincroniaMs, cortesMs, precisa, saved?.permanenciaMs),
       volumeEfeitos: efeitos.volume,
       sincroniaMs,
       precisa,
+      permanenciaMs: saved?.permanenciaMs,
       posicao: saved?.posicao,
       cortesMs,
       entradaLinear: saved?.entradaLinear,
@@ -229,7 +235,7 @@ const main = async () => {
 
   if (options.exportReviewFrames) {
     const reviewDirectory = path.join(projectRoot, "conferencia");
-    await exportBlockFrames(assignedBlocks, style.templates, outputPath, reviewDirectory, video.fps, sincroniaMs, cortesMs, precisa);
+    await exportBlockFrames(assignedBlocks, style.templates, outputPath, reviewDirectory, video.fps, sincroniaMs, cortesMs, precisa, saved?.permanenciaMs);
     console.log(`Conferência exportada em ${reviewDirectory}`);
   }
 };

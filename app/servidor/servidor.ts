@@ -1019,7 +1019,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       // Recomeçar do zero mantém a sincronia do projeto; um projeto novo nasce
       // com a Sincronia precisa ligada e 0 ms.
       ...(ajustes
-        ? {sincroniaMs: ajustes.sincroniaMs, sincroniaPrecisa: ajustes.sincroniaPrecisa}
+        ? {sincroniaMs: ajustes.sincroniaMs, sincroniaPrecisa: ajustes.sincroniaPrecisa, permanenciaMs: ajustes.permanenciaMs}
         : SINCRONIA_DE_PROJETO_NOVO),
       voz,
       words,
@@ -1124,7 +1124,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     const cortesMs = cortesDosExcluidos(projeto.excluidos, style.templates, sincroniaMs, precisa);
     const sons = await listarSons(root);
     // No log do servidor: o que entra no render (pasta vazia = nenhum efeito).
-    const plano = planejarEfeitos(blocks, style.templates, sons, efeitos, projeto.semente ?? 0, sincroniaMs, cortesMs, precisa);
+    const plano = planejarEfeitos(blocks, style.templates, sons, efeitos, projeto.semente ?? 0, sincroniaMs, cortesMs, precisa, projeto.permanenciaMs);
     console.log(
       `Exportar: ${sons.length} sons em sons/, ${plano.length} efeitos (destaque ${efeitos.destaque}, linear ${efeitos.linear}, volume ${efeitos.volume}%), sincronia ${sincroniaMs} ms${precisa ? " (precisa)" : ""}.`,
     );
@@ -1139,6 +1139,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
         volumeEfeitos: efeitos.volume,
         sincroniaMs,
         precisa,
+        permanenciaMs: projeto.permanenciaMs,
         posicao: projeto.posicao,
         cortesMs,
         marcaDagua: decisao?.comMarca ?? false,

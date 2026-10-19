@@ -1839,3 +1839,16 @@ h3 {
   display: grid;
   gap: 3px;
 }
+
+/* Tempo do bloco (TempoDoBloco): início → fim, −/+ e "Cortar aqui"; quebra em telas estreitas. */
+.campo-tempo .campo-direita {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.tempo-botoes {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--esp-2);
+}

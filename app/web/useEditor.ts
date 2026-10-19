@@ -25,6 +25,8 @@ import {
   toggleReview,
   wordsOfBlocks,
   regroupAndPreserveManualFields,
+  setBlockTime,
+  temposManuaisPerdidos,
 } from "../../src/motor/blocos";
 import type {Estilo, Projeto} from "../../src/motor/projeto";
 import {configDosEfeitos, planejarEfeitos} from "../../src/sons";
@@ -157,6 +159,8 @@ export const useEditor = () => {
   const voz = projetoDoVideo?.voz;
   const fps = videoInfo?.fps;
   const precisa = useMemo(() => precisaoDoProjeto({sincroniaPrecisa, voz}, fps), [sincroniaPrecisa, voz, fps]);
+  // "Tempo após a fala" (vazio: o da configuração, até a pessoa mexer).
+  const permanenciaMs = projetoDoVideo?.permanenciaMs;
   // Tempos de tela (entrada antes da fala + sincronia), os mesmos do render.
   const blocosNaTelaAtual = useMemo(
     () => (estilo ? blocosNaTela(blocos, estilo.templates, sincroniaMs, precisa) : blocos),
@@ -169,17 +173,17 @@ export const useEditor = () => {
     [excluidos, estilo, sincroniaMs, precisa],
   );
   const timeline = useMemo(
-    () => computeTimeline(blocosNaTelaAtual, cortesMs, precisa?.fps),
-    [blocosNaTelaAtual, cortesMs, precisa],
+    () => computeTimeline(blocosNaTelaAtual, cortesMs, precisa?.fps, permanenciaMs),
+    [blocosNaTelaAtual, cortesMs, precisa, permanenciaMs],
   );
   const configEfeitos = useMemo(() => configDosEfeitos(projetoDoVideo?.efeitos), [projetoDoVideo?.efeitos]);
   // Os mesmos efeitos que o render vai usar (mesma semente, mesmos arquivos).
   const efeitos = useMemo(
     () =>
       estilo
-        ? planejarEfeitos(blocos, estilo.templates, sons, configEfeitos, projetoDoVideo?.semente ?? 0, sincroniaMs, cortesMs, precisa)
+        ? planejarEfeitos(blocos, estilo.templates, sons, configEfeitos, projetoDoVideo?.semente ?? 0, sincroniaMs, cortesMs, precisa, permanenciaMs)
         : [],
-    [blocos, estilo, sons, configEfeitos, projetoDoVideo?.semente, sincroniaMs, cortesMs, precisa],
+    [blocos, estilo, sons, configEfeitos, projetoDoVideo?.semente, sincroniaMs, cortesMs, precisa, permanenciaMs],
   );
   const posicaoGeral = projetoDoVideo?.posicao ?? POSICAO_PADRAO;
 
@@ -433,10 +437,15 @@ export const useEditor = () => {
             : blocos;
         // Entra no desfazer (o passo guarda o pacote anterior).
         atualizarProjeto({pacote, semente, blocks: refazerLayouts(novoEstilo, base, semente)}, true, true);
+        // A nova divisão da fala só mantém o tempo manual dos blocos que não mudaram.
+        const perdidos = temposManuaisPerdidos(blocos, base);
         setAviso(
-          pacote === PACOTE_MISTO
+          (pacote === PACOTE_MISTO
             ? "Modo misto: cada bloco sorteou um pacote."
-            : `Layouts escolhidos de novo com as regras do pacote ${pacote}.`,
+            : `Layouts escolhidos de novo com as regras do pacote ${pacote}.`) +
+            (perdidos > 0
+              ? ` A fala foi dividida de novo: ${perdidos} ${perdidos === 1 ? "bloco perdeu" : "blocos perderam"} o tempo manual (desfazer volta).`
+              : ""),
         );
       }
     } catch (error) {
@@ -883,7 +892,11 @@ export const useEditor = () => {
     juntar: (b: number) => estilo && editarBlocos((atuais) => mergeWithNext(atuais, b, estilo)),
     revisar: (b: number) => editarBlocos((atuais) => toggleReview(atuais, b)),
     excluirBloco: (b: number) => estilo && aplicarExclusao(excludeBlock(blocos, b, estilo)),
+    tempo: (b: number, tempo: {inicioMs?: number; fimMs?: number}) => editarBlocos((atuais) => setBlockTime(atuais, b, tempo)),
   };
+
+  // Tempo atual da prévia, em ms ("Cortar aqui").
+  const tempoAtualMs = () => ((playerRef.current?.getCurrentFrame() ?? 0) / (videoInfo?.fps ?? 30)) * 1000;
 
   // Começo de um ajuste contínuo (arrasto, controle deslizante): entra no histórico uma vez.
   const inicioDeAjuste = () => projetoDoVideo && guardarNoHistorico(projetoDoVideo);
@@ -942,6 +955,7 @@ export const useEditor = () => {
     sincroniaMs,
     sincroniaPrecisa,
     precisa,
+    permanenciaMs,
     detectandoVoz,
     alternarSincroniaPrecisa,
     excluidos,
@@ -989,6 +1003,7 @@ export const useEditor = () => {
     aplicarLayoutDaGaleria,
     irParaBloco,
     aoMudarQuadro,
+    tempoAtualMs,
     blocoAcoes,
     limparCores,
     restaurarPosicoes,

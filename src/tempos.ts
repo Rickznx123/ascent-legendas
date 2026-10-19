@@ -14,8 +14,9 @@ const holdUntil = (
   wanted: number,
   lastWordEndMs: number,
   nextStartMs: number,
+  permanenciaMaximaMs = AGRUPAMENTO_CONFIG.tempos.permanenciaMaximaMs,
 ): {hideMs: number; nextShowMs: number} => {
-  const {permanenciaMaximaMs, atrasoMaximoDoSeguinteMs} = AGRUPAMENTO_CONFIG.tempos;
+  const {atrasoMaximoDoSeguinteMs} = AGRUPAMENTO_CONFIG.tempos;
   const nextShowMs =
     wanted > nextStartMs ? Math.min(wanted, nextStartMs + atrasoMaximoDoSeguinteMs) : nextStartMs;
   return {hideMs: Math.min(nextShowMs, lastWordEndMs + permanenciaMaximaMs), nextShowMs};
@@ -71,12 +72,13 @@ const trocaPrecisa = (
   block: AssignedCaptionBlock,
   next: AssignedCaptionBlock | undefined,
   fps: number,
+  permanenciaMaximaMs: number,
 ): {hideMs: number; nextShowMs: number; minHideMs: number} => {
   const last = block.words[block.words.length - 1];
   const lastSpokenMs = last.faladaMs ?? last.startMs;
   const minHideMs = lastSpokenMs + Math.min(ULTIMA_PALAVRA_NA_TELA_MS, Math.max(0, last.endMs - lastSpokenMs));
   if (!next) {
-    return {hideMs: Math.max(minHideMs, last.endMs + AGRUPAMENTO_CONFIG.tempos.permanenciaMaximaMs), nextShowMs: Infinity, minHideMs};
+    return {hideMs: Math.max(minHideMs, last.endMs + permanenciaMaximaMs), nextShowMs: Infinity, minHideMs};
   }
   const nextSpokenMs = next.words[0].faladaMs ?? next.words[0].startMs;
   // O quadro da fala da primeira palavra do seguinte, e o primeiro quadro depois do
@@ -104,7 +106,7 @@ const trocaPrecisa = (
   }
   return {
     // Nunca depois da entrada do seguinte (um bloco por vez).
-    hideMs: Math.min(nextShowMs, last.endMs + AGRUPAMENTO_CONFIG.tempos.permanenciaMaximaMs),
+    hideMs: Math.min(nextShowMs, last.endMs + permanenciaMaximaMs),
     nextShowMs,
     minHideMs,
   };
@@ -123,7 +125,15 @@ export const shortBlockIndexes = (blocks: AssignedCaptionBlock[]): number[] =>
 // cortesMs: instantes em que começavam blocos excluídos. O bloco antes de um corte
 // sai no corte (não estica para cobrir o tempo do bloco que foi excluído).
 // fps: quadros por segundo do vídeo (só a Sincronia precisa usa).
-export const computeTimeline = (blocks: AssignedCaptionBlock[], cortesMs: number[] = [], fps = 30): BlockTiming[] => {
+// permanenciaMs: "Tempo após a fala" do projeto (sem valor: permanenciaMaximaMs).
+// Depois, o início e o fim escolhidos à mão em cada bloco (inicioMs e fimMs, já
+// nos tempos de tela) têm prioridade, dentro dos limites de TEMPO_MANUAL_MINIMO_MS.
+export const computeTimeline = (
+  blocks: AssignedCaptionBlock[],
+  cortesMs: number[] = [],
+  fps = 30,
+  permanenciaMs = AGRUPAMENTO_CONFIG.tempos.permanenciaMaximaMs,
+): BlockTiming[] => {
   const {tempoMinimoDeTelaMs, chaveVisivelMinimaMs} = AGRUPAMENTO_CONFIG.tempos;
   const timeline: BlockTiming[] = [];
   let showMs = blocks[0]?.startMs ?? 0;
@@ -134,7 +144,7 @@ export const computeTimeline = (blocks: AssignedCaptionBlock[], cortesMs: number
   blocks.forEach((block, index) => {
     showMs = Math.max(showMs, block.startMs);
     if (precisa) {
-      const troca = trocaPrecisa(block, blocks[index + 1], fps);
+      const troca = trocaPrecisa(block, blocks[index + 1], fps, permanenciaMs);
       let {hideMs, nextShowMs} = troca;
       // Bloco excluído no meio: este sai no corte, mas nunca antes da regra 2.
       const corte = cortesMs.find((c) => c > block.startMs && c < hideMs);
@@ -162,7 +172,7 @@ export const computeTimeline = (blocks: AssignedCaptionBlock[], cortesMs: number
       const keyword = block.words[findKeywordIndex(block.words, block.keyword)];
       wanted = Math.max(wanted, Math.max(keyword.startMs, showMs) + chaveVisivelMinimaMs);
     }
-    let {hideMs, nextShowMs} = holdUntil(wanted, lastWordEndMs, nextStartMs);
+    let {hideMs, nextShowMs} = holdUntil(wanted, lastWordEndMs, nextStartMs, permanenciaMs);
 
     // Um bloco empurrado pelo anterior nunca some sem aparecer.
     if (hideMs < showMs + MIN_BLOCK_VISIBLE_MS) {
@@ -174,6 +184,8 @@ export const computeTimeline = (blocks: AssignedCaptionBlock[], cortesMs: number
     showMs = nextShowMs;
   });
 
+  aplicarTemposManuais(blocks, timeline);
+
   // Dupla: o primeiro bloco continua na tela até o segundo sair; os dois saem juntos.
   blocks.forEach((block, index) => {
     if (block.dupla === "primeiro" && blocks[index + 1]?.dupla === "segundo") {
@@ -182,6 +194,33 @@ export const computeTimeline = (blocks: AssignedCaptionBlock[], cortesMs: number
   });
 
   return timeline;
+};
+
+// Um bloco com tempo manual fica pelo menos isto na tela.
+export const TEMPO_MANUAL_MINIMO_MS = 300;
+
+// Início e fim escolhidos à mão. O início não vem antes do início do anterior +
+// TEMPO_MANUAL_MINIMO_MS (o anterior sai quando este entra); o fim fica entre o
+// início do próprio bloco + TEMPO_MANUAL_MINIMO_MS e o início do seguinte.
+const aplicarTemposManuais = (blocks: AssignedCaptionBlock[], timeline: BlockTiming[]): void => {
+  blocks.forEach((block, index) => {
+    if (block.inicioMs === undefined) {
+      return;
+    }
+    const de = index > 0 ? timeline[index - 1].showMs + TEMPO_MANUAL_MINIMO_MS : 0;
+    const ate = Math.max(de, (block.fimMs ?? timeline[index].hideMs) - TEMPO_MANUAL_MINIMO_MS);
+    timeline[index].showMs = Math.min(ate, Math.max(de, block.inicioMs));
+    if (index > 0) {
+      timeline[index - 1].hideMs = Math.min(timeline[index - 1].hideMs, timeline[index].showMs);
+    }
+  });
+  blocks.forEach((block, index) => {
+    if (block.fimMs === undefined) {
+      return;
+    }
+    const limite = timeline[index + 1]?.showMs ?? Number.POSITIVE_INFINITY;
+    timeline[index].hideMs = Math.min(limite, Math.max(timeline[index].showMs + TEMPO_MANUAL_MINIMO_MS, block.fimMs));
+  });
 };
 
 // Índice do bloco na tela no instante currentMs (ou -1).

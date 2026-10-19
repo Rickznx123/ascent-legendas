@@ -149,6 +149,7 @@ export const LayoutComputador: React.FC<{e: Editor}> = ({e}) => {
               sonsUrl={api.sonsUrl}
               sincroniaMs={e.sincroniaMs}
               precisa={e.precisa}
+              permanenciaMs={e.permanenciaMs}
               marcaDagua={e.marcaDagua}
               onQuadro={e.aoMudarQuadro}
               posicao={projetoDoVideo?.posicao}
@@ -240,6 +241,9 @@ export const LayoutComputador: React.FC<{e: Editor}> = ({e}) => {
               onJuntar={blocoAcoes.juntar}
               onRevisar={blocoAcoes.revisar}
               onExcluirBloco={blocoAcoes.excluirBloco}
+              sincroniaMs={e.sincroniaMs}
+              tempoAtualMs={e.tempoAtualMs}
+              onTempo={blocoAcoes.tempo}
             />
           ) : null}
           {abaDireita === "geral" ? (
@@ -248,6 +252,8 @@ export const LayoutComputador: React.FC<{e: Editor}> = ({e}) => {
               ocupado={e.ocupado}
               sincroniaMs={e.sincroniaMs}
               onSincronia={(valor) => e.atualizarProjeto({sincroniaMs: valor})}
+              permanenciaMs={e.permanenciaMs}
+              onPermanencia={(valor) => e.atualizarProjeto({permanenciaMs: valor})}
               sincroniaPrecisa={e.sincroniaPrecisa}
               detectandoVoz={e.detectandoVoz}
               onSincroniaPrecisa={e.alternarSincroniaPrecisa}

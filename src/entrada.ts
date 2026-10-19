@@ -256,6 +256,9 @@ export const blocosNaTela = (
       ...block,
       words,
       startMs: Math.max(0, Math.min(...words.map((word) => word.startMs)) - (pintura?.fadeMs ?? 0)),
+      // Tempos manuais andam com a sincronia, como as palavras.
+      ...(block.inicioMs !== undefined ? {inicioMs: block.inicioMs + sincroniaMs} : {}),
+      ...(block.fimMs !== undefined ? {fimMs: block.fimMs + sincroniaMs} : {}),
       // Com o encaixe, o bloco termina onde a última palavra termina agora.
       endMs: Math.max(0, (precisa?.voz ? block.words[block.words.length - 1].endMs : block.endMs) + sincroniaMs),
     };

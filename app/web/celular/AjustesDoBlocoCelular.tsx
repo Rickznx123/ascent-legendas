@@ -10,6 +10,7 @@ import {PACOTE_MISTO} from "../../../src/motor/blocos";
 import {PREDEFINICOES} from "../../../src/posicao";
 import {SEM_SOM, blocoPodeTerSom, categoriaDoBloco} from "../../../src/sons";
 import type {AjustesDoBloco} from "../AjustesDoBloco";
+import {TempoDoBloco} from "../TempoDoBloco";
 import {PalavraCelular} from "./PalavraCelular";
 
 type Props = React.ComponentProps<typeof AjustesDoBloco>;
@@ -26,6 +27,7 @@ export const AjustesDoBlocoCelular: React.FC<Props> = (props) => {
   const {indice, blocos, estilo, sons, efeitos, posicaoGeral, ocupado} = props;
   const {onTexto, onExcluirPalavra, onPalavraChave, onDividir, onLayout, onCor, onSom, onOuvir} = props;
   const {onJuntar, onExcluirBloco, onInicioPosicao, onPosicaoDoBloco, onPosicaoGeral} = props;
+  const {timeline, sincroniaMs, tempoAtualMs, onTempo} = props;
   const bloco = blocos[indice];
   // "Dividir" mostra os ✂ entre as palavras; tocar num deles divide ali.
   const [dividindo, setDividindo] = useState(false);
@@ -237,6 +239,16 @@ export const AjustesDoBlocoCelular: React.FC<Props> = (props) => {
           ))}
         </span>
       </div>
+
+      <TempoDoBloco
+        indice={indice}
+        bloco={bloco}
+        timing={timeline[indice]}
+        sincroniaMs={sincroniaMs}
+        tempoAtualMs={tempoAtualMs}
+        ocupado={ocupado}
+        onTempo={onTempo}
+      />
 
       {podeTerSom ? (
         <button type="button" className="campo cel-campo-abre" disabled={ocupado} onClick={() => setLista("som")}>

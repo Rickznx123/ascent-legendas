@@ -24,6 +24,8 @@ export type Exportacao = {
   sincroniaMs?: number;
   // Sincronia precisa (vazio: desligada).
   precisa?: SincroniaPrecisa;
+  // "Tempo após a fala" do projeto (vazio: o da configuração).
+  permanenciaMs?: number;
   // Posição geral das legendas e instantes dos blocos excluídos.
   posicao?: {x: number; y: number};
   cortesMs?: number[];
@@ -35,7 +37,7 @@ export type Exportacao = {
 
 // Renderiza o MP4 final com as legendas.
 export const renderVideo = async (
-  {root, inputPath, outputPath, blocks, templates, palette, palettes, video, efeitos, volumeEfeitos, sincroniaMs, precisa, posicao, cortesMs, marcaDagua, entradaLinear}: Exportacao,
+  {root, inputPath, outputPath, blocks, templates, palette, palettes, video, efeitos, volumeEfeitos, sincroniaMs, precisa, permanenciaMs, posicao, cortesMs, marcaDagua, entradaLinear}: Exportacao,
   onProgress: Progresso = () => undefined,
 ): Promise<void> => {
   const tempDirectory = mkdtempSync(path.join(os.tmpdir(), "legendas-dinamicas-"));
@@ -58,6 +60,7 @@ export const renderVideo = async (
       volumeEfeitos,
       sincroniaMs,
       precisa,
+      permanenciaMs,
       posicao,
       cortesMs,
       marcaDagua,

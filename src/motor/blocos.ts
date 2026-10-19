@@ -101,10 +101,38 @@ export const regroupAndPreserveManualFields = (
       layoutManual: saved.layoutManual,
       som: saved.som,
       posicao: saved.posicao,
+      inicioMs: saved.inicioMs,
+      fimMs: saved.fimMs,
       review: block.review || saved.review ? true : undefined,
     };
   });
 };
+
+// Blocos com início ou fim manual.
+const comTempoManual = (blocks: CaptionBlock[]): number =>
+  blocks.filter((block) => block.inicioMs !== undefined || block.fimMs !== undefined).length;
+
+// Quantos tempos manuais uma nova divisão da fala perdeu (blocos que mudaram).
+export const temposManuaisPerdidos = (antes: CaptionBlock[], depois: CaptionBlock[]): number =>
+  Math.max(0, comTempoManual(antes) - comTempoManual(depois));
+
+// Início e fim manuais de um bloco (em ms sem a sincronia). undefined volta ao automático.
+export const setBlockTime = (
+  blocks: AssignedCaptionBlock[],
+  blockIndex: number,
+  tempo: {inicioMs?: number; fimMs?: number},
+): AssignedCaptionBlock[] =>
+  blocks.map((block, index) => {
+    if (index !== blockIndex) {
+      return block;
+    }
+    const {inicioMs: _inicio, fimMs: _fim, ...resto} = block;
+    return {
+      ...resto,
+      ...(tempo.inicioMs !== undefined ? {inicioMs: Math.max(0, Math.round(tempo.inicioMs))} : {}),
+      ...(tempo.fimMs !== undefined ? {fimMs: Math.max(0, Math.round(tempo.fimMs))} : {}),
+    };
+  });
 
 // Lista de palavras do projeto, sempre igual às palavras dos blocos.
 export const wordsOfBlocks = (blocks: CaptionBlock[]): Word[] =>
@@ -243,8 +271,9 @@ export const mergeWithNext = (
   if (!first || !second) {
     return blocks;
   }
+  // O início manual do primeiro e o fim manual do segundo continuam valendo.
   const merged = withWords(
-    {...first, review: first.review || second.review ? true : undefined},
+    {...first, fimMs: second.fimMs, review: first.review || second.review ? true : undefined},
     [...first.words, ...second.words],
   );
   return [...blocks.slice(0, blockIndex), merged, ...blocks.slice(blockIndex + 2)];
@@ -272,6 +301,8 @@ export const splitBefore = (
     {
       ...block,
       keyword: keywordIndex < wordIndex ? block.keyword : chooseKeyword(firstWords),
+      // O fim manual fica com a segunda parte; o início manual, com a primeira.
+      fimMs: undefined,
     },
     firstWords,
   );
@@ -284,6 +315,7 @@ export const splitBefore = (
       pacote: rules!.name,
       layoutManual: undefined,
       som: undefined,
+      inicioMs: undefined,
     },
     secondWords,
   );

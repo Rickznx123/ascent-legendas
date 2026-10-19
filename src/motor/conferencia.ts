@@ -23,11 +23,12 @@ export const exportBlockFrames = async (
   sincroniaMs = 0,
   cortesMs: number[] = [],
   precisa?: SincroniaPrecisa,
+  permanenciaMs?: number,
 ): Promise<void> => {
   mkdirSync(outputDirectory, {recursive: true});
   // Mesmos tempos de tela do render.
   const blocks = blocosNaTela(blocosDaFala, templates, sincroniaMs, precisa);
-  const timeline = computeTimeline(blocks, cortesMs, fps);
+  const timeline = computeTimeline(blocks, cortesMs, fps, permanenciaMs);
 
   for (const [index, block] of blocks.entries()) {
     const template = templates[block.template];

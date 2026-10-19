@@ -47,6 +47,10 @@ export type CaptionBlock = {
   som?: string;
   // Posição só deste bloco (centro, em % da largura e da altura). Vazio: a geral.
   posicao?: {x: number; y: number};
+  // Início e fim na tela escolhidos à mão, em ms do vídeo sem a sincronia (a
+  // sincronia do projeto anda com eles). Vazio: automáticos (veja src/tempos.ts).
+  inicioMs?: number;
+  fimMs?: number;
 };
 
 export type TemplateFamily = "linear" | "destaque";
@@ -340,6 +344,9 @@ export type KineticCaptionVideoProps = {
   sincroniaMs?: number;
   // Sincronia precisa (vazio: desligada).
   precisa?: SincroniaPrecisa;
+  // "Tempo após a fala": quanto o bloco fica depois da última palavra, em ms.
+  // Vazio: AGRUPAMENTO_CONFIG.tempos.permanenciaMaximaMs.
+  permanenciaMs?: number;
   // Posição geral das legendas (centro do bloco, em %). Vazio: 50% × 68%.
   posicao?: {x: number; y: number};
   // Instantes (de tela) em que começavam blocos excluídos: o bloco anterior não

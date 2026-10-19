@@ -979,6 +979,7 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
   sonsUrl,
   sincroniaMs,
   precisa,
+  permanenciaMs,
   posicao,
   cortesMs,
   marcaDagua,
@@ -992,7 +993,7 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
     () => blocosNaTela(blocosDaFala, templates, sincroniaMs, precisa),
     [blocosDaFala, templates, sincroniaMs, precisa],
   );
-  const timeline = useMemo(() => computeTimeline(blocks, cortesMs, fps), [blocks, cortesMs, fps]);
+  const timeline = useMemo(() => computeTimeline(blocks, cortesMs, fps, permanenciaMs), [blocks, cortesMs, fps, permanenciaMs]);
   const currentMs = (frame / fps) * 1000;
   const active = findActiveBlocks(blocks, timeline, currentMs);
   const activeBlock = active?.block;
