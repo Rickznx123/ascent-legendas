@@ -579,8 +579,14 @@ const BlocoPintado: React.FC<{block: AssignedCaptionBlock; template: CaptionTemp
     const text = words.map((word) => cleanWord(word.text)).join(" ");
     const lines =
       words.length > 1 && text.length > (template.maxCharactersPerLine ?? Number.POSITIVE_INFINITY) ? splitIntoTwoLines(words) : [words];
-    // Espaço entre as linhas: na tarja (linhas em linha) elas seguem como texto corrido.
-    return <>{lines.flatMap((line, index) => [index > 0 ? " " : null, linha(line, styles.support, `l${index}`)])}</>;
+    // Cada linha numa linha própria; na tarja (linha em linha) cada uma ganha a sua tarja.
+    return (
+      <>
+        {lines.map((line, index) => (
+          <div key={index}>{linha(line, styles.support, `l${index}`)}</div>
+        ))}
+      </>
+    );
   }
 
   const keywordIndex = findKeywordIndex(words, block.keyword);

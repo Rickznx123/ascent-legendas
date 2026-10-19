@@ -164,14 +164,16 @@ export const layoutForKeyword = (
 };
 
 // Escolhe layouts do pacote, alternando entre os templates de cada regra.
+// inicio: em que posição de cada lista a alternância começa (0: no primeiro).
 const createLayoutPicker = (
   config: PackageConfig,
   templates: Record<string, CaptionTemplate>,
+  inicio = 0,
 ) => {
   const cursors = new Map<string[], number>();
-  const peek = (names: string[]): string => names[(cursors.get(names) ?? 0) % names.length];
+  const peek = (names: string[]): string => names[(cursors.get(names) ?? inicio) % names.length];
   const commit = (names: string[]): void => {
-    cursors.set(names, (cursors.get(names) ?? 0) + 1);
+    cursors.set(names, (cursors.get(names) ?? inicio) + 1);
   };
 
   // Arranjo de destaque dentro do próprio bloco, sem linha de cima inválida.
@@ -585,6 +587,8 @@ const distribute = (
   onUsed: (rules: PackageRules) => void = () => undefined,
   // Ritmo próprio do pacote (só no modo de um pacote), com os limites do linear dele.
   ritmo?: {ritmo: NonNullable<PackageConfig["ritmo"]>; limites: PalavrasDoLinear},
+  // Onde a alternância de layouts de cada pacote começa (sem valor: no primeiro).
+  inicioDaAlternancia: (rules: PackageRules) => number = () => 0,
 ): AssignedCaptionBlock[] => {
   // O ritmo próprio pode dividir um linear longo em pedaços (um deles vira dinâmico).
   const {blocks, families} = ritmo
@@ -594,7 +598,7 @@ const distribute = (
   const pickerOf = (rules: PackageRules): Picker => {
     let picker = pickers.get(rules.name);
     if (!picker) {
-      picker = createLayoutPicker(rules.config, rules.templates);
+      picker = createLayoutPicker(rules.config, rules.templates, inicioDaAlternancia(rules));
       pickers.set(rules.name, picker);
     }
     return picker;
@@ -772,5 +776,9 @@ export const assignMixed = (
       bag.unshift(drawn);
     }
   };
-  return distribute(blocks, candidatesFor, (name) => Boolean(templates[name]), onUsed);
+  // Pacotes com sortearNoMisto: a alternância começa num layout sorteado, com um
+  // gerador à parte (o sorteio dos pacotes continua o mesmo para a mesma semente).
+  const sorteioDoInicio = createRandom(seed ^ 0x5f3759df);
+  const inicios = new Map(packages.map((rules) => [rules.name, rules.config.sortearNoMisto ? Math.floor(sorteioDoInicio() * 1000) : 0]));
+  return distribute(blocks, candidatesFor, (name) => Boolean(templates[name]), onUsed, undefined, (rules) => inicios.get(rules.name) ?? 0);
 };

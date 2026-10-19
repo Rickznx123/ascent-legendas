@@ -291,6 +291,10 @@ export type PackageConfig = {
   // Texto de exemplo das miniaturas da galeria (opcional): as palavras e qual
   // delas é a palavra-chave.
   exemplo?: {texto: string; palavraChave: string};
+  // Modo misto (opcional): a alternância dos layouts deste pacote começa num layout
+  // sorteado pela semente, em vez de sempre no primeiro de cada lista (no misto, um
+  // pacote costuma ter um ou dois destaques por vídeo).
+  sortearNoMisto?: boolean;
   // Nome de exibição na interface (opcional). Sem valor: a letra do pacote.
   nome?: string;
   // Agrupamento próprio (opcional): a divisão da fala em blocos usa esta

@@ -20,6 +20,8 @@ const pacote: PackageConfig = {
   // Mesma lista: a alternância continua entre a junção e os demais destaques.
   threeLines: DESTAQUES,
   agrupamento,
+  // No misto, o primeiro destaque do H no vídeo é H4, H5 ou H6, conforme a semente.
+  sortearNoMisto: true,
   exemplo: {texto: "de uma legenda que prende atenção.", palavraChave: "legenda"},
 };
 
