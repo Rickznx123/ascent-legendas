@@ -1,7 +1,6 @@
 import {existsSync} from "node:fs";
 import path from "node:path";
-import {groupWords} from "./captions";
-import {assignForStyle, markShortBlocks, novaSemente, regroupAndPreserveManualFields} from "./motor/blocos";
+import {agrupamentoDoEstilo, agruparParaEstilo, assignForStyle, markShortBlocks, novaSemente, regroupAndPreserveManualFields} from "./motor/blocos";
 import {exportBlockFrames} from "./motor/conferencia";
 import {listarSons} from "./motor/pasta-sons";
 import {renderVideo} from "./motor/exportar";
@@ -140,7 +139,7 @@ const main = async () => {
     const savedBlocks = saved.blocks ?? [];
     blocks =
       options.regroup || savedBlocks.length === 0
-        ? regroupAndPreserveManualFields(words, savedBlocks)
+        ? regroupAndPreserveManualFields(words, savedBlocks, agrupamentoDoEstilo(style))
         : savedBlocks;
     console.log(
       options.regroup
@@ -154,7 +153,7 @@ const main = async () => {
       ...(options.local ? {local: true} : {}),
     });
     ({words, voz, model} = transcricao);
-    blocks = groupWords(words);
+    blocks = agruparParaEstilo(words, style);
   }
 
   // Projeto transcrito antes da detecção de voz: detecta agora, se a Sincronia

@@ -237,8 +237,12 @@ export const blocosNaTela = (
 ): AssignedCaptionBlock[] =>
   (precisa?.voz ? encaixarBlocos(blocks, precisa.voz) : blocks).map((block) => {
     const template = templates[block.template];
+    // Pintura (pacote H): a palavra não entra antes da fala, ela se pinta durante a
+    // fala; quem entra antes é a frase inteira (fadeMs antes da primeira palavra).
+    const pintura = template?.pintura;
     const words = block.words.map((word, indice) => {
-      const antecipacao = template ? antecipacaoDaEntradaMs(animacaoDaPalavra(block, template, indice), Boolean(precisa)) : 0;
+      const antecipacao =
+        template && !pintura ? antecipacaoDaEntradaMs(animacaoDaPalavra(block, template, indice), Boolean(precisa)) : 0;
       return {
         ...word,
         startMs: Math.max(0, Math.round(word.startMs - antecipacao + sincroniaMs)),
@@ -251,7 +255,7 @@ export const blocosNaTela = (
     return {
       ...block,
       words,
-      startMs: Math.min(...words.map((word) => word.startMs)),
+      startMs: Math.max(0, Math.min(...words.map((word) => word.startMs)) - (pintura?.fadeMs ?? 0)),
       // Com o encaixe, o bloco termina onde a última palavra termina agora.
       endMs: Math.max(0, (precisa?.voz ? block.words[block.words.length - 1].endMs : block.endMs) + sincroniaMs),
     };

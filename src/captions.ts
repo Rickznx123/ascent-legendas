@@ -1,6 +1,6 @@
 import type {Caption} from "@remotion/captions";
 import {AGRUPAMENTO_CONFIG} from "./agrupamento-config";
-import type {CaptionBlock, Word} from "./types";
+import type {CaptionBlock, ConfigDoAgrupamento, Word} from "./types";
 
 const HESITATION_PAIR = new Set(["um uma", "uma um"]);
 const BLOCK_END_FUNCTION_WORDS = new Set(
@@ -161,14 +161,14 @@ export const findProtectedSpans = (texts: string[]): ProtectedSpans => {
 type NaturalCut = "nenhum" | "virgula-ou-pausa" | "fim-de-frase";
 
 // naturalCut[i] = tipo de pontuação ou pausa entre a palavra i - 1 e a palavra i.
-const findNaturalCuts = (words: GroupingWord[]): NaturalCut[] => {
+const findNaturalCuts = (words: GroupingWord[], cfg: ConfigDoAgrupamento = AGRUPAMENTO_CONFIG): NaturalCut[] => {
   const naturalCut = Array<NaturalCut>(words.length + 1).fill("nenhum");
   for (let index = 1; index < words.length; index++) {
     const previous = words[index - 1];
     const pauseMs = words[index].startMs - previous.endMs;
     if (endsSentence(previous.text)) {
       naturalCut[index] = "fim-de-frase";
-    } else if (pauseMs > AGRUPAMENTO_CONFIG.pausaMinimaMs || /[,;:]$/u.test(previous.text)) {
+    } else if (pauseMs > cfg.pausaMinimaMs || /[,;:]$/u.test(previous.text)) {
       naturalCut[index] = "virgula-ou-pausa";
     }
   }
@@ -235,8 +235,9 @@ const blockPenalties = (
   end: number,
   protectedCut: boolean[],
   naturalCut: NaturalCut[],
+  cfg: ConfigDoAgrupamento = AGRUPAMENTO_CONFIG,
 ): BlockPenalty[] => {
-  const {penalidades, desempate, maxCaracteresPorBloco} = AGRUPAMENTO_CONFIG;
+  const {penalidades, desempate, maxCaracteresPorBloco} = cfg;
   const chunk = words.slice(start, end);
   const penalties: BlockPenalty[] = [];
 
@@ -257,6 +258,12 @@ const blockPenalties = (
   }
   if (chunk.length === 1) {
     penalties.push({reason: "tem uma palavra só", points: penalidades.blocoDeUmaPalavra});
+  }
+  if (chunk.length < (cfg.minPalavrasPorBloco ?? 1)) {
+    penalties.push({
+      reason: `tem menos de ${cfg.minPalavrasPorBloco} palavras`,
+      points: penalidades.abaixoDoMinimoDePalavras ?? 0,
+    });
   }
   if (!highlightTopCanBeValid(chunk.map((word) => word.text))) {
     penalties.push({
@@ -307,19 +314,19 @@ type PartitionedChunk = {
 
 // Escolhe a divisão de menor penalidade total. Sempre encontra uma resposta,
 // porque qualquer sequência de blocos de 1 a N palavras é aceita.
-const partitionWords = (words: GroupingWord[]): PartitionedChunk[] => {
+const partitionWords = (words: GroupingWord[], cfg: ConfigDoAgrupamento = AGRUPAMENTO_CONFIG): PartitionedChunk[] => {
   const wordCount = words.length;
   if (wordCount === 0) {
     return [];
   }
 
-  const maxWords = Math.max(1, Math.floor(AGRUPAMENTO_CONFIG.maxPalavrasPorBloco));
+  const maxWords = Math.max(1, Math.floor(cfg.maxPalavrasPorBloco));
   const maxWordsWithExpression = Math.max(
     maxWords,
-    Math.floor(AGRUPAMENTO_CONFIG.maxPalavrasComExpressaoProtegida),
+    Math.floor(cfg.maxPalavrasComExpressaoProtegida),
   );
   const {protectedCut, spans} = findProtectedSpans(words.map((word) => word.text));
-  const naturalCut = findNaturalCuts(words);
+  const naturalCut = findNaturalCuts(words, cfg);
   const bestCost = Array<number>(wordCount + 1).fill(Number.POSITIVE_INFINITY);
   const nextIndex = Array<number>(wordCount + 1).fill(-1);
   bestCost[wordCount] = 0;
@@ -333,7 +340,7 @@ const partitionWords = (words: GroupingWord[]): PartitionedChunk[] => {
         continue;
       }
       const cost =
-        bestCost[end] + sumPoints(blockPenalties(words, start, end, protectedCut, naturalCut));
+        bestCost[end] + sumPoints(blockPenalties(words, start, end, protectedCut, naturalCut, cfg));
       if (cost < bestCost[start]) {
         bestCost[start] = cost;
         nextIndex[start] = end;
@@ -346,7 +353,7 @@ const partitionWords = (words: GroupingWord[]): PartitionedChunk[] => {
     const end = nextIndex[start];
     chunks.push({
       chunk: words.slice(start, end),
-      penalties: blockPenalties(words, start, end, protectedCut, naturalCut).filter(
+      penalties: blockPenalties(words, start, end, protectedCut, naturalCut, cfg).filter(
         (penalty) => penalty.reason !== TIE_BREAK_REASON,
       ),
     });
@@ -383,17 +390,22 @@ export const splitInTwo = (words: Word[], maxWords: number): [Word[], Word[]] =>
 // palavras e até maxChars caracteres (uma palavra mais longa que isso fica sozinha).
 // Usa o menor número de blocos e, entre as divisões com esse número, a de menor
 // penalidade do agrupador (sem a de linha de cima, que um linear não tem).
-export const dividirLinear = (words: Word[], maxWords: number, maxChars = Number.POSITIVE_INFINITY): Word[][] => {
+export const dividirLinear = (
+  words: Word[],
+  maxWords: number,
+  maxChars = Number.POSITIVE_INFINITY,
+  cfg: ConfigDoAgrupamento = AGRUPAMENTO_CONFIG,
+): Word[][] => {
   const n = words.length;
   if (n === 0) {
     return [];
   }
   const {protectedCut} = findProtectedSpans(words.map((word) => word.text));
-  const naturalCut = findNaturalCuts(words);
+  const naturalCut = findNaturalCuts(words, cfg);
   const caracteres = (de: number, ate: number) => words.slice(de, ate).map((word) => displayText(word.text)).join(" ").length;
   const cabe = (de: number, ate: number) => ate - de === 1 || (ate - de <= maxWords && caracteres(de, ate) <= maxChars);
   const pontos = (de: number, ate: number) =>
-    sumPoints(blockPenalties(words, de, ate, protectedCut, naturalCut).filter((penalty) => penalty.reason !== TOP_LINE_REASON));
+    sumPoints(blockPenalties(words, de, ate, protectedCut, naturalCut, cfg).filter((penalty) => penalty.reason !== TOP_LINE_REASON));
   // melhor[i]: [blocos, pontos] para dividir words[i..n); proximo[i]: fim do primeiro bloco.
   const melhor: [number, number][] = Array.from({length: n + 1}, () => [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY]);
   const proximo = Array<number>(n + 1).fill(n);
@@ -423,38 +435,38 @@ export const explainGrouping = (words: Word[]): {text: string; penalties: BlockP
 // Tempo de tela estimado na divisão: do início do bloco até o início do seguinte,
 // no máximo permanenciaMaximaMs depois da última palavra. (O atraso dos destaques
 // ainda não existe aqui; ele só aparece depois da escolha de layouts.)
-const estimatedScreenMs = (chunks: GroupingWord[][], index: number): number => {
+const estimatedScreenMs = (chunks: GroupingWord[][], index: number, cfg: ConfigDoAgrupamento): number => {
   const chunk = chunks[index];
   const nextStartMs = chunks[index + 1]?.[0].startMs ?? Number.POSITIVE_INFINITY;
   const lastWordEndMs = chunk[chunk.length - 1].endMs;
   return (
-    Math.min(nextStartMs, lastWordEndMs + AGRUPAMENTO_CONFIG.tempos.permanenciaMaximaMs) -
+    Math.min(nextStartMs, lastWordEndMs + cfg.tempos.permanenciaMaximaMs) -
     chunk[0].startMs
   );
 };
 
 // Dois blocos vizinhos podem virar um só: até maxPalavrasPorBloco palavras e sem
 // pontuação nem pausa entre eles (uma junção nunca corta expressão protegida).
-const canJoin = (left: GroupingWord[], right: GroupingWord[]): boolean => {
+const canJoin = (left: GroupingWord[], right: GroupingWord[], cfg: ConfigDoAgrupamento): boolean => {
   const last = left[left.length - 1];
   return (
-    left.length + right.length <= AGRUPAMENTO_CONFIG.maxPalavrasPorBloco &&
+    left.length + right.length <= cfg.maxPalavrasPorBloco &&
     !/[,;:.!?…]["')\]]*$/u.test(last.text) &&
-    right[0].startMs - last.endMs <= AGRUPAMENTO_CONFIG.pausaMinimaMs
+    right[0].startMs - last.endMs <= cfg.pausaMinimaMs
   );
 };
 
 // Junta blocos que ficariam menos que tempoMinimoDeTelaMs na tela: primeiro com o
 // seguinte, depois com o anterior. Os que sobrarem ganham o atraso do bloco
 // seguinte na linha do tempo de exibição (tempos.ts).
-const joinShortChunks = (chunks: GroupingWord[][]): GroupingWord[][] => {
+const joinShortChunks = (chunks: GroupingWord[][], cfg: ConfigDoAgrupamento): GroupingWord[][] => {
   const result = chunks.map((chunk) => [...chunk]);
   for (let index = 0; index < result.length; ) {
-    if (estimatedScreenMs(result, index) >= AGRUPAMENTO_CONFIG.tempos.tempoMinimoDeTelaMs) {
+    if (estimatedScreenMs(result, index, cfg) >= cfg.tempos.tempoMinimoDeTelaMs) {
       index++;
-    } else if (index + 1 < result.length && canJoin(result[index], result[index + 1])) {
+    } else if (index + 1 < result.length && canJoin(result[index], result[index + 1], cfg)) {
       result.splice(index, 2, [...result[index], ...result[index + 1]]);
-    } else if (index > 0 && canJoin(result[index - 1], result[index])) {
+    } else if (index > 0 && canJoin(result[index - 1], result[index], cfg)) {
       result.splice(index - 1, 2, [...result[index - 1], ...result[index]]);
       index--;
     } else {
@@ -464,8 +476,9 @@ const joinShortChunks = (chunks: GroupingWord[][]): GroupingWord[][] => {
   return result;
 };
 
-export const groupWords = (words: Word[]): CaptionBlock[] =>
-  joinShortChunks(partitionWords(prepareGroupingWords(words)).map(({chunk}) => chunk)).map((chunk) => {
+// cfg: o agrupamento próprio de um pacote (PackageConfig.agrupamento), senão o geral.
+export const groupWords = (words: Word[], cfg: ConfigDoAgrupamento = AGRUPAMENTO_CONFIG): CaptionBlock[] =>
+  joinShortChunks(partitionWords(prepareGroupingWords(words), cfg).map(({chunk}) => chunk), cfg).map((chunk) => {
     const review = chunk.some((word) => word._review);
     const cleanWords = chunk.map(({_review: _discarded, ...word}) => word);
     return {

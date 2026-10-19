@@ -76,7 +76,7 @@ export const AjustesDoBlocoCelular: React.FC<Props> = (props) => {
     if (lista === "layout") {
       const grupos = misto
         ? Object.values(estilo.pacotes).map((rules) => ({
-            titulo: `Pacote ${rules.name.toUpperCase()}`,
+            titulo: `Pacote ${rules.config.nome ?? rules.name.toUpperCase()}`,
             nomes: Object.keys(rules.templates).map((nome) => ({chave: rules.prefix + nome, rotulo: nome})),
           }))
         : [{titulo: "", nomes: Object.keys(estilo.templates).map((nome) => ({chave: nome, rotulo: nome}))}];

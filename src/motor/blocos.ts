@@ -3,7 +3,7 @@ import {chooseKeyword, findKeywordIndex, groupWords, normalizeForKeyword} from "
 import {assignMixed, assignRhythmAndTemplates, layoutForKeywordIn, linearCabe} from "../rhythm";
 import type {PackageRules} from "../rhythm";
 import {shortBlockIndexes} from "../tempos";
-import type {AssignedCaptionBlock, CaptionBlock, CaptionTemplate, Word} from "../types";
+import type {AssignedCaptionBlock, CaptionBlock, CaptionTemplate, ConfigDoAgrupamento, Word} from "../types";
 import type {Estilo} from "./projeto";
 
 // Valor do seletor de pacote para o modo misto (sorteia entre todos os pacotes).
@@ -15,6 +15,15 @@ export const novaSemente = (): number => globalThis.crypto.getRandomValues(new U
 // Regras do pacote de um bloco: o pacote sorteado (misto) ou o pacote do vídeo.
 export const rulesForBlock = (estilo: Estilo, block: CaptionBlock): PackageRules =>
   estilo.pacotes[block.pacote ?? ""] ?? estilo.pacotes[estilo.pacote] ?? Object.values(estilo.pacotes)[0];
+
+// Agrupamento próprio do pacote do vídeo (pacote H), ou nenhum (o geral). No modo
+// misto, sempre o geral.
+export const agrupamentoDoEstilo = (estilo: Estilo): ConfigDoAgrupamento | undefined =>
+  estilo.pacote === PACOTE_MISTO ? undefined : estilo.pacotes[estilo.pacote]?.config.agrupamento;
+
+// Divisão da fala em blocos com o agrupamento do pacote do vídeo.
+export const agruparParaEstilo = (words: Word[], estilo: Estilo): CaptionBlock[] =>
+  groupWords(words, agrupamentoDoEstilo(estilo));
 
 // Escolhe os layouts de todos os blocos com o estilo atual. No modo misto, sorteia
 // os pacotes com a semente. Blocos com layout escolhido à mão ficam como estão.
@@ -71,10 +80,11 @@ const blockSignature = (block: CaptionBlock): string =>
 export const regroupAndPreserveManualFields = (
   words: Word[],
   savedBlocks: CaptionBlock[],
+  agrupamento?: ConfigDoAgrupamento,
 ): CaptionBlock[] => {
   const savedBySignature = new Map(savedBlocks.map((block) => [blockSignature(block), block]));
 
-  return groupWords(words).map((block) => {
+  return groupWords(words, agrupamento).map((block) => {
     const saved = savedBySignature.get(blockSignature(block));
     if (!saved) {
       return block;

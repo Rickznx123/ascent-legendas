@@ -4,6 +4,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import type {PlayerRef} from "@remotion/player";
 import {
   PACOTE_MISTO,
+  agrupamentoDoEstilo,
   assignForStyle,
   clearBlockPalettes,
   clearBlockPositions,
@@ -22,6 +23,8 @@ import {
   setWordText,
   splitBefore,
   toggleReview,
+  wordsOfBlocks,
+  regroupAndPreserveManualFields,
 } from "../../src/motor/blocos";
 import type {Estilo, Projeto} from "../../src/motor/projeto";
 import {configDosEfeitos, planejarEfeitos} from "../../src/sons";
@@ -30,7 +33,7 @@ import {blocosNaTela, cortesDosExcluidos, precisaoDoProjeto, sincroniaDoProjeto}
 import {POSICAO_PADRAO, posicaoDoBloco} from "../../src/posicao";
 import type {Posicao} from "../../src/posicao";
 import {computeTimeline, findActiveBlockIndex} from "../../src/tempos";
-import type {AssignedCaptionBlock, VideoMetadata} from "../../src/types";
+import type {AssignedCaptionBlock, CaptionBlock, VideoMetadata} from "../../src/types";
 import {api} from "./api";
 import type {Exportacao, TranscricaoNoServidor} from "./api";
 import {acompanharTarefa, marcarTarefaMostrada, tarefaJaMostrada} from "./tarefas-soltas";
@@ -412,7 +415,7 @@ export const useEditor = () => {
 
   // Escolhe de novo os layouts de todos os blocos com as regras do(s) pacote(s).
   // No modo misto, a semente decide o sorteio. Layouts escolhidos à mão ficam.
-  const refazerLayouts = (novoEstilo: Estilo, base: AssignedCaptionBlock[], semente: number) =>
+  const refazerLayouts = (novoEstilo: Estilo, base: CaptionBlock[], semente: number) =>
     assignForStyle(base, novoEstilo, {semente});
 
   const trocarPacote = async (pacote: string) => {
@@ -421,8 +424,15 @@ export const useEditor = () => {
       setEstilo(novoEstilo);
       if (projetoDoVideo) {
         const semente = projetoDoVideo.semente ?? novaSemente();
+        // Pacote com agrupamento próprio (pacote H), entrando ou saindo: a fala é
+        // dividida de novo (mantém palavra-chave, cor, som e posição dos blocos iguais).
+        const agrupamento = agrupamentoDoEstilo(novoEstilo);
+        const base =
+          agrupamento || (estilo && agrupamentoDoEstilo(estilo))
+            ? regroupAndPreserveManualFields(wordsOfBlocks(blocos), blocos, agrupamento)
+            : blocos;
         // Entra no desfazer (o passo guarda o pacote anterior).
-        atualizarProjeto({pacote, semente, blocks: refazerLayouts(novoEstilo, blocos, semente)}, true, true);
+        atualizarProjeto({pacote, semente, blocks: refazerLayouts(novoEstilo, base, semente)}, true, true);
         setAviso(
           pacote === PACOTE_MISTO
             ? "Modo misto: cada bloco sorteou um pacote."

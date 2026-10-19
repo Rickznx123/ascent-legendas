@@ -146,7 +146,9 @@ export const Galeria: React.FC<Props> = ({
   const [aba, setAba] = useState(pacoteDoVideo === PACOTE_MISTO ? TODOS : pacoteDoVideo);
   const abaValida = aba === TODOS || pacotes.some((rules) => rules.name === aba) ? aba : TODOS;
   const pacoteDaAba = abaValida === TODOS ? PACOTE_MISTO : abaValida;
-  const nomeDoPacote = (nome: string) => (nome === PACOTE_MISTO ? "Misto" : nome.toUpperCase());
+  // Nome de exibição do pacote (_pacote.ts → nome), senão a letra.
+  const nomeDoPacote = (nome: string) =>
+    nome === PACOTE_MISTO ? "Misto" : (pacotes.find((rules) => rules.name === nome)?.config.nome ?? nome.toUpperCase());
 
   // Texto e regras de cada miniatura: as palavras do bloco selecionado ou o exemplo do pacote.
   const itens = useMemo(() => {
@@ -243,8 +245,8 @@ export const Galeria: React.FC<Props> = ({
       </div>
 
       {visiveis.map(({rules, itens: doPacote}) => (
-        <section key={rules.name} aria-label={`Pacote ${rules.name.toUpperCase()}`}>
-          {abaValida === TODOS ? <h3 className="titulo">Pacote {rules.name.toUpperCase()}</h3> : null}
+        <section key={rules.name} aria-label={`Pacote ${nomeDoPacote(rules.name)}`}>
+          {abaValida === TODOS ? <h3 className="titulo">Pacote {nomeDoPacote(rules.name)}</h3> : null}
           <div className="grade">
             {doPacote.map((item) => (
               <Miniatura

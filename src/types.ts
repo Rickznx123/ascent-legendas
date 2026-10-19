@@ -1,4 +1,5 @@
 import type {CSSProperties} from "react";
+import type {AGRUPAMENTO_CONFIG} from "./agrupamento-config";
 
 export type Word = {
   text: string;
@@ -223,6 +224,23 @@ export type CaptionTemplate = {
   // Saída do bloco: depois de sair da linha do tempo, sobe e some (na mesma hora em
   // que o seguinte entra). Sem valor: some de uma vez.
   saida?: {duracaoMs: number; sobeCqw: number; escala: number; desfoqueCqw?: number};
+  // Pintura palavra por palavra (pacote H): a frase entra inteira apagada (fade de
+  // fadeMs antes da primeira fala) e cada palavra se preenche da esquerda para a
+  // direita entre o início e o fim da fala dela (degradê recortado no texto). As
+  // palavras não têm entrada própria; só a palavra-chave usa animations.keyword (a
+  // escala), a partir da fala. A cor vem da paleta (--cor-apoio; a palavra-chave, a
+  // cor de destaque); com a paleta branca, corSobreBranco no lugar do branco.
+  pintura?: {
+    // Opacidade do branco das palavras ainda não faladas (0 a 1).
+    apagada: number;
+    fadeMs: number;
+    corSobreBranco?: string;
+    // Sombra da palavra (filter), aplicada em cada palavra pintada.
+    sombra?: string;
+  };
+  // Vinheta escura na tela inteira, atrás do bloco, enquanto ele está na tela (o
+  // estilo do degradê e da altura, presa embaixo).
+  vinheta?: CSSProperties;
   // Só na estrutura "dupla": o desenho de cada bloco e de cada grupo.
   pair?: {
     first: TemplatePart;
@@ -273,6 +291,19 @@ export type PackageConfig = {
   // Texto de exemplo das miniaturas da galeria (opcional): as palavras e qual
   // delas é a palavra-chave.
   exemplo?: {texto: string; palavraChave: string};
+  // Nome de exibição na interface (opcional). Sem valor: a letra do pacote.
+  nome?: string;
+  // Agrupamento próprio (opcional): a divisão da fala em blocos usa esta
+  // configuração quando o vídeo usa só este pacote. Sem valor: src/agrupamento-config.ts.
+  agrupamento?: ConfigDoAgrupamento;
+};
+
+// Configuração do agrupador (src/agrupamento-config.ts), com o mínimo de palavras
+// opcional que só os pacotes com agrupamento próprio usam.
+export type ConfigDoAgrupamento = typeof AGRUPAMENTO_CONFIG & {
+  // Bloco com menos palavras que isto recebe a penalidade abaixoDoMinimoDePalavras.
+  minPalavrasPorBloco?: number;
+  penalidades: typeof AGRUPAMENTO_CONFIG.penalidades & {abaixoDoMinimoDePalavras?: number};
 };
 
 export type AssignedCaptionBlock = CaptionBlock & {

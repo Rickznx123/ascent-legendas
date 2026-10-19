@@ -526,6 +526,94 @@ const BlocoDePapeis: React.FC<{block: AssignedCaptionBlock; template: CaptionTem
   );
 };
 
+// Pintura palavra por palavra (pacote H). Cada palavra é um degradê recortado no
+// texto, metade cheia (cor) e metade apagada (branco translúcido), com o dobro da
+// largura: a posição vai de 100% (apagada) a 0% (cheia) durante a fala dela.
+const PALAVRAS_POR_LINHA_DE_APOIO = 4;
+
+const BlocoPintado: React.FC<{block: AssignedCaptionBlock; template: CaptionTemplate; palette: Palette; videoWidth: number}> = ({
+  block,
+  template,
+  palette,
+  videoWidth,
+}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const agoraMs = (frame / fps) * 1000;
+  const {styles, animations, keywordFit} = template;
+  const pintura = template.pintura!;
+  const words = block.words;
+  const branca = (cor: string) => (/^#f{3}(f{3})?$/iu.test(cor.trim()) ? (pintura.corSobreBranco ?? cor) : cor);
+  const corDoApoio = branca(palette.supportColor);
+  const corDaChave = branca(corDeDestaque(palette));
+  // Com a Sincronia precisa, a fala começa em faladaMs; sem ela, startMs já é a fala.
+  const inicioDaFala = (word: Word) => word.faladaMs ?? word.startMs;
+  const pintado = (word: Word, cor: string): CSSProperties => {
+    const inicio = inicioDaFala(word);
+    const cheia =
+      word.endMs > inicio ? Math.min(1, Math.max(0, (agoraMs - inicio) / (word.endMs - inicio))) : agoraMs >= inicio ? 1 : 0;
+    return {
+      backgroundImage: `linear-gradient(90deg, ${cor} 0 50%, rgba(255,255,255,${pintura.apagada}) 50% 100%)`,
+      backgroundSize: "200% 100%",
+      backgroundPosition: `${(100 - cheia * 100).toFixed(2)}% 0`,
+      WebkitBackgroundClip: "text",
+      backgroundClip: "text",
+      color: "transparent",
+      WebkitTextFillColor: "transparent",
+      filter: pintura.sombra,
+    };
+  };
+  // Texto como transcrito, com a pontuação (como a prancha do pacote H).
+  const linha = (part: Word[], estilo: CSSProperties | undefined, chave: string) => (
+    <span key={chave} style={estilo}>
+      {part.flatMap((word, index) => [
+        index > 0 ? " " : null,
+        <span key={`${word.startMs}-${index}`} style={pintado(word, corDoApoio)}>
+          {word.text}
+        </span>,
+      ])}
+    </span>
+  );
+
+  if (template.family === "linear") {
+    const text = words.map((word) => cleanWord(word.text)).join(" ");
+    const lines =
+      words.length > 1 && text.length > (template.maxCharactersPerLine ?? Number.POSITIVE_INFINITY) ? splitIntoTwoLines(words) : [words];
+    // Espaço entre as linhas: na tarja (linhas em linha) elas seguem como texto corrido.
+    return <>{lines.flatMap((line, index) => [index > 0 ? " " : null, linha(line, styles.support, `l${index}`)])}</>;
+  }
+
+  const keywordIndex = findKeywordIndex(words, block.keyword);
+  const keyword = words[keywordIndex];
+  const texto = cleanWord(keyword.text);
+  const estiloDaChave: CSSProperties = {...styles.keyword};
+  if (keywordFit) {
+    estiloDaChave.fontSize = fitFontSize(texto, estiloDaChave, keywordFit, videoWidth);
+  }
+  // Apoio com no máximo PALAVRAS_POR_LINHA_DE_APOIO palavras por linha.
+  const linhasDeApoio = (part: Word[], estilo: CSSProperties | undefined, prefixo: string) =>
+    Array.from({length: Math.ceil(part.length / PALAVRAS_POR_LINHA_DE_APOIO)}, (_, index) =>
+      linha(part.slice(index * PALAVRAS_POR_LINHA_DE_APOIO, (index + 1) * PALAVRAS_POR_LINHA_DE_APOIO), estilo, `${prefixo}${index}`),
+    );
+  return (
+    <>
+      {linhasDeApoio(words.slice(0, keywordIndex), styles.support, "s")}
+      <span style={styles.keywordOuter}>
+        {/* A chave vai de .92 a 1 quando começa a ser falada (animations.keyword). */}
+        <AnimatedWord
+          text={texto}
+          startMs={inicioDaFala(keyword)}
+          animation={animations.keyword}
+          style={{...estiloDaChave, ...pintado(keyword, corDaChave)}}
+          filter={pintura.sombra}
+        />
+      </span>
+      {styles.traco ? <span style={styles.traco} /> : null}
+      {linhasDeApoio(words.slice(keywordIndex + 1), styles.supportBelow ?? styles.support, "i")}
+    </>
+  );
+};
+
 const BlockContent: React.FC<{
   block: AssignedCaptionBlock;
   template: CaptionTemplate;
@@ -579,6 +667,10 @@ const BlockContent: React.FC<{
     part.length > 0 ? (
       <div style={styles.supportBelow ?? styles.support}>{spacedWords(part, anim.below)}</div>
     ) : null;
+
+  if (template.pintura) {
+    return <BlocoPintado block={block} template={template} palette={palette} videoWidth={videoWidth} />;
+  }
 
   if (template.structure === "papeis" && template.papeis) {
     return <BlocoDePapeis block={block} template={template} palette={palette} videoWidth={videoWidth} />;
@@ -950,17 +1042,24 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
         style.filter = `blur(${(saindo * saida.desfoqueCqw).toFixed(3)}cqw)`;
       }
     }
+    // Pintura (pacote H): a frase inteira entra em fade (a partir do início do bloco).
+    const fade = blockTemplate.pintura;
+    if (fade) {
+      style.opacity = Number(style.opacity ?? 1) * Math.min(1, Math.max(0, (currentMs - block.startMs) / fade.fadeMs));
+    }
     return (
-      <Posicionado
-        key={`${block.startMs}`}
-        posicao={posicaoDoBloco(block.posicao, posicao, lugar)}
-        ancora={lugar?.ancora}
-      >
-        {/* Bloco com paleta própria: as variáveis dela valem só dentro deste bloco. */}
-        <div style={style}>
-          <BlockContent block={block} template={blockTemplate} palette={own ?? palette} videoWidth={width} entradaLinear={entradaLinear} />
-        </div>
-      </Posicionado>
+      <Fragment key={`${block.startMs}`}>
+        {/* Vinheta da tela inteira, atrás do bloco e com a mesma opacidade dele. */}
+        {blockTemplate.vinheta ? (
+          <div style={{position: "absolute", left: 0, right: 0, bottom: 0, ...blockTemplate.vinheta, opacity: style.opacity}} />
+        ) : null}
+        <Posicionado posicao={posicaoDoBloco(block.posicao, posicao, lugar)} ancora={lugar?.ancora}>
+          {/* Bloco com paleta própria: as variáveis dela valem só dentro deste bloco. */}
+          <div style={style}>
+            <BlockContent block={block} template={blockTemplate} palette={own ?? palette} videoWidth={width} entradaLinear={entradaLinear} />
+          </div>
+        </Posicionado>
+      </Fragment>
     );
   };
 

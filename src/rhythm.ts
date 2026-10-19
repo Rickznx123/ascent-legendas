@@ -455,6 +455,7 @@ const arrangeBlock = (
         block.words,
         maxLinearWords ?? Number.POSITIVE_INFINITY,
         maxLinearCaracteres ?? Number.POSITIVE_INFINITY,
+        rules.config.agrupamento,
       );
       const part = (words: Word[]): AssignedCaptionBlock => ({
         ...linear(),

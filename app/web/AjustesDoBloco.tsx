@@ -181,7 +181,7 @@ export const AjustesDoBloco: React.FC<Props> = ({
           {layouts.includes(bloco.template) ? null : <option value={bloco.template}>{bloco.template}</option>}
           {misto
             ? Object.values(estilo.pacotes).map((rules) => (
-                <optgroup key={rules.name} label={`Pacote ${rules.name}`}>
+                <optgroup key={rules.name} label={`Pacote ${rules.config.nome ?? rules.name}`}>
                   {Object.keys(rules.templates).map((nome) => opcaoLayout(rules.prefix + nome, nome))}
                 </optgroup>
               ))

@@ -8,8 +8,7 @@ import path from "node:path";
 import {pipeline} from "node:stream/promises";
 import express from "express";
 import type {NextFunction, Request, Response} from "express";
-import {groupWords} from "../../src/captions";
-import {assignForStyle, migrarPacoteC, novaSemente, temPacoteCAntigo, wordsOfBlocks} from "../../src/motor/blocos";
+import {agruparParaEstilo, assignForStyle, migrarPacoteC, novaSemente, temPacoteCAntigo, wordsOfBlocks} from "../../src/motor/blocos";
 import {renderVideo} from "../../src/motor/exportar";
 import {caminhoDoSom, listarSons, somTocadoEmCache} from "../../src/motor/pasta-sons";
 import {getVideoMetadata} from "../../src/motor/ferramentas";
@@ -1008,7 +1007,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     progress("Escolhendo os layouts...");
     const style = await loadStyle(root, {pacote, paleta});
     const semente = novaSemente();
-    const blocks = assignForStyle(groupWords(words), style, {semente});
+    const blocks = assignForStyle(agruparParaEstilo(words, style), style, {semente});
     const projeto: Projeto = {
       source: video,
       language: "pt",

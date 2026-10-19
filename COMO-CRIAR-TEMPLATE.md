@@ -24,6 +24,7 @@ Pacotes e paletas atuais:
 | `d` | `d1` a `d6` (d6 é a dupla) e `linear` (Hanken Grotesk) | `templates/pacote-d/referencia.html` |
 | `e` | `e1` a `e6` e `linear` (Urbanist, Hanken Grotesk e EB Garamond) | `templates/pacote-e/referencia.html` |
 | `f` | `na-linha`, `dois-destaques`, `gigante`, `sans-em-cima` e `linear` (Inter Tight 700 e Instrument Serif itálica) | `templates/pacote-f/referencia.html` |
+| `h` (Clássico) | `h1` a `h3` lineares (Padrão, Tarja, Dark) e `h4` a `h6` destaques (Centro, Moldura, Cinema); Inter e Instrument Serif itálica, pintura palavra por palavra e agrupamento próprio | `templates/pacote-h/referencia.html` |
 
 | Paleta | Uso |
 |---|---|
@@ -33,6 +34,7 @@ Pacotes e paletas atuais:
 | `areia` | degradê na horizontal, areia e branco (referência do pacote D) |
 | `dourado`, `prata`, `rose`, `azul`, `verde`, `roxo` | degradês da referência do pacote D; resto branco |
 | `neon`, `ascent`, `oceano`, `fogo`, `menta`, `ouro`, `mono` | prancha do pacote C: destaque, fundo e texto da caixa; resto branco |
+| `amarelo-legenda` | texto e palavra-chave #FFD84D (prancha do pacote H) |
 | `creme`, `lavanda`, `rosa`, `menta-suave` | prancha do pacote F: serifa e brilho em tons claros; resto branco (o `branco` do F é o `branco` acima) |
 
 ## Pacotes
@@ -65,6 +67,8 @@ const pacote: PackageConfig = {
 - `dupla` (opcional): o layout de dupla do pacote (ex.: `"d6"`). Dois blocos seguidos ficam na tela ao mesmo tempo quando cada um tem até 4 palavras e o silêncio entre eles é menor que 0,4 s, no máximo uma dupla a cada 6 blocos (valores em `dupla` no `src/agrupamento-config.ts`). A dupla conta como um destaque no ritmo.
 - `maxLinearWords` e `maxLinearCaracteres` (opcionais): máximo de palavras e de caracteres do linear. Um linear maior é dividido em quantos blocos lineares forem precisos, nos pontos de menor penalidade do agrupador; um bloco com layout escolhido à mão não é dividido, só fica marcado "revisar". No modo misto, um linear maior não sorteia esse pacote.
 - `ritmo` (opcional): ritmo próprio do pacote, quando o vídeo usa só ele. Os dinâmicos caem nas frases mais fortes, nunca dois seguidos; `maxLinearesSeguidos: 3` limita os lineares seguidos (cada pedaço de um linear dividido conta; se um linear longo sozinho passa do limite, o pedaço mais forte dele vira dinâmico); `primeiroDestaque: true` faz o primeiro bloco do vídeo ser dinâmico. Sem `ritmo`, vale o ritmo comum.
+- `nome` (opcional): nome de exibição na interface (ex.: `"Clássico"`). Sem ele, a letra do pacote.
+- `agrupamento` (opcional): configuração própria do agrupador, com o mesmo formato de `src/agrupamento-config.ts` mais `minPalavrasPorBloco` e a penalidade `abaixoDoMinimoDePalavras`. Vale quando o vídeo usa só este pacote: na transcrição, no `--reagrupar` e ao trocar para (ou deste) pacote na interface, quando a fala é dividida de novo. No modo misto, vale o geral. O pacote H guarda a dele em `_agrupamento.ts`.
 - Com mais de um layout na lista, eles se alternam entre os blocos.
 
 Sem `ritmo` no pacote (e sempre no modo misto), o ritmo é comum e fica em `src/rhythm-config.ts`: dois lineares e um destaque, nunca dois destaques seguidos. Blocos de uma palavra só ou com expressão protegida sempre viram destaque, a menos que o bloco anterior já seja destaque.
@@ -115,6 +119,8 @@ A linha de cima depende da estrutura do layout. Em `escada` e `pilha`, a última
 - `maxCharactersPerLine` (só no linear): acima desse número de caracteres, a linha é quebrada em duas.
 - `linhaUnica` (só no linear): sempre uma linha, reduzida se não couber. `porLetra` aceita a entrada letra por letra (escolhida por projeto em Geral → Entrada do linear), com `atrasoPorLetraMs` entre as letras.
 - `posicao` (opcional): o lugar próprio do layout (`x`, `y` em %; com `ancora: "esquerda"`, `x` é a borda esquerda). A posição geral do vídeo desloca esse lugar pelo quanto ela saiu da padrão; a posição de um bloco o substitui.
+- `pintura` (opcional, pacote H): a frase entra inteira apagada (fade de `fadeMs` antes da primeira fala) e cada palavra se preenche da esquerda para a direita durante a fala dela, com um degradê recortado no texto (`apagada` é a opacidade do branco das palavras não faladas; `sombra`, o `filter` de cada palavra; `corSobreBranco` troca o branco da paleta, como o #F4F2EE do Dark). As palavras não têm entrada própria: só a palavra-chave usa `animations.keyword`, a partir da fala. Nos destaques, as palavras antes da chave ficam em `support`, a chave em `keywordOuter`/`keyword`, `traco` vira um fio entre a chave e o apoio de baixo e o apoio vai até 4 palavras por linha.
+- `vinheta` (opcional): degradê escuro na tela inteira, preso embaixo, atrás do bloco e com a opacidade dele.
 - `saida` (opcional): depois de sair da linha do tempo, o bloco sobe `sobeCqw`, encolhe até `escala`, desfoca até `desfoqueCqw` (opcional) e some em `duracaoMs`, junto com a entrada do seguinte.
 
 **Layouts nunca definem cor.** Use as variáveis que o motor preenche a partir da paleta:
@@ -158,6 +164,7 @@ Toda paleta vale em todos os pacotes. Papel de cada cor:
 | A, B, D, E | apoio, complemento e linear | palavra-chave | brilho da palavra-chave | não usa |
 | C | corpo, leve, miudinho e linear | destaque e gigante | não usa: o brilho do gigante sai da cor do destaque | etiqueta (sem ela: fundo na cor da palavra-chave, texto claro ou escuro) |
 | F | não usa: a sans é sempre branca | serifa e elo | brilho da serifa (`glow.inner`) | não usa |
+| H | preenchimento das palavras (branco vira #F4F2EE no Dark e nos destaques) | preenchimento da palavra-chave (a cor de destaque) | não usa | não usa |
 
 `intensity` vai de 0 a 1 e multiplica a transparência das duas cores do brilho. Para um brilho mais forte, aumente a opacidade das cores.
 
