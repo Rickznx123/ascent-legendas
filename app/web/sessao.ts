@@ -147,8 +147,9 @@ export const entrar = async (email: string, senha: string): Promise<void> => {
 
 // Cria a conta; o Supabase manda o link de confirmação (uma vez só por conta).
 // Devolve o id da conta nova.
-export const criarConta = async (email: string, senha: string): Promise<string | undefined> => {
-  const {data, error} = await cliente!.auth.signUp({email, password: senha, options: {emailRedirectTo: voltaDoEmail()}});
+// whatsapp: só dígitos, com o 55 (vai para o user_metadata e aparece no /admin).
+export const criarConta = async (email: string, senha: string, whatsapp: string): Promise<string | undefined> => {
+  const {data, error} = await cliente!.auth.signUp({email, password: senha, options: {emailRedirectTo: voltaDoEmail(), data: {whatsapp}}});
   if (error) throw traduzir(error);
   // E-mail que já tem conta confirmada: o Supabase não dá erro (para não revelar
   // quem tem conta), mas devolve o usuário sem identidades.

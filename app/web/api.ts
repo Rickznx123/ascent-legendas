@@ -18,6 +18,18 @@ export const pedir = async (url: string, init: RequestInit = {}): Promise<Respon
   return resposta;
 };
 
+// Uma linha do painel do dono (veja app/servidor/admin.ts).
+export type Assinante = {
+  email: string;
+  whatsapp: string | null;
+  plano: string;
+  forma: string;
+  ativo: boolean;
+  expira: string | null;
+  pago: number;
+  desde: string | null;
+};
+
 // projetos: os vídeos que já têm projeto (com login, os do usuário).
 // titulos: o nome de cada vídeo na tela (veja app/servidor/titulo.ts).
 export type Catalogo = {
@@ -89,6 +101,12 @@ export const api = {
     pedir("/api/conta")
       .then((r) => lerJson<{conta: Conta | null}>(r))
       .then((data) => data.conta),
+
+  // Painel do dono (/admin); outra conta recebe 404.
+  assinantes: () =>
+    pedir("/api/admin/assinantes")
+      .then((r) => lerJson<{assinantes: Assinante[]}>(r))
+      .then((data) => data.assinantes),
 
   // O que exportar este vídeo vai fazer (descontar, marca d'água) ou por que não
   // pode. Sem login: semLimite.

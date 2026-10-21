@@ -12,6 +12,13 @@ type Vista = "entrar" | "criar" | "esqueci";
 // Depois de enviar um e-mail: qual e para quem.
 type Enviado = {tipo: "confirmacao" | "redefinicao"; email: string};
 
+// WhatsApp digitado → só dígitos com o 55 do Brasil; inválido: undefined.
+export const whatsappNormalizado = (texto: string): string | undefined => {
+  const digitos = texto.replace(/\D/gu, "").replace(/^0+/u, "");
+  const comPais = digitos.length === 10 || digitos.length === 11 ? `55${digitos}` : digitos;
+  return /^55\d{10,11}$/u.test(comPais) ? comPais : undefined;
+};
+
 const mensagem = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 // Nas telas de e-mail enviado e de "Esqueci minha senha".
@@ -46,6 +53,7 @@ export const TelaDeLogin: React.FC<{google: boolean; aviso?: string; vistaInicia
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [repetida, setRepetida] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
   const [enviado, setEnviado] = useState<Enviado>();
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState<string | undefined>(aviso);
@@ -84,8 +92,13 @@ export const TelaDeLogin: React.FC<{google: boolean; aviso?: string; vistaInicia
         setErro(problema);
         return;
       }
+      const numero = whatsappNormalizado(whatsapp);
+      if (!numero) {
+        setErro("Confira o WhatsApp: DDD e número, como (66) 99999-9999.");
+        return;
+      }
       void executar(async () => {
-        contaCriada(await criarConta(endereco, senha));
+        contaCriada(await criarConta(endereco, senha, numero));
         setReenviado(false);
         setEnviado({tipo: "confirmacao", email: endereco});
       });
@@ -177,6 +190,21 @@ export const TelaDeLogin: React.FC<{google: boolean; aviso?: string; vistaInicia
               ) : null}
               {vista === "criar" ? (
                 <>
+                  <label htmlFor="login-whatsapp" className="rotulo">
+                    WhatsApp
+                  </label>
+                  <input
+                    id="login-whatsapp"
+                    name="tel"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel-national"
+                    required
+                    placeholder="(66) 99999-9999"
+                    value={whatsapp}
+                    disabled={ocupado}
+                    onChange={(event) => setWhatsapp(event.target.value)}
+                  />
                   <CampoDeSenha
                     id="login-senha-nova"
                     rotulo={`Senha (mínimo ${SENHA_MINIMA} caracteres)`}

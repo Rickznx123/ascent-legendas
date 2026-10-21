@@ -12,6 +12,7 @@ import {EVENTO_SESSAO_EXPIRADA, api, executarTarefa} from "./api";
 import type {Andamento, Conta} from "./api";
 import {ContaContexto} from "./conta";
 import {TelaDeLogin} from "./Login";
+import {PainelAdmin} from "./Admin";
 import {FormularioDeSenhaNova} from "./Senha";
 import {RetornoDaAssinatura, checkoutRecente} from "./Assinatura";
 import {AvisoDoPix} from "./Pix";
@@ -327,6 +328,7 @@ export const Entrada: React.FC = () => {
         />
       );
     case "editor":
+      if (location.pathname === "/admin") return <PainelAdmin />;
       // key: outra conta começa com o editor do zero.
       return (
         <ContaContexto.Provider value={{conta: estado.conta, sair: sairDaConta, atualizarConta}}>
