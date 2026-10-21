@@ -53,12 +53,20 @@ const LAYOUT_DO_C_ANTIGO = /^(c\/)?c[1-6]$/u;
 // O projeto ainda usa layouts do pacote C antigo?
 export const temPacoteCAntigo = (blocks: CaptionBlock[]): boolean => blocks.some((block) => LAYOUT_DO_C_ANTIGO.test(block.template ?? ""));
 
-// Passa um projeto do pacote C antigo para o novo: os layouts são escolhidos de novo
-// com o ritmo e os layouts do C versão 2 (no modo misto, com a mesma semente). Os
-// blocos de outros pacotes escolhidos à mão continuam como estão.
-export const migrarPacoteC = (projeto: {blocks: CaptionBlock[]; semente?: number}, estilo: Estilo): AssignedCaptionBlock[] =>
+// O projeto usa algum layout que não existe mais no estilo (pacote removido, como o H,
+// ou layout trocado, como os do G antigo)?
+export const temLayoutInexistente = (blocks: CaptionBlock[], estilo: Estilo): boolean =>
+  blocks.some((block) => !estilo.templates[block.template ?? ""]);
+
+// Passa um projeto com layouts antigos (do pacote C antigo, ou que não existem mais)
+// para os atuais: os layouts são escolhidos de novo com o ritmo e os layouts do estilo
+// (no modo misto, com a mesma semente). Os blocos escolhidos à mão com um layout que
+// ainda existe continuam como estão.
+export const migrarLayoutsAntigos = (projeto: {blocks: CaptionBlock[]; semente?: number}, estilo: Estilo): AssignedCaptionBlock[] =>
   assignForStyle(
-    projeto.blocks.map((block) => (LAYOUT_DO_C_ANTIGO.test(block.template ?? "") ? {...block, layoutManual: undefined} : block)),
+    projeto.blocks.map((block) =>
+      LAYOUT_DO_C_ANTIGO.test(block.template ?? "") || !estilo.templates[block.template ?? ""] ? {...block, layoutManual: undefined} : block,
+    ),
     estilo,
     {semente: projeto.semente ?? 0, preserveAssignments: true},
   );

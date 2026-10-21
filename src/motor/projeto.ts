@@ -137,7 +137,8 @@ export const loadStyle = async (
     (requested.pacote === PACOTE_MISTO || (!requested.pacote && saved?.pacote === PACOTE_MISTO));
   const pacote = misto
     ? PACOTE_MISTO
-    : chooseAvailable("pacote", pacotes, requested.pacote, saved?.pacote, "a");
+    : // Um pacote que não existe mais (o H, removido) cai no salvo ou no padrão.
+      chooseAvailable("pacote", pacotes, requested.pacote && pacotes.includes(requested.pacote) ? requested.pacote : undefined, saved?.pacote, "a");
   const paleta = chooseAvailable("paleta", paletas, requested.paleta, saved?.paleta, "branco");
 
   const usados = misto ? pacotes : [pacote];

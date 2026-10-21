@@ -8,7 +8,7 @@ import path from "node:path";
 import {pipeline} from "node:stream/promises";
 import express from "express";
 import type {NextFunction, Request, Response} from "express";
-import {agruparParaEstilo, assignForStyle, migrarPacoteC, novaSemente, temPacoteCAntigo, wordsOfBlocks} from "../../src/motor/blocos";
+import {agruparParaEstilo, assignForStyle, migrarLayoutsAntigos, novaSemente, temLayoutInexistente, temPacoteCAntigo, wordsOfBlocks} from "../../src/motor/blocos";
 import {renderVideo} from "../../src/motor/exportar";
 import {caminhoDoSom, listarSons, somTocadoEmCache} from "../../src/motor/pasta-sons";
 import {getVideoMetadata} from "../../src/motor/ferramentas";
@@ -790,12 +790,15 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     response.sendFile(arquivo);
   });
 
-  // Projeto ainda com layouts do pacote C antigo (c1 a c6): os layouts são escolhidos
-  // de novo com o C versão 2 (o editor salva na próxima edição; o render usa já).
-  const comPacoteCNovo = async (projeto: Projeto): Promise<Projeto> =>
-    temPacoteCAntigo(projeto.blocks)
-      ? {...projeto, blocks: migrarPacoteC(projeto, await loadStyle(root, {pacote: projeto.pacote, paleta: projeto.paleta}, projeto))}
+  // Projeto com layouts do pacote C antigo (c1 a c6), de um pacote removido (o H) ou
+  // que não existem mais (o G antigo): os layouts são escolhidos de novo com o pacote
+  // atual (o editor salva na próxima edição; o render usa já).
+  const comPacoteCNovo = async (projeto: Projeto): Promise<Projeto> => {
+    const estilo = await loadStyle(root, {pacote: projeto.pacote, paleta: projeto.paleta}, projeto);
+    return temPacoteCAntigo(projeto.blocks) || estilo.pacote !== (projeto.pacote ?? estilo.pacote) || temLayoutInexistente(projeto.blocks, estilo)
+      ? {...projeto, pacote: estilo.pacote, paleta: estilo.paleta, blocks: migrarLayoutsAntigos(projeto, estilo)}
       : projeto;
+  };
 
   // O projeto de um vídeo (?video=); sem vídeo, o último editado. No modo local,
   // o do transcricao.json (a tela confere se é do vídeo aberto).
