@@ -10,7 +10,7 @@ import {JanelaTrocarSenha} from "../Senha";
 import {JanelaAssinar, JanelaDaAcao, ROTULO_DA_ACAO, acaoDaAssinatura, avisoDaAssinatura, menorPreco, podeSubirDePlano} from "../Assinatura";
 import type {AcaoDaAssinatura} from "../Assinatura";
 import type {ResumoDaAssinatura, UsoDoPlano} from "../api";
-import {CONFIG_CELULAR, nomeDoPlano, resumoDasTranscricoes, resumoDoUso} from "./plano";
+import {CONFIG_CELULAR, linkDoSuporte, nomeDoPlano, resumoDasTranscricoes, resumoDoUso} from "./plano";
 
 // Quadro do plano: usados e restantes (o servidor manda o uso; aqui só se mostra).
 // Com a assinatura: o aviso (ativa, cancelada, cobrança que falhou) e, no grátis, "Assinar".
@@ -194,6 +194,12 @@ const Menu: React.FC<{ocupado: boolean; onImportar: () => void}> = ({ocupado, on
               >
                 Trocar senha
               </button>
+              {linkDoSuporte(conta.email) ? (
+                <a role="menuitem" href={linkDoSuporte(conta.email)} target="_blank" rel="noopener noreferrer" onClick={() => setAberto(false)}>
+                  Suporte
+                  <small>WhatsApp</small>
+                </a>
+              ) : null}
               <button
                 type="button"
                 role="menuitem"

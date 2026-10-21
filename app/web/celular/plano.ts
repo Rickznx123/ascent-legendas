@@ -7,6 +7,15 @@ export const CONFIG_CELULAR = {
   mostrarPlano: true,
 };
 
+// WhatsApp do suporte (DDI + DDD + número, só dígitos). Vazio: o item Suporte some dos menus.
+const WHATSAPP_DO_SUPORTE = "5566992402445";
+
+// Conversa no WhatsApp com a mensagem já escrita e o e-mail da conta (para achar quem pediu).
+export const linkDoSuporte = (email: string): string | undefined =>
+  WHATSAPP_DO_SUPORTE
+    ? `https://wa.me/${WHATSAPP_DO_SUPORTE}?text=${encodeURIComponent(`Oi! Preciso de ajuda no Ascent Legendas. Minha conta: ${email}`)}`
+    : undefined;
+
 // Nome de cada plano na tela (o valor salvo no perfil é a chave).
 const NOMES_DOS_PLANOS: Record<Plano, string> = {gratis: "Grátis", assinante: "Assinante"};
 

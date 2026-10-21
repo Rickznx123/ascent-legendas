@@ -1,7 +1,7 @@
 // Conta no topo do computador: e-mail, plano, Trocar senha e Sair (o equivalente ao menu ☰ do
 // celular). Sem login (modo local), não aparece.
 import {useEffect, useRef, useState} from "react";
-import {nomeDoPlano, resumoDasTranscricoes, resumoDoUso} from "./celular/plano";
+import {linkDoSuporte, nomeDoPlano, resumoDasTranscricoes, resumoDoUso} from "./celular/plano";
 import {useConta} from "./conta";
 import {JanelaTrocarSenha} from "./Senha";
 import {JanelaDaAcao, ROTULO_DA_ACAO, acaoDaAssinatura, avisoDaAssinatura} from "./Assinatura";
@@ -91,6 +91,11 @@ export const MenuDaConta: React.FC<{ocupado: boolean}> = ({ocupado}) => {
           >
             Trocar senha
           </button>
+          {linkDoSuporte(conta.email) ? (
+            <a role="menuitem" className="bt" href={linkDoSuporte(conta.email)} target="_blank" rel="noopener noreferrer" onClick={() => setAberto(false)}>
+              Suporte (WhatsApp)
+            </a>
+          ) : null}
           <button
             type="button"
             role="menuitem"

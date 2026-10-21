@@ -938,7 +938,10 @@
   box-shadow: var(--sombra);
 }
 
-.cel-menu button {
+.cel-menu button,
+.cel-menu a {
+  color: inherit;
+  text-decoration: none;
   min-height: 44px;
   display: flex;
   align-items: center;
