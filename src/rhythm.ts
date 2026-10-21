@@ -86,6 +86,10 @@ const inRange = (value: number, range: CountRange | undefined): boolean =>
   range === undefined ||
   (value >= (range.min ?? Number.NEGATIVE_INFINITY) && value <= (range.max ?? Number.POSITIVE_INFINITY));
 
+// Layout de um linear com n palavras: o linear curto do pacote, se couber nele.
+export const templateDoLinear = (config: Pick<PackageConfig, "linear" | "linearCurto">, n: number): string =>
+  config.linearCurto && n <= config.linearCurto.maxPalavras ? config.linearCurto.template : config.linear;
+
 // O linear cabe nos limites do pacote (palavras e caracteres)?
 export const linearCabe = (config: PalavrasDoLinear, texts: string[]): boolean =>
   (config.maxLinearWords === undefined || texts.length <= config.maxLinearWords) &&
@@ -434,12 +438,12 @@ const arrangeBlock = (
   consumed: number;
 } => {
   const block = blocks[index];
-  const linear = (): AssignedCaptionBlock => ({
+  const linear = (words: Word[] = block.words): AssignedCaptionBlock => ({
     ...block,
     dupla: undefined,
     pacote: rules.name,
     family: "linear",
-    template: rules.prefix + rules.config.linear,
+    template: rules.prefix + templateDoLinear(rules.config, words.length),
   });
   const highlight = (base: CaptionBlock, choice: HighlightChoice): AssignedCaptionBlock => ({
     ...base,
@@ -460,7 +464,7 @@ const arrangeBlock = (
         rules.config.agrupamento,
       );
       const part = (words: Word[]): AssignedCaptionBlock => ({
-        ...linear(),
+        ...linear(words),
         words,
         startMs: words[0].startMs,
         endMs: words[words.length - 1].endMs,

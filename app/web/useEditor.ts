@@ -424,7 +424,12 @@ export const useEditor = () => {
 
   const trocarPacote = async (pacote: string) => {
     try {
-      const novoEstilo = await api.estilo(pacote, estilo?.paleta);
+      let novoEstilo = await api.estilo(pacote, estilo?.paleta);
+      // Pacote com paleta própria (pacote G): o vídeo passa a usar a paleta dele.
+      const paletaDoPacote = novoEstilo.pacotes[pacote]?.config.paleta;
+      if (paletaDoPacote && paletaDoPacote !== novoEstilo.paleta && novoEstilo.paletas[paletaDoPacote]) {
+        novoEstilo = {...novoEstilo, paleta: paletaDoPacote, palette: novoEstilo.paletas[paletaDoPacote]};
+      }
       setEstilo(novoEstilo);
       if (projetoDoVideo) {
         const semente = projetoDoVideo.semente ?? novaSemente();
@@ -436,7 +441,7 @@ export const useEditor = () => {
             ? regroupAndPreserveManualFields(wordsOfBlocks(blocos), blocos, agrupamento)
             : blocos;
         // Entra no desfazer (o passo guarda o pacote anterior).
-        atualizarProjeto({pacote, semente, blocks: refazerLayouts(novoEstilo, base, semente)}, true, true);
+        atualizarProjeto({pacote, paleta: novoEstilo.paleta, semente, blocks: refazerLayouts(novoEstilo, base, semente)}, true, true);
         // A nova divisão da fala só mantém o tempo manual dos blocos que não mudaram.
         const perdidos = temposManuaisPerdidos(blocos, base);
         setAviso(

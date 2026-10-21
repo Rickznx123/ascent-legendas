@@ -156,6 +156,9 @@ export type Palette = {
   shadow: {
     color: string;
   };
+  // Glow do linear do pacote G (--l1 perto da letra, --l2 espalhado). Sem valor:
+  // as cores do brilho (glow) com opacidade .95 e .55.
+  brilhoLinear?: {l1: string; l2: string};
   // Caixa da etiqueta (pacote C): fundo e texto. Sem ela, o fundo é a cor da
   // palavra-chave e o texto, claro ou escuro conforme o fundo.
   caixa?: {fundo: string; texto: string};
@@ -284,6 +287,11 @@ export type PackageConfig = {
   // Máximo de palavras do linear (opcional). Um linear maior é dividido em dois;
   // no modo misto, ele não sorteia este pacote.
   maxLinearWords?: number;
+  // Linear curto (opcional): um linear com até maxPalavras palavras usa este layout
+  // no lugar de linear (pacote G: linear-1 até 3 palavras, linear-2 de 4 a 6).
+  linearCurto?: {maxPalavras: number; template: string};
+  // Paleta que o vídeo passa a usar quando este pacote é escolhido (opcional).
+  paleta?: string;
   // Máximo de caracteres do linear (opcional). Um linear maior vira mais blocos lineares.
   maxLinearCaracteres?: number;
   // Ritmo próprio do pacote (opcional; vale quando o vídeo usa só este pacote):
@@ -377,6 +385,15 @@ export type EntradaLinear = "palavra" | "letra";
 //   serifa          destaque em serifa itálica, na cor, com brilho
 //   serifa-gigante  o destaque enorme em serifa
 //   elo             artigo ou preposição miúdo entre dois destaques
+//
+// Pacote G:
+//   pesada            sans pesada com o degradê metálico
+//   pesada-pequena    a pesada menor, ao lado da primeira (linha de cima do g2)
+//   conectivo         a pesada miúda no começo da linha de baixo (g1)
+//   serifa-branca     serifa itálica branca
+//   chave             palavra-chave pesada com o degradê da paleta
+//   linear            palavra do linear
+//   linear-conectivo  conectivo curto do linear, miúdo, no meio da linha
 export type Papel =
   | "etiqueta"
   | "destaque"
@@ -389,7 +406,14 @@ export type Papel =
   | "sans-grande"
   | "serifa"
   | "serifa-gigante"
-  | "elo";
+  | "elo"
+  | "pesada"
+  | "pesada-pequena"
+  | "conectivo"
+  | "serifa-branca"
+  | "chave"
+  | "linear"
+  | "linear-conectivo";
 
 // Como as palavras viram linhas (veja linhasDosPapeis em src/papeis.ts):
 //   gigante   apoio com a etiqueta no fim, palavra-chave gigante, fecho leve
@@ -400,7 +424,27 @@ export type Papel =
 //   dois-destaques   sans pequena em cima; dois destaques ligados pelo elo embaixo
 //   serifa-gigante   sans pequena, a palavra-chave enorme em serifa, sans pequena
 //   sans-em-cima     sans e destaque em cima; o resto em sans grande embaixo
-export type ArranjoDosPapeis = "gigante" | "pilha" | "miudinho" | "na-linha" | "dois-destaques" | "serifa-gigante" | "sans-em-cima";
+// Pacote G:
+//   chave-e-serifa      pesadas e a chave em cima; embaixo, conectivo e serifa
+//   grande-e-pequena    pesada grande e pesadas pequenas em cima; serifa e chave embaixo
+//   serifa-em-cima      serifa em cima, chave embaixo
+//   linha-mista         tudo numa linha: pesada, serifa, chave
+//   linear-uma-linha    linear numa linha
+//   linear-duas-linhas  linear em duas linhas, quebrado pelas penalidades do agrupador
+export type ArranjoDosPapeis =
+  | "gigante"
+  | "pilha"
+  | "miudinho"
+  | "na-linha"
+  | "dois-destaques"
+  | "serifa-gigante"
+  | "sans-em-cima"
+  | "chave-e-serifa"
+  | "grande-e-pequena"
+  | "serifa-em-cima"
+  | "linha-mista"
+  | "linear-uma-linha"
+  | "linear-duas-linhas";
 
 export type ConfigDosPapeis = {
   arranjo: ArranjoDosPapeis;
@@ -417,6 +461,17 @@ export type ConfigDosPapeis = {
   desfoqueCqw: number;
   // Largura máxima de uma linha, em % da largura do vídeo (acima disso ela encolhe).
   larguraMaximaCqw: number;
+  // Ajuste do bloco inteiro (pacote G, o data-w e o data-max da referência): a linha
+  // mais larga fica com targetWidthPercent da largura do vídeo e a letra do bloco não
+  // passa de maxFontPercent. Com ele, tamanhosCqw vira o tamanho de cada papel em em
+  // da letra do bloco, e o espaço entre as palavras também (como o gap do CSS).
+  ajusteDoBloco?: KeywordFit;
+  // Por linha, na ordem (pacote G, só com ajusteDoBloco): a escala da letra da linha
+  // (o font-size .8em da referência), o estilo dela (margens em em da própria linha),
+  // o recuo em em da linha (o margin-left, somado à largura no ajuste) e o espaço
+  // entre palavras de papéis diferentes, no lugar de padraoEm (entre papéis iguais
+  // vale mesmoPapelEm).
+  linhas?: {escala?: number; estilo?: CSSProperties; recuoEm?: number; espacoEm?: number}[];
   // Entrada palavra por palavra (pacote F): cada palavra entra no instante da sua
   // fala com a animação do seu papel (sem ela, a de animations.word), e as palavras
   // ficam na mesma linha de base. Sem valor: cada linha entra inteira (pacote C).

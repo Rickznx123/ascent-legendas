@@ -1,25 +1,12 @@
-import type {CaptionTemplate} from "../../src/types";
-import {ACENDE, APOIO, BLOCO, FORTE, KW, SOBE, TX} from "./_estilos";
+import {layout} from "./_estilos";
 
 /*
- * G3 — PILHA CRESCENTE (alinhada à esquerda)
- * Apoio de 6%, apoio de 10% (a última palavra antes da chave) e a palavra-chave
- * com 62% da largura (teto 24%).
+ * G3 — SERIFA EM CIMA, CHAVE EMBAIXO
+ * Serifa itálica recuada (letra de 80%), encostando no topo da palavra-chave pesada.
+ * Bloco com 66% da largura (letra de até 20%).
  */
-const template: CaptionTemplate = {
-  family: "destaque",
-  structure: "pilha",
-  keywordEffect: "brilho",
-  keywordPaint: "recorte",
-  styles: {
-    block: {...BLOCO, textAlign: "left"},
-    support: {...APOIO, fontSize: "6cqw"},
-    complement: {...APOIO, fontSize: "10cqw", marginTop: ".02em"},
-    keywordOuter: {...KW, marginTop: ".02em"},
-    keyword: {...TX, ...FORTE},
-  },
-  keywordFit: {targetWidthPercent: 62, maxFontPercent: 24},
-  animations: {word: SOBE, keyword: ACENDE},
-};
-
-export default template;
+export default layout({
+  arranjo: "serifa-em-cima",
+  ajuste: {targetWidthPercent: 66, maxFontPercent: 20},
+  linhas: [{escala: 0.8, recuoEm: 0.55, estilo: {margin: "0 0 -.3em .55em"}}, {espacoEm: 0.1}],
+});

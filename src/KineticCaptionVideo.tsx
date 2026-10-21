@@ -41,6 +41,12 @@ import type {
 const withAlpha = (color: string, percent: number): string =>
   `color-mix(in srgb, ${color} ${Math.min(100, Math.max(0, percent))}%, transparent)`;
 
+// A mesma cor com outra opacidade: rgba() troca o alfa; as outras, color-mix.
+const comOpacidade = (cor: string, alfa: number): string => {
+  const rgba = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/iu.exec(cor.trim());
+  return rgba ? `rgba(${rgba[1]},${rgba[2]},${rgba[3]},${alfa})` : withAlpha(cor, alfa * 100);
+};
+
 // Preenchimento da palavra-chave como imagem CSS (cor sólida vira um degradê de uma cor só).
 export const keywordBackground = (palette: Palette): string => {
   const fill = palette.keywordFill;
@@ -79,6 +85,9 @@ const paletteVariables = (palette: Palette): Record<string, string> => {
     "--destaque": corDeDestaque(palette),
     "--caixa-fundo": palette.caixa?.fundo ?? corDeDestaque(palette),
     "--caixa-texto": palette.caixa?.texto ?? textoSobre(corDeDestaque(palette)),
+    // Pacote G: glow do linear (sem valor na paleta, o brilho dela mais forte).
+    "--l1": palette.brilhoLinear?.l1 ?? comOpacidade(palette.glow.inner, 0.95),
+    "--l2": palette.brilhoLinear?.l2 ?? comOpacidade(palette.glow.outer, 0.55),
   };
 };
 
@@ -417,6 +426,7 @@ const BlocoDePapeis: React.FC<{block: AssignedCaptionBlock; template: CaptionTem
     words.length,
     findKeywordIndex(words, block.keyword),
     words.map((word) => word.text),
+    words,
   );
   const texto = (indices: number[]) => indices.map((indice) => cleanWord(words[indice].text));
   const folgaDaCaixaPx = (estilo: CSSProperties, tamanhoPx: number) =>
@@ -426,31 +436,55 @@ const BlocoDePapeis: React.FC<{block: AssignedCaptionBlock; template: CaptionTem
   const naCor = (papel: Papel) => PAPEIS_NA_COR.includes(papel);
 
   if (config.porPalavra) {
-    // Pacote F: cada palavra entra no instante da sua fala, com a animação do seu
-    // papel, e todas ficam na mesma linha de base. Uma linha mais larga que o máximo
-    // encolhe por inteiro.
+    // Pacotes F e G: cada palavra entra no instante da sua fala, com a animação do seu
+    // papel, e todas ficam na mesma linha de base. Sem ajuste do bloco (F), uma linha
+    // mais larga que o máximo encolhe por inteiro. Com ajuste (G), os tamanhos são em em
+    // da letra do bloco, e a letra sai do data-w e do data-max da linha mais larga.
     const {animacoes, padraoEm, mesmoPapelEm} = config.porPalavra;
+    const ajuste = config.ajusteDoBloco;
+    const SEM_ESPACO: Papel[] = ["elo", "linear-conectivo"];
+    const montadas = linhas.map((linha, indiceDaLinha) => {
+      const palavras = linha.partes.flatMap((parte) => parte.palavras.map((indice) => ({indice, papel: parte.papel})));
+      const daLinha = config.linhas?.[indiceDaLinha];
+      const espacoEm = (posicao: number): number => {
+        const anterior = palavras[posicao - 1]?.papel;
+        const atual = palavras[posicao].papel;
+        if (!anterior || SEM_ESPACO.includes(anterior) || SEM_ESPACO.includes(atual)) {
+          return 0;
+        }
+        return anterior === atual ? (mesmoPapelEm?.[atual] ?? daLinha?.espacoEm ?? padraoEm) : (daLinha?.espacoEm ?? padraoEm);
+      };
+      // Largura da linha: no ajuste, com a letra do bloco de 100 px (recuo e espaço em em
+      // da linha, que tem a escala dela); sem ajuste, em px, com o tamanho de cada papel
+      // (o espaço em em da palavra).
+      const escalaDaLinha = ajuste ? (daLinha?.escala ?? 1) : 1;
+      const largura =
+        escalaDaLinha *
+        ((ajuste ? (daLinha?.recuoEm ?? 0) * 100 : 0) +
+        palavras.reduce((soma, {indice, papel}, posicao) => {
+          const estilo = estiloDe(papel);
+          const tamanhoPx = ajuste ? tamanhoDe(papel) * 100 : (tamanhoDe(papel) / 100) * videoWidth;
+          const extrasEm = horizontalPaddingEm(estilo) + horizontalPaddingEm(estilo, "margin");
+          return soma + larguraDoTexto(cleanWord(words[indice].text), estilo, tamanhoPx) + extrasEm * tamanhoPx + espacoEm(posicao) * (ajuste ? 100 : tamanhoPx);
+        }, 0));
+      return {palavras, daLinha, espacoEm, largura, escalaDaLinha};
+    });
+    // Letra do bloco no ajuste, em px, como o ajustar() da referência.
+    const letraDoBloco = ajuste
+      ? Math.min(
+          (100 * ((ajuste.targetWidthPercent / 100) * videoWidth)) / Math.max(1, ...montadas.map((linha) => linha.largura)),
+          (ajuste.maxFontPercent / 100) * videoWidth,
+        )
+      : 0;
     return (
       <>
-        {linhas.map((linha, indiceDaLinha) => {
-          const palavras = linha.partes.flatMap((parte) => parte.palavras.map((indice) => ({indice, papel: parte.papel})));
-          const espacoEm = (posicao: number): number => {
-            const anterior = palavras[posicao - 1]?.papel;
-            const atual = palavras[posicao].papel;
-            if (!anterior || anterior === "elo" || atual === "elo") {
-              return 0;
-            }
-            return anterior === atual ? (mesmoPapelEm?.[atual] ?? padraoEm) : padraoEm;
-          };
-          const largura = palavras.reduce((soma, {indice, papel}, posicao) => {
-            const estilo = estiloDe(papel);
-            const tamanhoPx = (tamanhoDe(papel) / 100) * videoWidth;
-            const extrasEm = horizontalPaddingEm(estilo) + horizontalPaddingEm(estilo, "margin") + espacoEm(posicao);
-            return soma + larguraDoTexto(cleanWord(words[indice].text), estilo, tamanhoPx) + extrasEm * tamanhoPx;
-          }, 0);
-          const escala = Math.min(1, ((config.larguraMaximaCqw / 100) * videoWidth) / Math.max(1, largura));
+        {montadas.map(({palavras, daLinha, espacoEm, largura, escalaDaLinha}, indiceDaLinha) => {
+          const escala = ajuste ? 1 : Math.min(1, ((config.larguraMaximaCqw / 100) * videoWidth) / Math.max(1, largura));
           return (
-            <div key={`${words[palavras[0].indice].startMs}-${indiceDaLinha}`} style={config.linha}>
+            <div
+              key={`${words[palavras[0].indice].startMs}-${indiceDaLinha}`}
+              style={{...config.linha, ...daLinha?.estilo, ...(ajuste ? {fontSize: `${((100 * letraDoBloco * escalaDaLinha) / videoWidth).toFixed(3)}cqw`} : {})}}
+            >
               {palavras.map(({indice, papel}, posicao) => {
                 const word = words[indice];
                 const estilo = estiloDe(papel);
@@ -461,7 +495,11 @@ const BlocoDePapeis: React.FC<{block: AssignedCaptionBlock; template: CaptionTem
                     startMs={word.startMs}
                     faladaMs={word.faladaMs}
                     animation={animacoes[papel] ?? template.animations.word}
-                    style={{fontSize: `${(tamanhoDe(papel) * escala).toFixed(3)}cqw`, marginLeft: `${espacoEm(posicao)}em`}}
+                    style={
+                      ajuste
+                        ? {fontSize: `${tamanhoDe(papel)}em`, marginLeft: `${(espacoEm(posicao) / tamanhoDe(papel)).toFixed(4)}em`}
+                        : {fontSize: `${(tamanhoDe(papel) * escala).toFixed(3)}cqw`, marginLeft: `${espacoEm(posicao)}em`}
+                    }
                   />
                 );
               })}

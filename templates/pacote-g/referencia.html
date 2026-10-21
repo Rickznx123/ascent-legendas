@@ -6,31 +6,29 @@
 <title>Layouts de legenda, pacote G</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&display=swap" rel="stylesheet">
+<!--FONTES--><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800;900&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet"><!--/FONTES-->
 <style>
 :root{
   --pagina:#0c0d12; --texto:#f2f0ec; --suave:#9a968f;
   --sans:'Montserrat',Helvetica,Arial,sans-serif;
-  --sombra-linear:0 .25cqw .5cqw rgba(0,0,0,.55),0 .6cqw 2.4cqw rgba(0,0,0,.45);
+  --serifa:'Instrument Serif',Georgia,serif;
   --ui:Helvetica,Arial,sans-serif;
-  /* paleta ciano (padrão do pacote G) */
-  --chave:linear-gradient(180deg,#ffffff 0%,#ffffff 55%,#d9f6ff 100%);
-  --g1:rgba(70,200,255,.95); --g2:rgba(20,110,255,.55);
-  --sombra:0 0 .35cqw rgba(60,190,255,.9),0 0 1.6cqw rgba(30,140,255,.6),0 .4cqw 1.6cqw rgba(0,0,0,.55);
+  /* paleta prata (padrão): branco que escurece para cinza embaixo, como nas referências */
+  --metal:linear-gradient(180deg,#ffffff 0%,#ffffff 42%,#c3c3cb 100%);
+  --chave:var(--metal);
+  --g1:rgba(255,255,255,.35); --g2:rgba(200,205,255,.18);
+  /* glow do linear */
+  --l1:rgba(225,228,255,.95); --l2:rgba(150,160,255,.55);
 }
-body.branco{--chave:linear-gradient(180deg,#fff,#fff);--g1:rgba(255,255,255,.55);--g2:rgba(255,255,255,.25);
-  --sombra:0 0 .35cqw rgba(255,255,255,.5),0 .4cqw 1.8cqw rgba(0,0,0,.6)}
-body.dourado{--chave:linear-gradient(180deg,#fff3c4 0%,#e9c46a 35%,#b8862b 62%,#f1d27a 100%);--g1:rgba(233,190,90,.7);--g2:rgba(200,150,40,.35);
-  --sombra:0 0 .35cqw rgba(240,200,110,.7),0 0 1.4cqw rgba(200,150,40,.4),0 .4cqw 1.6cqw rgba(0,0,0,.55)}
-body.vermelho{--chave:linear-gradient(180deg,#ffffff 0%,#ffd9d6 100%);--g1:rgba(255,50,40,.9);--g2:rgba(220,0,0,.5);
-  --sombra:0 0 .35cqw rgba(255,60,50,.85),0 0 1.6cqw rgba(220,0,0,.55),0 .4cqw 1.6cqw rgba(0,0,0,.55)}
-body.verde{--chave:linear-gradient(180deg,#ffffff 0%,#e3ffd0 100%);--g1:rgba(110,255,80,.85);--g2:rgba(40,200,0,.45);
-  --sombra:0 0 .35cqw rgba(110,255,80,.8),0 0 1.6cqw rgba(40,200,0,.5),0 .4cqw 1.6cqw rgba(0,0,0,.55)}
+body.lavanda{--chave:var(--metal);--g1:rgba(200,205,255,.6);--g2:rgba(130,140,255,.35)}
+body.ciano{--chave:linear-gradient(180deg,#fff 0%,#e3f8ff 45%,#7fd3ff 100%);--g1:rgba(90,200,255,.55);--g2:rgba(20,110,255,.3);--l1:rgba(150,225,255,.95);--l2:rgba(30,130,255,.55)}
+body.dourado{--chave:linear-gradient(180deg,#fff3c4 0%,#e9c46a 40%,#b8862b 75%,#f1d27a 100%);--g1:rgba(240,200,110,.45);--g2:rgba(200,150,40,.25);--l1:rgba(255,225,150,.95);--l2:rgba(210,150,40,.55)}
+body.vermelho{--chave:linear-gradient(180deg,#ff5a4f 0%,#e0261c 60%,#a80d0d 100%);--g1:rgba(255,60,50,.5);--g2:rgba(200,0,0,.3);--l1:rgba(255,150,140,.95);--l2:rgba(220,30,20,.55)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--pagina);color:var(--texto);font-family:var(--ui);padding:32px 20px 56px}
 header{max-width:1100px;margin:0 auto 28px;display:flex;flex-wrap:wrap;gap:16px;align-items:end;justify-content:space-between}
-h1{font:800 32px/1 var(--sans);letter-spacing:-.03em;margin:0 0 8px}
-header p{margin:0;color:var(--suave);font-size:15px;max-width:58ch;line-height:1.5}
+h1{font:900 32px/1 var(--sans);letter-spacing:-.04em;margin:0 0 8px}
+header p{margin:0;color:var(--suave);font-size:15px;max-width:60ch;line-height:1.5}
 .botoes{display:flex;flex-wrap:wrap;gap:8px}
 button{font:600 14px var(--ui);color:var(--texto);background:transparent;border:1px solid #4a4a54;border-radius:8px;padding:10px 14px;cursor:pointer}
 button:hover{background:#24242b}
@@ -39,78 +37,78 @@ button:focus-visible{outline:2px solid #fff;outline-offset:2px}
 main{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:28px 20px}
 figure{margin:0}
 .q{position:relative;aspect-ratio:9/16;container-type:inline-size;overflow:hidden;border-radius:10px;
-  background:radial-gradient(120% 70% at 50% 35%,#4a4d55 0%,#23252c 55%,#121318 100%)}
-body.cena .q{background:linear-gradient(180deg,#d8cdbf 0%,#cbbba8 30%,#6a4a35 44%,#553a29 66%,#e6e2dc 76%,#d9d4cc 100%)}
-body.claro .q{background:#efece6}
+  background:radial-gradient(110% 60% at 45% 40%,#5a4a3f 0%,#2a2420 55%,#121010 100%)}
+body.azul .q{background:radial-gradient(110% 60% at 30% 45%,#3540a8 0%,#1b1f5c 55%,#0b0c22 100%)}
+body.claro .q{background:#d9d4cc}
 
-/* ---------- peças comuns do pacote G: uma sans geométrica, minúsculas, brilho ciano ---------- */
+/* ---------- peças do pacote G ---------- */
 .b{position:absolute;left:50%;top:68%;transform:translate(-50%,-50%);width:max-content;max-width:90cqw;
-  color:#fff;text-align:center;text-shadow:var(--sombra);white-space:nowrap;font-family:var(--sans);font-weight:700}
-.esq{text-align:left}
-.dir{text-align:right}
-/* apoio: bold */
-.apoio{font-weight:700;letter-spacing:-.02em;line-height:1}
-/* palavra-chave: bold */
-.forte{font-weight:700;letter-spacing:-.03em;line-height:.92}
-/* rótulo comercial: caixa-alta pequena e espaçada */
-.rot{font-weight:700;font-size:4.2cqw;letter-spacing:.16em;text-transform:uppercase;line-height:1}
-.dois{display:flex;justify-content:space-between;padding:0 .2em}
+  color:#fff;white-space:nowrap;font-family:var(--sans);text-transform:lowercase;text-align:left;
+  filter:drop-shadow(0 0 .5cqw var(--g1)) drop-shadow(0 0 2.4cqw var(--g2)) drop-shadow(0 .35cqw .9cqw rgba(0,0,0,.6))}
+/* pesada: Montserrat 900, bem apertada, com o degradê branco-cinza das referências */
+.pesada{font-weight:900;letter-spacing:-.055em;line-height:1;
+  background:var(--metal);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;
+  display:inline-block;padding:.04em .06em;margin:-.04em -.06em}
+/* serifa itálica fina (Instrument Serif), branca */
+.serifa{font-family:var(--serifa);font-style:italic;font-weight:400;letter-spacing:-.025em;line-height:1;color:#f6f6f6}
+/* palavra-chave: mesma pesada, pintada pela paleta */
+.chave{background:var(--chave);-webkit-background-clip:text;background-clip:text}
 
-/* palavra-chave: preenchimento da paleta + brilho no elemento de fora */
-.kw{display:block;filter:drop-shadow(0 0 .5cqw var(--g1)) drop-shadow(0 0 3cqw var(--g2)) drop-shadow(0 .5cqw 1.6cqw rgba(0,0,0,.45))}
-.kw.inl{display:inline-block}
-.tx{display:inline-block;padding:.06em .1em;margin:-.06em -.1em;text-shadow:none;
-  background:var(--chave);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
-
-/* ---------- animações: sóbrias ---------- */
+/* ---------- animações ---------- */
 .w{display:inline-block;animation:sobe .42s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--d,0s)}
 .w.acende{animation-name:acende;animation-duration:.6s;animation-timing-function:cubic-bezier(.16,1,.3,1)}
-.w.lado{animation-name:lado;animation-duration:.5s;animation-timing-function:cubic-bezier(.16,1,.3,1)}
+.w.desliza{animation-name:desliza;animation-duration:.5s;animation-timing-function:cubic-bezier(.16,1,.3,1)}
+.w.surge{animation-name:surge;animation-duration:.4s}
 @keyframes sobe{from{opacity:0;transform:translateY(.3em)}to{opacity:1;transform:none}}
-/* ACENDE: entra estourando de luz e assenta */
-@keyframes acende{0%{opacity:0;filter:blur(.1em) brightness(2.2);transform:scale(.95)}45%{opacity:1;filter:blur(0) brightness(1.6)}100%{opacity:1;filter:none;transform:none}}
-@keyframes lado{from{opacity:0;transform:translateX(-.6em)}to{opacity:1;transform:none}}
+@keyframes acende{0%{opacity:0;filter:blur(.08em) brightness(2);transform:scale(.95)}45%{opacity:1;filter:blur(0) brightness(1.5)}100%{opacity:1;filter:none;transform:none}}
+@keyframes desliza{from{opacity:0;filter:blur(.08em);transform:translateX(-.5em)}to{opacity:1;filter:none;transform:none}}
+@keyframes surge{from{opacity:0;filter:blur(.12em);transform:translateY(.15em)}to{opacity:1;filter:none;transform:none}}
 @media (prefers-reduced-motion:reduce){.w{animation:none}}
 
-/* ---------- G1: apoio em cima, chave pesada ---------- */
-.g1 .a{font-size:7cqw;margin-bottom:.06em}
-/* ---------- G2: dois rótulos nas pontas ---------- */
-.g2 .dois{margin-bottom:.22em}
-/* ---------- G3: pilha à esquerda ---------- */
-.g3 .l1{font-size:6cqw}
-.g3 .l2{font-size:10cqw;margin-top:.02em}
-.g3 .kw{margin-top:.02em}
-/* ---------- G4: chave sozinha ---------- */
-/* ---------- G5: etiqueta com linha ---------- */
-.g5 .et{display:flex;align-items:center;gap:.5em;justify-content:center;margin-bottom:.4em}
-.g5 .et::before,.g5 .et::after{content:"";height:.3cqw;width:9cqw;background:currentColor;border-radius:1px;box-shadow:var(--sombra)}
-/* ---------- G6: apoio, chave, complemento à direita ---------- */
-.g6 .a{font-size:6.4cqw;text-align:left;margin:0 0 .04em .1em}
-.g6 .c{font-size:6.4cqw;margin-top:.08em}
-/* ---------- G7: linha única mista (como a referência) ---------- */
-.g7{font-size:8.6cqw}
-.g7 .kw{vertical-align:baseline}
-/* ---------- linear ---------- */
-/* linear: branco com sombra escura, sem brilho, em qualquer paleta */
-.lin{font-size:7.6cqw;letter-spacing:-.02em;line-height:1;text-shadow:var(--sombra-linear)}
+/* ---------- G1 — "o medo / de fracassar" ----------
+   linha de cima pesada; embaixo, recuada, conectivo pesado pequeno + serifa itálica grande, encostada */
+.g1 .l2{margin:-.3em 0 0 .42em;display:flex;align-items:baseline;gap:.1em}
+.g1 .l2 .con{font-size:.46em;letter-spacing:-.04em}
+.g1 .l2 .serifa{font-size:.92em}
+/* ---------- G2 — "só uma coisa / torna um sonho" ----------
+   em cima: pesada grande + pesada pequena na mesma linha de base;
+   embaixo, começando um pouco à esquerda: serifa itálica + chave pesada maior */
+.g2 .l1{display:flex;align-items:baseline;gap:.08em;margin-left:.16em}
+.g2 .l1 .peq{font-size:.56em}
+.g2 .l2{display:flex;align-items:baseline;gap:.1em;margin-top:-.16em}
+.g2 .l2 .serifa{font-size:.78em}
+.g2 .l2 .pesada{font-size:1.12em}
+/* ---------- G3 — serifa em cima, chave pesada embaixo (mesmas peças, ordem invertida) ---------- */
+.g3 .l1{font-size:.8em;margin:0 0 -.3em .55em}
+/* ---------- G4 — linha única: pesada, serifa, chave pesada ---------- */
+.g4{display:flex;align-items:baseline;gap:.12em}
+.g4 .serifa{font-size:.9em}
+/* ---------- LINEAR em 2 linhas — "depois de ter / terminado o mandato" ---------- */
+.lin{text-shadow:0 0 .25cqw var(--l1),0 0 1.6cqw var(--l2),0 0 4cqw var(--l2);filter:drop-shadow(0 .3cqw .8cqw rgba(0,0,0,.45))}
+.lin .t{font-weight:600;letter-spacing:-.045em;line-height:1}
+.lin2 .l1{margin-left:.32em}
+.lin2 .l2{font-size:.74em;margin-top:.02em}
+.lin .co{font-size:.4em;letter-spacing:0;margin:0 .06em}
+/* ---------- LINEAR em 1 linha ---------- */
+.lin1 .t{letter-spacing:-.05em}
 
 figcaption{padding:12px 2px 0}
 figcaption b{display:block;font:700 16px/1.2 var(--ui);margin-bottom:6px}
 figcaption span{display:block;color:var(--suave);font-size:13.5px;line-height:1.5}
 </style>
 </head>
-<body class="ciano">
+<body class="prata">
 <header>
   <div>
     <h1>Pacote G</h1>
-    <p>Comercial e sério, tudo em Montserrat Bold. Nos destaques, letra branca com brilho na cor da paleta em volta (ciano por padrão). No linear, branco com sombra escura, sem brilho, em qualquer paleta. O texto aparece como foi transcrito, sem forçar minúsculas.</p>
+    <p>Montserrat Black bem apertada com degradê branco para cinza, serifa itálica fina (Instrument Serif) e linear em Montserrat SemiBold com glow. G1 e G2 copiam as referências; G3 e G4 usam as mesmas peças em outra ordem.</p>
   </div>
   <div class="botoes">
-    <button data-paleta="ciano" aria-pressed="true">Ciano</button>
-    <button data-paleta="branco" aria-pressed="false">Branco</button>
+    <button data-paleta="prata" aria-pressed="true">Prata</button>
+    <button data-paleta="lavanda" aria-pressed="false">Lavanda</button>
+    <button data-paleta="ciano" aria-pressed="false">Ciano</button>
     <button data-paleta="dourado" aria-pressed="false">Dourado</button>
     <button data-paleta="vermelho" aria-pressed="false">Vermelho</button>
-    <button data-paleta="verde" aria-pressed="false">Verde</button>
     <button id="fundo">Trocar fundo</button>
     <button id="repetir">Repetir animação</button>
   </div>
@@ -118,66 +116,49 @@ figcaption span{display:block;color:var(--suave);font-size:13.5px;line-height:1.
 
 <main>
   <figure>
-    <div class="q"><div class="b g1">
-      <div class="apoio a"><span class="w">existe</span> <span class="w" style="--d:.08s">um</span></div>
-      <span class="kw"><span class="tx forte w acende" data-w="76" data-max="22" style="--d:.2s">propósito.</span></span>
+    <div class="q"><div class="b g1" data-w="66" data-max="20">
+      <div><span class="pesada w">o</span> <span class="pesada chave w acende" style="--d:.1s">medo</span></div>
+      <div class="l2"><span class="pesada con w" style="--d:.32s">de</span><span class="serifa w desliza" style="--d:.4s">fracassar</span></div>
     </div></div>
-    <figcaption><b>G1. Apoio e chave</b><span>Centralizado. Apoio bold de 7% em cima e palavra-chave bold com 76% da largura (teto 22%).</span></figcaption>
+    <figcaption><b>G1. "o medo / de fracassar"</b><span>Linha de cima em Montserrat Black. Embaixo, recuada e encostando nela: conectivo pesado com 46% do tamanho e serifa itálica com 92%. Bloco com 66% da largura do vídeo.</span></figcaption>
   </figure>
 
   <figure>
-    <div class="q"><div class="b g2">
-      <div class="rot dois"><span class="w">estaremos</span><span class="w" style="--d:.08s">com</span></div>
-      <span class="kw"><span class="tx forte w acende" data-w="72" data-max="26" style="--d:.2s">preços</span></span>
+    <div class="q"><div class="b g2" data-w="70" data-max="16">
+      <div class="l1"><span class="pesada w">só</span><span class="pesada peq w" style="--d:.1s">uma coisa</span></div>
+      <div class="l2"><span class="serifa w desliza" style="--d:.24s">torna um</span><span class="pesada chave w acende" style="--d:.42s">sonho</span></div>
     </div></div>
-    <figcaption><b>G2. Dois rótulos</b><span>Duas palavras em caixa-alta espaçada (4,2%) nas pontas de cima. Palavra-chave bold com 72% da largura (teto 26%).</span></figcaption>
+    <figcaption><b>G2. "só uma coisa / torna um sonho"</b><span>Em cima, primeira palavra grande e o resto com 52% do tamanho, na mesma linha de base. Embaixo, um pouco à esquerda: serifa itálica (78%) e a palavra-chave pesada, 12% maior que a de cima.</span></figcaption>
   </figure>
 
   <figure>
-    <div class="q"><div class="b esq g3">
-      <div class="apoio l1"><span class="w">clique</span></div>
-      <div class="apoio l2"><span class="w" style="--d:.1s">no link</span></div>
-      <span class="kw"><span class="tx forte w acende" data-w="62" data-max="24" style="--d:.24s">da bio</span></span>
+    <div class="q"><div class="b g3" data-w="66" data-max="20">
+      <div class="serifa l1"><span class="w desliza">acredite no</span></div>
+      <span class="pesada chave w acende" style="--d:.26s">processo</span>
     </div></div>
-    <figcaption><b>G3. Pilha crescente</b><span>Alinhado à esquerda: apoio de 6%, apoio de 10% (a última palavra antes da chave) e a palavra-chave com 62% da largura (teto 24%).</span></figcaption>
+    <figcaption><b>G3. Serifa em cima, chave embaixo</b><span>As mesmas peças do G1, na ordem inversa: serifa itálica recuada encostando no topo da palavra-chave pesada. Para blocos com palavras antes da chave e nada depois.</span></figcaption>
   </figure>
 
   <figure>
-    <div class="q"><div class="b g4">
-      <span class="kw"><span class="tx forte w acende" data-w="80" data-max="24">resultado</span></span>
+    <div class="q"><div class="b g4" data-w="72" data-max="15">
+      <span class="pesada w">menos</span><span class="serifa w desliza" style="--d:.12s">é</span><span class="pesada chave w acende" style="--d:.24s">mais</span>
     </div></div>
-    <figcaption><b>G4. Chave sozinha</b><span>Bloco de uma palavra: só a palavra-chave, com 80% da largura (teto 24%).</span></figcaption>
+    <figcaption><b>G4. Linha única mista</b><span>Pesada, serifa itálica e palavra-chave pesada na mesma linha de base, como a segunda linha do G2. Para blocos curtos, de 2 a 4 palavras.</span></figcaption>
   </figure>
 
   <figure>
-    <div class="q"><div class="b g5">
-      <div class="rot et"><span class="w">sem</span>&nbsp;<span class="w" style="--d:.08s">complicação</span></div>
-      <span class="kw"><span class="tx forte w acende" data-w="66" data-max="24" style="--d:.22s">automático</span></span>
+    <div class="q"><div class="b lin lin2" data-w="70" data-max="13">
+      <div class="t l1"><span class="w surge">depois</span> <span class="w surge" style="--d:.07s">de</span> <span class="w surge" style="--d:.14s">ter</span></div>
+      <div class="t l2"><span class="w surge" style="--d:.21s">terminado</span><span class="co w surge" style="--d:.28s">o</span><span class="w surge" style="--d:.35s">mandato</span></div>
     </div></div>
-    <figcaption><b>G5. Etiqueta com linhas</b><span>Apoio em caixa-alta espaçada entre dois traços finos brilhantes, no estilo de rótulo de comercial. Palavra-chave com 66% da largura (teto 24%).</span></figcaption>
+    <figcaption><b>Linear em 2 linhas</b><span>Igual a "depois de ter / terminado o mandato": Montserrat SemiBold apertada, segunda linha com 74% do tamanho e começando mais à esquerda, conectivos curtos com 40% e glow forte. Para 4 a 6 palavras.</span></figcaption>
   </figure>
 
   <figure>
-    <div class="q"><div class="b dir g6">
-      <div class="apoio a"><span class="w">contar</span> <span class="w" style="--d:.08s">com</span></div>
-      <span class="kw"><span class="tx forte w acende" data-w="78" data-max="22" style="--d:.2s">depilação</span></span>
-      <div class="apoio c"><span class="w lado" style="--d:.4s">a</span> <span class="w lado" style="--d:.48s">laser</span></div>
+    <div class="q"><div class="b lin lin1" data-w="64" data-max="10">
+      <div class="t"><span class="w surge">dois</span> <span class="w surge" style="--d:.07s">amigos</span> <span class="w surge" style="--d:.14s">goianos</span></div>
     </div></div>
-    <figcaption><b>G6. Apoio, chave e complemento</b><span>Apoio de 6,4% em cima à esquerda, palavra-chave com 78% da largura (teto 22%) e complemento de 6,4% embaixo à direita, deslizando da esquerda.</span></figcaption>
-  </figure>
-
-  <figure>
-    <div class="q"><div class="b g7">
-      <span class="apoio w">existe</span> <span class="apoio w" style="--d:.08s">um</span> <span class="kw inl"><span class="tx forte w acende" style="--d:.18s;font-size:1.25em">propósito.</span></span>
-    </div></div>
-    <figcaption><b>G7. Linha única mista</b><span>Igual à referência: uma linha só, apoio bold de 8,6% e a palavra-chave na mesma linha, 25% maior e bold. Para blocos de 2 a 4 palavras curtas.</span></figcaption>
-  </figure>
-
-  <figure>
-    <div class="q"><div class="b lin">
-      <span class="w">Dois</span> <span class="w" style="--d:.08s">amigos</span> <span class="w" style="--d:.16s">goianos</span>
-    </div></div>
-    <figcaption><b>Linear, até 3 palavras</b><span>Respiro entre os destaques: Montserrat Bold de 7,6%, uma linha só, branco com sombra escura e sem brilho, igual em todas as paletas.</span></figcaption>
+    <figcaption><b>Linear em 1 linha</b><span>O mesmo estilo em uma linha só, com o mesmo glow. Para até 3 palavras.</span></figcaption>
   </figure>
 </main>
 
@@ -185,8 +166,9 @@ figcaption span{display:block;color:var(--suave);font-size:13.5px;line-height:1.
 function ajustar(){
   document.querySelectorAll('[data-w]').forEach(function(el){
     var W=el.closest('.q').clientWidth;
-    el.style.fontSize='100px';
+    el.style.maxWidth='none';el.style.fontSize='100px';
     var larg=el.offsetWidth||1;
+    el.style.maxWidth='';
     var alvo=100*(parseFloat(el.dataset.w)/100*W)/larg;
     var teto=parseFloat(el.dataset.max)/100*W;
     el.style.fontSize=Math.min(alvo,teto).toFixed(1)+'px';
@@ -197,7 +179,7 @@ function repetir(){
     el.style.animation='none';void el.offsetWidth;el.style.animation='';
   });
 }
-var paleta='ciano',fundos=['','cena','claro'],fundo=0;
+var paleta='prata',fundos=['','azul','claro'],fundo=0;
 function aplicar(){document.body.className=(paleta+' '+fundos[fundo]).trim();}
 document.querySelectorAll('[data-paleta]').forEach(function(bt){
   bt.addEventListener('click',function(){

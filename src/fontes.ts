@@ -7,7 +7,7 @@
 //   pacote D — Hanken Grotesk 300/400/800
 //   pacote E — Urbanist itálica 500, Hanken Grotesk 800 e EB Garamond itálica 700
 //   pacote F — Inter Tight 700 e Instrument Serif itálica
-//   pacote G — Montserrat 700
+//   pacote G — Montserrat 600/900 e Instrument Serif itálica
 //   pacote H — Inter 500/600/800/900 e Instrument Serif itálica
 // São as instâncias estáticas no peso exato (Fontsource 5.3.0, das fontes do Google),
 // em dois arquivos por fonte: latin e latin-ext, com os mesmos intervalos do Google.
@@ -46,8 +46,10 @@ import interTightLatinExt700 from "../fontes/inter-tight-latin-ext-700-normal.wo
 import interTightLatinExt800 from "../fontes/inter-tight-latin-ext-800-normal.woff2";
 import interTightLatinExt800Italic from "../fontes/inter-tight-latin-ext-800-italic.woff2";
 import interTightLatinExt900Italic from "../fontes/inter-tight-latin-ext-900-italic.woff2";
-import montserratLatin700 from "../fontes/montserrat-latin-700-normal.woff2";
-import montserratLatinExt700 from "../fontes/montserrat-latin-ext-700-normal.woff2";
+import montserratLatin600 from "../fontes/montserrat-latin-600-normal.woff2";
+import montserratLatin900 from "../fontes/montserrat-latin-900-normal.woff2";
+import montserratLatinExt600 from "../fontes/montserrat-latin-ext-600-normal.woff2";
+import montserratLatinExt900 from "../fontes/montserrat-latin-ext-900-normal.woff2";
 import playfairLatin500Italic from "../fontes/playfair-display-latin-500-italic.woff2";
 import playfairLatinExt500Italic from "../fontes/playfair-display-latin-ext-500-italic.woff2";
 import urbanistLatin500Italic from "../fontes/urbanist-latin-500-italic.woff2";
@@ -81,7 +83,8 @@ const FONTES: Fonte[] = [
   {familia: "Hanken Grotesk", peso: "800", estilo: "normal", arquivos: {latin: hankenLatin800, latinExt: hankenLatinExt800}},
   {familia: "Urbanist", peso: "500", estilo: "italic", arquivos: {latin: urbanistLatin500Italic, latinExt: urbanistLatinExt500Italic}},
   {familia: "EB Garamond", peso: "700", estilo: "italic", arquivos: {latin: ebGaramondLatin700Italic, latinExt: ebGaramondLatinExt700Italic}},
-  {familia: "Montserrat", peso: "700", estilo: "normal", arquivos: {latin: montserratLatin700, latinExt: montserratLatinExt700}},
+  {familia: "Montserrat", peso: "600", estilo: "normal", arquivos: {latin: montserratLatin600, latinExt: montserratLatinExt600}},
+  {familia: "Montserrat", peso: "900", estilo: "normal", arquivos: {latin: montserratLatin900, latinExt: montserratLatinExt900}},
   {familia: "Inter", peso: "500", estilo: "normal", arquivos: {latin: interLatin500, latinExt: interLatinExt500}},
   {familia: "Inter", peso: "600", estilo: "normal", arquivos: {latin: interLatin600, latinExt: interLatinExt600}},
   {familia: "Inter", peso: "800", estilo: "normal", arquivos: {latin: interLatin800, latinExt: interLatinExt800}},

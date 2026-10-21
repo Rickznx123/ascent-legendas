@@ -174,6 +174,7 @@ export const animacaoDaPalavra = (block: AssignedCaptionBlock, template: Caption
       block.words.length,
       findKeywordIndex(block.words, block.keyword),
       block.words.map((word) => word.text),
+      block.words,
     );
     // Pacote F: cada palavra entra com a animação do seu papel.
     if (template.papeis.porPalavra) {

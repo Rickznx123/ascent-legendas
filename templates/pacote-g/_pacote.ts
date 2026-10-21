@@ -7,27 +7,29 @@ import type {PackageConfig} from "../../src/types";
  * Com mais de um template na lista, eles se alternam entre os blocos.
  */
 const pacote: PackageConfig = {
-  linear: "linear",
-  // Linear de até 3 palavras, numa linha só.
-  maxLinearWords: 3,
+  // Linear: até 3 palavras numa linha (linear-1); de 4 a 6 em duas (linear-2), com a
+  // quebra pelas penalidades do agrupador. Mais de 6 palavras divide o bloco.
+  linear: "linear-2",
+  linearCurto: {maxPalavras: 3, template: "linear-1"},
+  maxLinearWords: 6,
   highlight: [
-    // Uma palavra só: só a palavra-chave.
-    {words: {max: 1}, templates: ["g4"]},
-    // Linha curta (2 a 4 palavras, até 22 caracteres): tudo numa linha.
-    {words: {min: 2, max: 4}, maxCaracteres: 22, templates: ["g7"]},
-    // Duas palavras de apoio em cima, nada depois.
-    {before: {min: 2, max: 2}, after: {max: 0}, templates: ["g1", "g2"]},
-    // Três ou mais antes, nada depois: pilha à esquerda.
-    {before: {min: 3}, after: {max: 0}, templates: ["g3"]},
-    // Algo depois da palavra-chave: complemento embaixo à direita.
-    {after: {min: 1}, templates: ["g6"]},
+    // Curto (2 a 4 palavras, até 18 caracteres): tudo numa linha.
+    {words: {min: 2, max: 4}, maxCaracteres: 18, templates: ["g4"]},
+    // Algo depois da palavra-chave: a parte de depois na linha de baixo.
+    {after: {min: 1}, templates: ["g1"]},
+    // Três ou mais antes e nada depois: grande e pequena em cima.
+    {before: {min: 3}, after: {max: 0}, templates: ["g2"]},
+    // Uma ou duas antes e nada depois: serifa em cima, chave embaixo.
+    {before: {min: 1, max: 2}, after: {max: 0}, templates: ["g3"]},
     // Os demais casos.
-    {templates: ["g1", "g5"]},
+    {templates: ["g1", "g2"]},
   ],
   // Junção com o bloco seguinte e palavra-chave primeiro.
-  threeLines: ["g6"],
+  threeLines: ["g1"],
+  // A paleta do vídeo ao escolher o pacote G.
+  paleta: "prata-g",
   // Texto das miniaturas da galeria quando nenhum bloco está selecionado.
-  exemplo: {texto: "existe um propósito real", palavraChave: "propósito"},
+  exemplo: {texto: "o medo de fracassar", palavraChave: "medo"},
 };
 
 export default pacote;

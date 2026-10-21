@@ -81,6 +81,7 @@ export const loadPackageConfig = async (
   const config = await importDefault<PackageConfig>(filePath);
   const referenced = [
     config.linear,
+    ...(config.linearCurto ? [config.linearCurto.template] : []),
     ...(config.dupla ? [config.dupla] : []),
     ...config.threeLines,
     ...config.highlight.flatMap((rule) => rule.templates),

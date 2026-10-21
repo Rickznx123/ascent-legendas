@@ -1,6 +1,6 @@
 // Edições de blocos. Funções puras (sem Node): servem ao terminal e à interface.
 import {chooseKeyword, findKeywordIndex, groupWords, normalizeForKeyword} from "../captions";
-import {assignMixed, assignRhythmAndTemplates, layoutForKeywordIn, linearCabe} from "../rhythm";
+import {assignMixed, assignRhythmAndTemplates, layoutForKeywordIn, linearCabe, templateDoLinear} from "../rhythm";
 import type {PackageRules} from "../rhythm";
 import {shortBlockIndexes} from "../tempos";
 import type {AssignedCaptionBlock, CaptionBlock, CaptionTemplate, ConfigDoAgrupamento, Word} from "../types";
@@ -210,7 +210,7 @@ const dissolvePairAt = (
         dupla: undefined,
         layoutManual: undefined,
         family: "linear",
-        template: rules.prefix + rules.config.linear,
+        template: rules.prefix + templateDoLinear(rules.config, current.words.length),
       };
     }
     return current;
@@ -310,8 +310,8 @@ export const splitBefore = (
     {
       ...block,
       keyword: keywordIndex >= wordIndex ? block.keyword : chooseKeyword(secondWords),
-      template: rules!.prefix + rules!.config.linear,
-      family: rules!.templates[rules!.config.linear]?.family ?? "linear",
+      template: rules!.prefix + templateDoLinear(rules!.config, secondWords.length),
+      family: rules!.templates[templateDoLinear(rules!.config, secondWords.length)]?.family ?? "linear",
       pacote: rules!.name,
       layoutManual: undefined,
       som: undefined,
@@ -389,7 +389,7 @@ export const restoreBlock = (
         dupla: undefined,
         layoutManual: undefined,
         family: "linear",
-        template: rules.prefix + rules.config.linear,
+        template: rules.prefix + templateDoLinear(rules.config, excluido.words.length),
         pacote: rules.name,
       };
   const position = blocks.findIndex((block) => block.startMs > restored.startMs);

@@ -2,8 +2,8 @@
 // cada parte com um papel (etiqueta, destaque, gigante, corpo, leve, mini). Funções
 // puras: o render (KineticCaptionVideo) e os tempos de entrada (src/entrada.ts)
 // usam a mesma divisão.
-import {isStrongWord, normalizeForKeyword} from "./captions";
-import type {ArranjoDosPapeis, Papel} from "./types";
+import {dividirLinear, isStrongWord, normalizeForKeyword} from "./captions";
+import type {ArranjoDosPapeis, Papel, Word} from "./types";
 
 // Uma parte de uma linha: um papel e as palavras (índices no bloco).
 export type ParteDaLinha = {papel: Papel; palavras: number[]};
@@ -54,12 +54,76 @@ const serifaComElo = (palavras: number[], textos: string[] | undefined): ParteDa
   return partes;
 };
 
+// Pacote G: conectivos curtos do linear (miúdos no meio da linha).
+const CONECTIVOS_DO_LINEAR = new Set(["o", "a", "os", "as", "e", "de", "do", "da", "um", "em", "no", "na"]);
+
+// Pacote G: palavras do linear numa linha; o conectivo curto entre duas palavras fica miúdo.
+const linhaDoLinear = (palavras: number[], textos: string[] | undefined): ParteDaLinha[] =>
+  palavras.map((palavra, posicao) => ({
+    papel:
+      posicao > 0 && posicao < palavras.length - 1 && CONECTIVOS_DO_LINEAR.has(normalizeForKeyword(textos?.[palavra] ?? ""))
+        ? "linear-conectivo"
+        : "linear",
+    palavras: [palavra],
+  }));
+
+// Pacote G: onde o linear de duas linhas quebra. Com as palavras (e os tempos), pelas
+// penalidades do agrupador; sem elas, no meio.
+const corteDoLinear = (n: number, palavras: Word[] | undefined): number =>
+  palavras && palavras.length === n && n > 1 ? (dividirLinear(palavras, n - 1)[0]?.length ?? Math.ceil(n / 2)) : Math.ceil(n / 2);
+
 // Linhas do arranjo para n palavras com a palavra-chave em k. textos (as palavras
-// do bloco) só são usados pelos arranjos do pacote F, para achar os elos.
-export const linhasDosPapeis = (arranjo: ArranjoDosPapeis, n: number, k: number, textos?: string[]): LinhaDosPapeis[] => {
+// do bloco) só são usados pelos arranjos dos pacotes F e G (elos e conectivos);
+// palavras (com os tempos), só pelo linear de duas linhas do G.
+export const linhasDosPapeis = (arranjo: ArranjoDosPapeis, n: number, k: number, textos?: string[], palavras?: Word[]): LinhaDosPapeis[] => {
   const chave = Math.min(Math.max(0, k), n - 1);
   const depois = intervalo(chave + 1, n);
   const antesDaChave = intervalo(0, chave);
+
+  if (arranjo === "linear-uma-linha") {
+    return linhas(linhaDoLinear(intervalo(0, n), textos));
+  }
+  if (arranjo === "linear-duas-linhas") {
+    const corte = corteDoLinear(n, palavras);
+    return linhas(linhaDoLinear(intervalo(0, corte), textos), linhaDoLinear(intervalo(corte, n), textos));
+  }
+  if (arranjo === "chave-e-serifa" && depois.length === 0 && antesDaChave.length > 0) {
+    // Nada depois da chave (um projeto do G antigo, ou a chave trocada à mão): o arranjo
+    // da regra para esse caso, em vez de uma linha pesada só.
+    return linhasDosPapeis(antesDaChave.length >= 3 ? "grande-e-pequena" : "serifa-em-cima", n, k, textos, palavras);
+  }
+  if (arranjo === "chave-e-serifa") {
+    // Pesadas e a chave em cima; embaixo, a primeira palavra curta (até 3 letras) vira
+    // o conectivo pesado e o resto vai em serifa.
+    const curta = depois.length > 1 && normalizeForKeyword(textos?.[depois[0]] ?? "").length <= 3;
+    return linhas(
+      [...parte("pesada", antesDaChave), ...parte("chave", [chave])],
+      [...parte("conectivo", curta ? depois.slice(0, 1) : []), ...parte("serifa-branca", curta ? depois.slice(1) : depois)],
+    );
+  }
+  if (arranjo === "grande-e-pequena") {
+    // Em cima, a primeira palavra grande e o resto pequeno; embaixo, a última antes da
+    // chave em serifa e a chave (o que vier depois dela, em serifa ao lado).
+    const emCima = antesDaChave.slice(0, -1);
+    return linhas(
+      [...parte("pesada", emCima.slice(0, 1)), ...parte("pesada-pequena", emCima.slice(1))],
+      [...parte("serifa-branca", antesDaChave.slice(-1)), ...parte("chave", [chave]), ...parte("serifa-branca", depois)],
+    );
+  }
+  if (arranjo === "serifa-em-cima") {
+    return linhas(parte("serifa-branca", antesDaChave), [...parte("chave", [chave]), ...parte("serifa-branca", depois)]);
+  }
+  if (arranjo === "linha-mista") {
+    // Uma linha: pesadas, a última antes da chave em serifa (com 2 ou mais antes), a
+    // chave e o resto em serifa.
+    const serifaAntes = antesDaChave.length >= 2 ? antesDaChave.slice(-1) : [];
+    return linhas([
+      ...parte("pesada", antesDaChave.slice(0, antesDaChave.length - serifaAntes.length)),
+      ...parte("serifa-branca", serifaAntes),
+      ...parte("chave", [chave]),
+      ...parte("serifa-branca", depois),
+    ]);
+  }
 
   if (arranjo === "na-linha") {
     // Sans e destaque na mesma linha; o destaque continua em serifa embaixo.
