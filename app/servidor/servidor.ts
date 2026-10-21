@@ -440,7 +440,9 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     }
     try {
       const usuario = await contas.validar(token);
-      response.locals.espaco = espacoDoUsuario(root, contas, usuario, token);
+      const espaco = espacoDoUsuario(root, contas, usuario, token);
+      // O dono (admin.ts) não tem cota: exporta e transcreve sem limite e sem marca d'água.
+      response.locals.espaco = ehDono(usuario.email) ? {...espaco, cota: undefined} : espaco;
       response.locals.token = token;
       next();
     } catch (error) {

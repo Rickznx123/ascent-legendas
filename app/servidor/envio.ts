@@ -25,6 +25,7 @@ import {getSignedUrl} from "@aws-sdk/s3-request-presigner";
 import express from "express";
 import type {Request, Response} from "express";
 import {getVideoMetadata} from "../../src/motor/ferramentas";
+import {ehDono} from "./admin";
 import {PASTAS_NO_BUCKET} from "./configuracao";
 import type {Contas} from "./contas";
 import {LIMITES, duracaoEmTexto} from "./cota";
@@ -112,6 +113,8 @@ export const rotasDeEnvio = ({
     return texto;
   };
   const limiteDo = async (usuario: NonNullable<Espaco["usuario"]>, token: string) => {
+    // O dono: sem limite de duração; o tamanho fica no máximo do envio em partes (1 GB).
+    if (ehDono(usuario.email)) return {plano: "assinante" as const, bytes: LIMITES.envio.assinante.bytes, segundos: Number.POSITIVE_INFINITY};
     const {plano} = await contas.perfil(usuario, token);
     return {plano, ...LIMITES.envio[plano]};
   };
