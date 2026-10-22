@@ -71,6 +71,27 @@ export const posicaoDoBloco = (propria: Posicao | undefined, geral: Posicao | un
   return geral ?? POSICAO_PADRAO;
 };
 
+// Tamanho das legendas (1 = o do layout): de 40% a 250%, de 1 em 1%.
+export const ESCALA_MIN = 0.4;
+export const ESCALA_MAX = 2.5;
+export const escalaLimitada = (escala: number): number => Math.round(limitar(escala, ESCALA_MIN, ESCALA_MAX) * 100) / 100;
+
+// Aumento que ainda cabe na margem segura para um bloco de larguraPx × alturaPx (no
+// tamanho 1). Diminuir sempre vale; o tamanho do layout (1) nunca é mexido.
+export const escalaQueCabe = (escala: number, larguraPx: number, alturaPx: number, videoLargura: number, videoAltura: number): number => {
+  if (escala <= 1 || larguraPx <= 0 || alturaPx <= 0) {
+    return escala;
+  }
+  const cabe = Math.min(
+    ((MARGEM_SEGURA.xMax - MARGEM_SEGURA.xMin) / 100) * (videoLargura / larguraPx),
+    ((MARGEM_SEGURA.yMax - MARGEM_SEGURA.yMin) / 100) * (videoAltura / alturaPx),
+  );
+  return Math.min(escala, Math.max(1, cabe));
+};
+
+// Tamanho de um bloco: o próprio, senão o geral, senão 1.
+export const escalaDoBloco = (propria: number | undefined, geral: number | undefined): number => propria ?? geral ?? 1;
+
 // Centro de um bloco ancorado pela borda esquerda (x é a borda), para caber na margem.
 export const centroDaAncora = (posicao: Posicao, ancora: "centro" | "esquerda" | undefined, larguraPx: number, videoLargura: number): Posicao =>
   ancora === "esquerda" ? {x: posicao.x + (larguraPx / 2 / videoLargura) * 100, y: posicao.y} : posicao;

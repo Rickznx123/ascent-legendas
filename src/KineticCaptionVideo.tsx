@@ -18,7 +18,7 @@ import {findKeywordIndex, findProtectedSpans, isBlockEndingFunctionWord} from ".
 import {blocosNaTela, entradaAjustada} from "./entrada";
 import {MarcaDagua} from "./marca-dagua";
 import {linhasDosPapeis, soEtiqueta} from "./papeis";
-import {centroDaAncora, centroDentroDaMargem, posicaoDoBloco} from "./posicao";
+import {centroDaAncora, centroDentroDaMargem, escalaDoBloco, escalaQueCabe, posicaoDoBloco} from "./posicao";
 import type {Posicao} from "./posicao";
 import {waitForFonts} from "./fontes";
 import {somTocado} from "./sons";
@@ -963,7 +963,10 @@ const semPosicao = (style: CSSProperties): CSSProperties =>
 // segura se não couber. O tamanho é medido no próprio bloco (offsetWidth não muda
 // com a escala do Player).
 // Com ancora "esquerda" (layouts alinhados à esquerda), x é a borda esquerda do bloco.
-const Posicionado: React.FC<{posicao: Posicao; ancora?: "centro" | "esquerda"; children: ReactNode}> = ({posicao, ancora, children}) => {
+// escala: o tamanho escolhido na prévia, em volta do centro (ou da borda esquerda); a
+// margem segura vale para o tamanho já escalado. data-legenda: a caixa de tamanho da
+// prévia acha o bloco por ele.
+const Posicionado: React.FC<{posicao: Posicao; ancora?: "centro" | "esquerda"; escala?: number; children: ReactNode}> = ({posicao, ancora, escala: pedida = 1, children}) => {
   const {width, height} = useVideoConfig();
   const ref = useRef<HTMLDivElement>(null);
   const [tamanho, setTamanho] = useState<{largura: number; altura: number}>();
@@ -973,17 +976,20 @@ const Posicionado: React.FC<{posicao: Posicao; ancora?: "centro" | "esquerda"; c
       setTamanho({largura: elemento.offsetWidth, altura: elemento.offsetHeight});
     }
   });
+  // Aumento só até caber na margem segura.
+  const escala = tamanho ? escalaQueCabe(pedida, tamanho.largura, tamanho.altura, width, height) : pedida;
   const centro = tamanho
-    ? centroDentroDaMargem(centroDaAncora(posicao, ancora, tamanho.largura, width), tamanho.largura, tamanho.altura, width, height)
+    ? centroDentroDaMargem(centroDaAncora(posicao, ancora, tamanho.largura * escala, width), tamanho.largura * escala, tamanho.altura * escala, width, height)
     : posicao;
   return (
     <div
       ref={ref}
+      data-legenda=""
       style={{
         position: "absolute",
         left: `${centro.x}%`,
         top: `${centro.y}%`,
-        transform: "translate(-50%, -50%)",
+        transform: escala === 1 ? "translate(-50%, -50%)" : `translate(-50%, -50%) scale(${escala})`,
         width: "max-content",
       }}
     >
@@ -1020,6 +1026,7 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
   precisa,
   permanenciaMs,
   posicao,
+  escala,
   cortesMs,
   marcaDagua,
   entradaLinear,
@@ -1099,7 +1106,7 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
         {blockTemplate.vinheta ? (
           <div style={{position: "absolute", left: 0, right: 0, bottom: 0, ...blockTemplate.vinheta, opacity: style.opacity}} />
         ) : null}
-        <Posicionado posicao={posicaoDoBloco(block.posicao, posicao, lugar)} ancora={lugar?.ancora}>
+        <Posicionado posicao={posicaoDoBloco(block.posicao, posicao, lugar)} ancora={lugar?.ancora} escala={escalaDoBloco(block.escala, escala)}>
           {/* Bloco com paleta própria: as variáveis dela valem só dentro deste bloco. */}
           <div style={style}>
             <BlockContent block={block} template={blockTemplate} palette={own ?? palette} videoWidth={width} entradaLinear={entradaLinear} />
@@ -1154,7 +1161,7 @@ export const KineticCaptionVideo: React.FC<KineticCaptionVideoProps> = ({
           template.structure === "dupla" && template.pair ? (
             // Centro do bloco no ponto escolhido (o do bloco, senão o geral). Na dupla,
             // o conjunto se move junto, pela posição do primeiro bloco.
-            <Posicionado key={`${activeBlock.startMs}`} posicao={posicaoDoBloco(activeBlock.posicao, posicao)}>
+            <Posicionado key={`${activeBlock.startMs}`} posicao={posicaoDoBloco(activeBlock.posicao, posicao)} escala={escalaDoBloco(activeBlock.escala, escala)}>
               {/* Dupla: o primeiro bloco num grupo, o segundo no outro, os dois na tela. */}
               <div style={semPosicao(template.styles.block)}>
                 {pairGroup(activeBlock, template.pair.first, template.pair.firstGroup)}

@@ -47,6 +47,8 @@ export type CaptionBlock = {
   som?: string;
   // Posição só deste bloco (centro, em % da largura e da altura). Vazio: a geral.
   posicao?: {x: number; y: number};
+  // Tamanho só deste bloco (1 = o do layout). Vazio: o geral.
+  escala?: number;
   // Início e fim na tela escolhidos à mão, em ms do vídeo sem a sincronia (a
   // sincronia do projeto anda com eles). Vazio: automáticos (veja src/tempos.ts).
   inicioMs?: number;
@@ -357,6 +359,8 @@ export type KineticCaptionVideoProps = {
   permanenciaMs?: number;
   // Posição geral das legendas (centro do bloco, em %). Vazio: 50% × 68%.
   posicao?: {x: number; y: number};
+  // Tamanho geral das legendas (1 = o do layout). Vazio: 1.
+  escala?: number;
   // Instantes (de tela) em que começavam blocos excluídos: o bloco anterior não
   // fica na tela depois deles.
   cortesMs?: number[];

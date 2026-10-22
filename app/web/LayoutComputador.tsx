@@ -3,6 +3,7 @@
 import {useEffect, useState} from "react";
 import {AvisoDoPlano} from "./AvisoDoPlano";
 import {posicaoArrastada} from "../../src/posicao";
+import {alvoDaCaixa, caixaDoEditor} from "./CaixaDaLegenda";
 import {PACOTE_MISTO} from "../../src/motor/blocos";
 import {Abas, PainelDaAba, abaGuardada, guardarAba} from "./Abas";
 import type {Aba} from "./Abas";
@@ -153,8 +154,17 @@ export const LayoutComputador: React.FC<{e: Editor}> = ({e}) => {
               marcaDagua={e.marcaDagua}
               onQuadro={e.aoMudarQuadro}
               posicao={projetoDoVideo?.posicao}
+              escala={projetoDoVideo?.escala}
               cortesMs={e.cortesMs}
               entradaLinear={projetoDoVideo?.entradaLinear}
+              caixa={
+                projetoDoVideo
+                  ? {
+                      ...caixaDoEditor(e, alvoDaCaixa(e, e.blocoSelecionado === e.blocoAtivo), () => e.selecionarBloco(e.blocoAtivo)),
+                      onToque: () => e.playerRef.current?.toggle(),
+                    }
+                  : undefined
+              }
               mover={
                 e.moverLegenda && projetoDoVideo
                   ? {

@@ -43,6 +43,8 @@ export type Projeto = {
   // Posição geral das legendas: centro do bloco em % da largura e da altura.
   // Sem valor: 50% × 68% (POSICAO_PADRAO).
   posicao?: {x: number; y: number};
+  // Tamanho geral das legendas (1 = o do layout). Vazio: 1.
+  escala?: number;
   // Entrada dos lineares que aceitam letra por letra (pacote C). Sem valor: por palavra.
   entradaLinear?: EntradaLinear;
   // Blocos excluídos na interface (fora do vídeo; podem ser restaurados).

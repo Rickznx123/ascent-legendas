@@ -217,7 +217,7 @@
 
 /* ---------- editor: prévia e faixa de tempo ---------- */
 /* Prévia com 60% da altura visível (dvh), o vídeo vertical usando toda ela. A
-   alça de arrastar a legenda (ArrastoCelular) fica na mesma célula da grade, com a
+   caixa da legenda (CaixaDaLegenda) fica na mesma célula da grade, com a
    mesma caixa da prévia. Com a folha do bloco aberta, 40%. */
 .cel-palco {
   position: relative;
@@ -1122,7 +1122,7 @@
   height: 8px;
 }
 
-/* ---------- arrastar a legenda na prévia (ArrastoCelular) ---------- */
+/* ---------- caixa da legenda na prévia (CaixaDaLegenda), na caixa do vídeo ---------- */
 .cel-arrasto {
   position: relative;
   z-index: 2;
@@ -1130,40 +1130,6 @@
   aspect-ratio: var(--proporcao, 0.5625);
   pointer-events: none;
   overflow: hidden;
-}
-
-/* A área da legenda: só ela recebe o dedo (o resto da prévia toca/pausa). */
-.cel-alca-legenda {
-  position: absolute;
-  width: 84%;
-  height: 24%;
-  transform: translate(-50%, -50%);
-  border-radius: 10px;
-  pointer-events: auto;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-}
-
-.cel-alca-marcada,
-.cel-arrasto-ativo .cel-alca-legenda {
-  outline: 1px dashed var(--acento);
-  outline-offset: -1px;
-}
-
-.cel-arrasto-rotulo {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  max-width: calc(100% - 16px);
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: var(--veu);
-  font-size: 11px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* ---------- dicas que somem depois do primeiro uso (Dica) ---------- */

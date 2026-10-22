@@ -12,6 +12,7 @@ import {
   removeWord,
   restoreBlock,
   setBlockPosition,
+  setBlockScale,
   markShortBlocks,
   novaSemente,
   setBlockPalette,
@@ -32,7 +33,7 @@ import type {Estilo, Projeto} from "../../src/motor/projeto";
 import {configDosEfeitos, planejarEfeitos} from "../../src/sons";
 import type {ArquivoSom, ConfigEfeitos} from "../../src/sons";
 import {blocosNaTela, cortesDosExcluidos, precisaoDoProjeto, sincroniaDoProjeto} from "../../src/entrada";
-import {POSICAO_PADRAO, posicaoDoBloco} from "../../src/posicao";
+import {POSICAO_PADRAO, escalaDoBloco, posicaoDoBloco} from "../../src/posicao";
 import type {Posicao} from "../../src/posicao";
 import {computeTimeline, findActiveBlockIndex} from "../../src/tempos";
 import type {AssignedCaptionBlock, CaptionBlock, VideoMetadata} from "../../src/types";
@@ -254,13 +255,14 @@ export const useEditor = () => {
   // Desfazer/refazer: guarda o que as edições mudam (blocos, excluídos, posição) e o
   // pacote com a semente do sorteio, para desfazer uma troca de pacote. Trocar de
   // vídeo ou transcrever limpa o histórico.
-  type Passo = Pick<Projeto, "blocks" | "excluidos" | "posicao" | "pacote" | "semente">;
+  type Passo = Pick<Projeto, "blocks" | "excluidos" | "posicao" | "escala" | "pacote" | "semente">;
   const historico = useRef<{desfazer: Passo[]; refazer: Passo[]}>({desfazer: [], refazer: []});
   const [, setVersaoDoHistorico] = useState(0);
   const passoDe = (atual: Projeto): Passo => ({
     blocks: atual.blocks,
     excluidos: atual.excluidos,
     posicao: atual.posicao,
+    escala: atual.escala,
     pacote: atual.pacote,
     semente: atual.semente,
   });
@@ -416,6 +418,16 @@ export const useEditor = () => {
     }
   };
   const moverPara = (posicao: Posicao) => moverPosicao(blocoQueMove, posicao);
+  // Tamanho de um bloco (indice >= 0) ou o geral (-1): o que vale na tela, e a troca
+  // (sem entrar no histórico, como a posição; undefined volta para o geral ou para 1).
+  const escalaDe = (indice: number): number => escalaDoBloco(blocos[indice]?.escala, projetoDoVideo?.escala);
+  const mudarEscala = (indice: number, escala: number | undefined) => {
+    if (indice >= 0) {
+      atualizarProjeto({blocks: setBlockScale(blocos, indice, escala)});
+    } else {
+      atualizarProjeto({escala});
+    }
+  };
 
   // Escolhe de novo os layouts de todos os blocos com as regras do(s) pacote(s).
   // No modo misto, a semente decide o sorteio. Layouts escolhidos à mão ficam.
@@ -991,6 +1003,10 @@ export const useEditor = () => {
     posicaoQueMove,
     moverPara,
     moverPosicao,
+    escalaDe,
+    mudarEscala,
+    // Seleciona sem mexer no tempo da prévia (a caixa da legenda: o bloco já está na tela).
+    selecionarBloco: setBlocoSelecionado,
     trocarPacote,
     sortearDeNovo,
     trocarPaleta,

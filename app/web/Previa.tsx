@@ -1,7 +1,9 @@
 import {forwardRef, useEffect, useMemo, useRef, useState} from "react";
+import type {ComponentProps} from "react";
 import {Player} from "@remotion/player";
 import type {PlayerRef} from "@remotion/player";
 import {KineticCaptionVideo} from "../../src/KineticCaptionVideo";
+import {CaixaDaLegenda} from "./CaixaDaLegenda";
 import type {Estilo} from "../../src/motor/projeto";
 import {MARGEM_SEGURA} from "../../src/posicao";
 import type {Posicao} from "../../src/posicao";
@@ -35,10 +37,14 @@ type Props = {
   marcaDagua?: boolean;
   // Posição geral e instantes dos blocos excluídos, como no render.
   posicao?: Posicao;
+  // Tamanho geral das legendas (vazio: 1).
+  escala?: number;
   cortesMs: number[];
   // Entrada dos lineares que aceitam letra por letra (pacote C).
   entradaLinear?: EntradaLinear;
   mover?: MoverLegenda;
+  // Caixa de tamanho e de mover a legenda (CaixaDaLegenda), por cima de tudo.
+  caixa?: ComponentProps<typeof CaixaDaLegenda>;
   onQuadro: (frame: number) => void;
 };
 
@@ -117,7 +123,7 @@ const CamadaDeArrasto: React.FC<{mover: MoverLegenda}> = ({mover}) => {
 
 // Prévia ao vivo: o mesmo componente da renderização, dentro do Remotion Player.
 export const Previa = forwardRef<PlayerRef, Props>((props, ref) => {
-  const {videoUrl, video, blocos, estilo, efeitos, volumeEfeitos, sonsUrl, sincroniaMs, precisa, permanenciaMs, marcaDagua, posicao, cortesMs, entradaLinear, mover, onQuadro} =
+  const {videoUrl, video, blocos, estilo, efeitos, volumeEfeitos, sonsUrl, sincroniaMs, precisa, permanenciaMs, marcaDagua, posicao, escala, cortesMs, entradaLinear, mover, caixa, onQuadro} =
     props;
   const inputProps: KineticCaptionVideoProps = useMemo(
     () => ({
@@ -134,11 +140,12 @@ export const Previa = forwardRef<PlayerRef, Props>((props, ref) => {
       precisa,
       permanenciaMs,
       posicao,
+      escala,
       cortesMs,
       marcaDagua,
       entradaLinear,
     }),
-    [videoUrl, blocos, estilo, video, efeitos, volumeEfeitos, sonsUrl, sincroniaMs, precisa, permanenciaMs, posicao, cortesMs, marcaDagua, entradaLinear],
+    [videoUrl, blocos, estilo, video, efeitos, volumeEfeitos, sonsUrl, sincroniaMs, precisa, permanenciaMs, posicao, escala, cortesMs, marcaDagua, entradaLinear],
   );
 
   // Os controles ficam embaixo da prévia; em tela cheia, os do próprio Player.
@@ -168,6 +175,8 @@ export const Previa = forwardRef<PlayerRef, Props>((props, ref) => {
       return;
     }
     const listener = ({detail}: {detail: {frame: number}}) => onQuadro(detail.frame);
+    // O quadro de agora já vale (aberta parada, sem nenhum evento ainda).
+    onQuadro(player.getCurrentFrame());
     player.addEventListener("frameupdate", listener);
     player.addEventListener("seeked", listener);
     return () => {
@@ -195,6 +204,7 @@ export const Previa = forwardRef<PlayerRef, Props>((props, ref) => {
         style={{width: "100%", height: "100%"}}
       />
       {mover ? <CamadaDeArrasto mover={mover} /> : null}
+      {caixa ? <CaixaDaLegenda {...caixa} /> : null}
     </div>
   );
 });

@@ -109,6 +109,7 @@ export const regroupAndPreserveManualFields = (
       layoutManual: saved.layoutManual,
       som: saved.som,
       posicao: saved.posicao,
+      escala: saved.escala,
       inicioMs: saved.inicioMs,
       fimMs: saved.fimMs,
       review: block.review || saved.review ? true : undefined,
@@ -414,6 +415,13 @@ export const setBlockPosition = (
   const block = blocks[blockIndex];
   const partner = block?.dupla === "primeiro" ? blockIndex + 1 : block?.dupla === "segundo" ? blockIndex - 1 : -1;
   return blocks.map((current, index) => (index === blockIndex || index === partner ? {...current, posicao} : current));
+};
+
+// Tamanho de um bloco (vazio: volta para o geral). Na dupla, o par muda junto.
+export const setBlockScale = (blocks: AssignedCaptionBlock[], blockIndex: number, escala: number | undefined): AssignedCaptionBlock[] => {
+  const block = blocks[blockIndex];
+  const partner = block?.dupla === "primeiro" ? blockIndex + 1 : block?.dupla === "segundo" ? blockIndex - 1 : -1;
+  return blocks.map((current, index) => (index === blockIndex || index === partner ? {...current, escala} : current));
 };
 
 // Todos os blocos voltam para a posição geral.

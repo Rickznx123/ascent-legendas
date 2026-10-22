@@ -1,7 +1,7 @@
 // Editor no celular: barra de cima, prévia, linha de tocar com a faixa de tempo, o
 // conteúdo da aba ativa e as abas embaixo. A folha do bloco sobe por cima das abas.
 import {useEffect, useState} from "react";
-import {PREDEFINICOES, posicaoArrastada} from "../../../src/posicao";
+import {PREDEFINICOES} from "../../../src/posicao";
 import {PACOTE_MISTO} from "../../../src/motor/blocos";
 import {abaGuardada, guardarAba} from "../Abas";
 import {SelosDoBloco} from "../ListaDeBlocos";
@@ -15,13 +15,13 @@ import {AvisoDesfazer} from "./AvisoDesfazer";
 import {CoresCelular} from "./CoresCelular";
 import type {AvisoComDesfazer} from "./AvisoDesfazer";
 import {AjustesDoBlocoCelular} from "./AjustesDoBlocoCelular";
-import {ArrastoCelular} from "./ArrastoCelular";
 import {Dica, marcarDica} from "./Dica";
 import {FaixaDeTempo} from "./FaixaDeTempo";
 import {Folha} from "./Folha";
 import {GaleriaCelular} from "./GaleriaCelular";
 import {ListaCelular} from "./ListaCelular";
 import {PreparandoPrevia} from "../PreparandoPrevia";
+import {CaixaDaLegenda, alvoDaCaixa, caixaDoEditor} from "../CaixaDaLegenda";
 import {SonsCelular} from "./SonsCelular";
 
 const ABAS = [
@@ -87,13 +87,13 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
     }
   };
 
-  // Arrastar a legenda na prévia move o que está na tela: com a folha aberta, o
-  // bloco dela; sem a folha, o bloco tocando se ele tem posição própria, senão a
-  // posição geral (todas as legendas). -1 é a geral.
-  const blocoNaTela = blocos[e.blocoAtivo];
-  const alvoDoArrasto = folhaVisivel ? indice : blocoNaTela?.posicao ? e.blocoAtivo : -1;
-  const posicaoDoArrasto = blocos[alvoDoArrasto]?.posicao ?? e.posicaoGeral;
-  const rotuloDoArrasto = alvoDoArrasto < 0 ? "Todas as legendas" : `Bloco #${alvoDoArrasto + 1}`;
+  // A caixa da legenda (mover e tamanho) muda o que está na tela: com a folha aberta,
+  // o bloco dela; sem a folha, o bloco tocando se ele tem posição ou tamanho próprios,
+  // senão todas as legendas.
+  const caixa = caixaDoEditor(e, folhaVisivel ? indice : alvoDaCaixa(e, false), () => {
+    e.selecionarBloco(e.blocoAtivo);
+    onAbrirFolha();
+  });
 
   const naoTranscrito = (
     <div className="cel-vazio">
@@ -150,22 +150,22 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
               marcaDagua={e.marcaDagua}
               onQuadro={e.aoMudarQuadro}
               posicao={projetoDoVideo?.posicao}
+              escala={projetoDoVideo?.escala}
               cortesMs={e.cortesMs}
               entradaLinear={projetoDoVideo?.entradaLinear}
             />
             {projetoDoVideo ? (
-              <ArrastoCelular
-                proporcao={videoInfo.width / videoInfo.height}
-                posicao={posicaoDoArrasto}
-                rotulo={rotuloDoArrasto}
-                marcada={folhaVisivel}
-                onInicio={() => {
-                  e.inicioDeAjuste();
-                  marcarDica("arrastar");
-                }}
-                onMover={(p) => e.moverPosicao(alvoDoArrasto, posicaoArrastada(p))}
-                onToque={() => e.playerRef.current?.toggle()}
-              />
+              <div className="cel-arrasto" style={{["--proporcao" as string]: videoInfo.width / videoInfo.height}}>
+                <CaixaDaLegenda
+                  {...caixa}
+                  marcada={folhaVisivel}
+                  onInicio={() => {
+                    caixa.onInicio();
+                    marcarDica("arrastar");
+                  }}
+                  onToque={() => e.playerRef.current?.toggle()}
+                />
+              </div>
             ) : null}
             {telaCheia ? (
               <div className="cel-tela-cheia-controles">
