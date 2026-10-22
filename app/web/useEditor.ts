@@ -676,7 +676,12 @@ export const useEditor = () => {
     }
     try {
       const previa = await api.previaExportacao(projetoDoVideo.source);
-      setPreviaExportacao("semLimite" in previa ? undefined : previa);
+      // Sem limite (a conta do dono): nada a confirmar, exporta direto.
+      if ("semLimite" in previa) {
+        await exportar();
+        return;
+      }
+      setPreviaExportacao(previa);
     } catch (error) {
       mostrarErro(error);
     }
