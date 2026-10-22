@@ -21,6 +21,9 @@ const palette: Palette = {
   // --g1 e --g2
   glow: {inner: "rgba(60,160,255,.65)", outer: "rgba(20,110,255,.4)", intensity: 1},
 
+  // --l1 e --l2: glow do linear do pacote G (o brilho desta paleta, mais forte)
+  brilhoLinear: {l1: "rgba(60,160,255,.95)", l2: "rgba(20,110,255,.55)"},
+
   shadow: {color: "#000000"},
 };
 

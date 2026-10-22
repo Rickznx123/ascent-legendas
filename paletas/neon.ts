@@ -14,6 +14,9 @@ const palette: Palette = {
   // Brilho na cor de destaque.
   glow: {inner: "rgba(239,255,26,.65)", outer: "rgba(239,255,26,.35)", intensity: 1},
 
+  // --l1 e --l2: glow do linear do pacote G (o brilho desta paleta, mais forte)
+  brilhoLinear: {l1: "rgba(239,255,26,.95)", l2: "rgba(239,255,26,.55)"},
+
   shadow: {color: "#000000"},
 
   caixa: {fundo: "#D7141A", texto: "#FFFFFF"},

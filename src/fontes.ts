@@ -7,7 +7,7 @@
 //   pacote D — Hanken Grotesk 300/400/800
 //   pacote E — Urbanist itálica 500, Hanken Grotesk 800 e EB Garamond itálica 700
 //   pacote F — Inter Tight 700 e Instrument Serif itálica
-//   pacote G — Montserrat 600/900 e Instrument Serif itálica
+//   pacote G — Montserrat 700/900 e Playfair Display itálica 800
 // São as instâncias estáticas no peso exato (Fontsource 5.3.0, das fontes do Google),
 // em dois arquivos por fonte: latin e latin-ext, com os mesmos intervalos do Google.
 // Origem e licença (OFL) de cada uma: fontes/ORIGEM.md.
@@ -37,12 +37,14 @@ import interTightLatinExt700 from "../fontes/inter-tight-latin-ext-700-normal.wo
 import interTightLatinExt800 from "../fontes/inter-tight-latin-ext-800-normal.woff2";
 import interTightLatinExt800Italic from "../fontes/inter-tight-latin-ext-800-italic.woff2";
 import interTightLatinExt900Italic from "../fontes/inter-tight-latin-ext-900-italic.woff2";
-import montserratLatin600 from "../fontes/montserrat-latin-600-normal.woff2";
+import montserratLatin700 from "../fontes/montserrat-latin-700-normal.woff2";
 import montserratLatin900 from "../fontes/montserrat-latin-900-normal.woff2";
-import montserratLatinExt600 from "../fontes/montserrat-latin-ext-600-normal.woff2";
+import montserratLatinExt700 from "../fontes/montserrat-latin-ext-700-normal.woff2";
 import montserratLatinExt900 from "../fontes/montserrat-latin-ext-900-normal.woff2";
 import playfairLatin500Italic from "../fontes/playfair-display-latin-500-italic.woff2";
 import playfairLatinExt500Italic from "../fontes/playfair-display-latin-ext-500-italic.woff2";
+import playfairLatin800Italic from "../fontes/playfair-display-latin-800-italic.woff2";
+import playfairLatinExt800Italic from "../fontes/playfair-display-latin-ext-800-italic.woff2";
 import urbanistLatin500Italic from "../fontes/urbanist-latin-500-italic.woff2";
 import urbanistLatinExt500Italic from "../fontes/urbanist-latin-ext-500-italic.woff2";
 
@@ -69,12 +71,13 @@ const FONTES: Fonte[] = [
   {familia: "Inter Tight", peso: "900", estilo: "italic", arquivos: {latin: interTightLatin900Italic, latinExt: interTightLatinExt900Italic}},
   {familia: "Instrument Serif", peso: "400", estilo: "italic", arquivos: {latin: instrumentLatin400Italic, latinExt: instrumentLatinExt400Italic}},
   {familia: "Playfair Display", peso: "500", estilo: "italic", arquivos: {latin: playfairLatin500Italic, latinExt: playfairLatinExt500Italic}},
+  {familia: "Playfair Display", peso: "800", estilo: "italic", arquivos: {latin: playfairLatin800Italic, latinExt: playfairLatinExt800Italic}},
   {familia: "Hanken Grotesk", peso: "300", estilo: "normal", arquivos: {latin: hankenLatin300, latinExt: hankenLatinExt300}},
   {familia: "Hanken Grotesk", peso: "400", estilo: "normal", arquivos: {latin: hankenLatin400, latinExt: hankenLatinExt400}},
   {familia: "Hanken Grotesk", peso: "800", estilo: "normal", arquivos: {latin: hankenLatin800, latinExt: hankenLatinExt800}},
   {familia: "Urbanist", peso: "500", estilo: "italic", arquivos: {latin: urbanistLatin500Italic, latinExt: urbanistLatinExt500Italic}},
   {familia: "EB Garamond", peso: "700", estilo: "italic", arquivos: {latin: ebGaramondLatin700Italic, latinExt: ebGaramondLatinExt700Italic}},
-  {familia: "Montserrat", peso: "600", estilo: "normal", arquivos: {latin: montserratLatin600, latinExt: montserratLatinExt600}},
+  {familia: "Montserrat", peso: "700", estilo: "normal", arquivos: {latin: montserratLatin700, latinExt: montserratLatinExt700}},
   {familia: "Montserrat", peso: "900", estilo: "normal", arquivos: {latin: montserratLatin900, latinExt: montserratLatinExt900}},
 ];
 

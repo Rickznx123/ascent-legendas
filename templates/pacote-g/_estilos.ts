@@ -18,7 +18,7 @@ import type {CaptionTemplate, ConfigDosPapeis, EntranceAnimation, KeywordFit, Pa
 
 // --sans e --serifa
 export const SANS = "'Montserrat', Helvetica, Arial, sans-serif";
-export const SERIFA = "'Instrument Serif', Georgia, serif";
+export const SERIFA = "'Playfair Display', Georgia, serif";
 
 // --metal: branco que escurece para cinza embaixo.
 const METAL = "linear-gradient(180deg,#ffffff 0%,#ffffff 42%,#c3c3cb 100%)";
@@ -66,19 +66,22 @@ const PESADA: CSSProperties = {
   margin: "-.04em -.06em",
 };
 
-// .serifa — Instrument Serif itálica fina, branca.
+// .serifa — Playfair Display itálica 800, branca, por cima das pesadas e com sombra escura própria.
 const SERIFA_BRANCA: CSSProperties = {
   fontFamily: SERIFA,
   fontStyle: "italic",
-  fontWeight: 400,
-  letterSpacing: "-.025em",
+  fontWeight: 800,
+  letterSpacing: "-.035em",
   lineHeight: 1,
   textTransform: "lowercase",
   color: "#f6f6f6",
+  position: "relative",
+  zIndex: 2,
+  textShadow: "0 .05em .1em rgba(0,0,0,.55), 0 .1em .35em rgba(0,0,0,.45)",
 };
 
-// .lin .t — Montserrat 600 apertada.
-const LINEAR: CSSProperties = {fontFamily: SANS, fontWeight: 600, letterSpacing: "-.045em", lineHeight: 1, textTransform: "lowercase", color: "#fff"};
+// .lin .t — Montserrat 700 (o word-spacing .04em da referência está em ESPACO_LINEAR).
+export const LINEAR: CSSProperties = {fontFamily: SANS, fontWeight: 700, letterSpacing: "-.03em", lineHeight: 1, textTransform: "lowercase", color: "#fff"};
 
 const ESTILOS: Partial<Record<Papel, CSSProperties>> = {
   pesada: PESADA,
@@ -89,8 +92,6 @@ const ESTILOS: Partial<Record<Papel, CSSProperties>> = {
   // .chave — a mesma pesada, pintada pela paleta.
   chave: {...PESADA, backgroundImage: "var(--chave)"},
   linear: LINEAR,
-  // .lin .co — conectivo curto com 40%, sem espaço em volta.
-  "linear-conectivo": {...LINEAR, letterSpacing: 0, margin: "0 .06em"},
 };
 
 // @keyframes sobe — .42s cubic-bezier(.2,.8,.2,1): as pesadas.
@@ -160,13 +161,13 @@ const ANIMACOES: Partial<Record<Papel, EntranceAnimation>> = {
   "serifa-branca": DESLIZA,
   chave: ACENDE,
   linear: SURGE,
-  "linear-conectivo": SURGE,
 };
 
-// Um espaço comum entre duas palavras, em em da palavra (Montserrat 900 ou 600
-// apertada, e a serifa).
-export const ESPACO = 0.22;
-const ESPACO_SERIFA = 0.2;
+// Um espaço comum entre duas palavras, em em da palavra, medido nas fontes: Montserrat
+// 900 apertada, Playfair 800 e o linear (700 com letter-spacing e word-spacing).
+const ESPACO = 0.23;
+const ESPACO_SERIFA = 0.22;
+const ESPACO_LINEAR = 0.29;
 
 type Layout = {
   arranjo: ConfigDosPapeis["arranjo"];
@@ -189,7 +190,6 @@ export const layout = ({arranjo, ajuste, tamanhos = {}, linhas, estilos = {}}: L
     "serifa-branca": 1,
     chave: 1,
     linear: 1,
-    "linear-conectivo": 0.4,
     ...tamanhos,
   };
   // Espaço entre palavras do mesmo papel, em em da linha: o espaço da fonte no tamanho do papel.
@@ -217,7 +217,7 @@ export const layout = ({arranjo, ajuste, tamanhos = {}, linhas, estilos = {}}: L
           pesada: ESPACO * t("pesada"),
           "pesada-pequena": ESPACO * t("pesada-pequena"),
           "serifa-branca": ESPACO_SERIFA * t("serifa-branca"),
-          linear: ESPACO * t("linear"),
+          linear: ESPACO_LINEAR * t("linear"),
         },
       },
     },

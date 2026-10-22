@@ -7,11 +7,11 @@ import type {PackageConfig} from "../../src/types";
  * Com mais de um template na lista, eles se alternam entre os blocos.
  */
 const pacote: PackageConfig = {
-  // Linear: até 3 palavras numa linha (linear-1); de 4 a 6 em duas (linear-2), com a
-  // quebra pelas penalidades do agrupador. Mais de 6 palavras divide o bloco.
+  // Linear: até 3 palavras numa linha (linear-1); 4 ou 5 em duas (linear-2), 3 em cima
+  // e o resto embaixo. Mais de 5 palavras divide o bloco pelas penalidades do agrupador.
   linear: "linear-2",
   linearCurto: {maxPalavras: 3, template: "linear-1"},
-  maxLinearWords: 6,
+  maxLinearWords: 5,
   highlight: [
     // Curto (2 a 4 palavras, até 18 caracteres): tudo numa linha.
     {words: {min: 2, max: 4}, maxCaracteres: 18, templates: ["g4"]},

@@ -17,6 +17,9 @@ const palette: Palette = {
   // Brilho da prancha perto da letra; o espalhado, com metade da força.
   glow: {inner: "rgba(120,240,190,.5)", outer: "rgba(120,240,190,.25)", intensity: 1},
 
+  // --l1 e --l2: glow do linear do pacote G (o brilho desta paleta, mais forte)
+  brilhoLinear: {l1: "rgba(120,240,190,.95)", l2: "rgba(120,240,190,.55)"},
+
   shadow: {color: "#000000"},
 };
 

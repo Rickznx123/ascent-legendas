@@ -393,7 +393,6 @@ export type EntradaLinear = "palavra" | "letra";
 //   serifa-branca     serifa itálica branca
 //   chave             palavra-chave pesada com o degradê da paleta
 //   linear            palavra do linear
-//   linear-conectivo  conectivo curto do linear, miúdo, no meio da linha
 export type Papel =
   | "etiqueta"
   | "destaque"
@@ -412,8 +411,7 @@ export type Papel =
   | "conectivo"
   | "serifa-branca"
   | "chave"
-  | "linear"
-  | "linear-conectivo";
+  | "linear";
 
 // Como as palavras viram linhas (veja linhasDosPapeis em src/papeis.ts):
 //   gigante   apoio com a etiqueta no fim, palavra-chave gigante, fecho leve
@@ -430,7 +428,7 @@ export type Papel =
 //   serifa-em-cima      serifa em cima, chave embaixo
 //   linha-mista         tudo numa linha: pesada, serifa, chave
 //   linear-uma-linha    linear numa linha
-//   linear-duas-linhas  linear em duas linhas, quebrado pelas penalidades do agrupador
+//   linear-duas-linhas  linear em duas linhas: até 3 palavras em cima, o resto embaixo
 export type ArranjoDosPapeis =
   | "gigante"
   | "pilha"

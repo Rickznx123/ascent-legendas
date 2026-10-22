@@ -6,12 +6,12 @@
 <title>Layouts de legenda, pacote G</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!--FONTES--><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800;900&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet"><!--/FONTES-->
+<!--FONTES--><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&family=Playfair+Display:ital,wght@1,800&display=swap" rel="stylesheet"><!--/FONTES-->
 <style>
 :root{
   --pagina:#0c0d12; --texto:#f2f0ec; --suave:#9a968f;
   --sans:'Montserrat',Helvetica,Arial,sans-serif;
-  --serifa:'Instrument Serif',Georgia,serif;
+  --serifa:'Playfair Display',Georgia,serif;
   --ui:Helvetica,Arial,sans-serif;
   /* paleta prata (padrão): branco que escurece para cinza embaixo, como nas referências */
   --metal:linear-gradient(180deg,#ffffff 0%,#ffffff 42%,#c3c3cb 100%);
@@ -49,8 +49,9 @@ body.claro .q{background:#d9d4cc}
 .pesada{font-weight:900;letter-spacing:-.055em;line-height:1;
   background:var(--metal);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;
   display:inline-block;padding:.04em .06em;margin:-.04em -.06em}
-/* serifa itálica fina (Instrument Serif), branca */
-.serifa{font-family:var(--serifa);font-style:italic;font-weight:400;letter-spacing:-.025em;line-height:1;color:#f6f6f6}
+/* serifa itálica em negrito (Playfair Display ExtraBold Italic), branca */
+.serifa{font-family:var(--serifa);font-style:italic;font-weight:800;letter-spacing:-.035em;line-height:1;color:#f6f6f6;
+  position:relative;z-index:2;text-shadow:0 .05em .1em rgba(0,0,0,.55),0 .1em .35em rgba(0,0,0,.45)}
 /* palavra-chave: mesma pesada, pintada pela paleta */
 .chave{background:var(--chave);-webkit-background-clip:text;background-clip:text}
 
@@ -67,30 +68,30 @@ body.claro .q{background:#d9d4cc}
 
 /* ---------- G1 — "o medo / de fracassar" ----------
    linha de cima pesada; embaixo, recuada, conectivo pesado pequeno + serifa itálica grande, encostada */
-.g1 .l2{margin:-.3em 0 0 .42em;display:flex;align-items:baseline;gap:.1em}
+.g1 .l2{margin:-.5em 0 0 .42em;position:relative;z-index:2;display:flex;align-items:baseline;gap:.1em}
 .g1 .l2 .con{font-size:.46em;letter-spacing:-.04em}
-.g1 .l2 .serifa{font-size:.92em}
+.g1 .l2 .serifa{font-size:.84em}
 /* ---------- G2 — "só uma coisa / torna um sonho" ----------
    em cima: pesada grande + pesada pequena na mesma linha de base;
    embaixo, começando um pouco à esquerda: serifa itálica + chave pesada maior */
 .g2 .l1{display:flex;align-items:baseline;gap:.08em;margin-left:.16em}
-.g2 .l1 .peq{font-size:.56em}
-.g2 .l2{display:flex;align-items:baseline;gap:.1em;margin-top:-.16em}
-.g2 .l2 .serifa{font-size:.78em}
+.g2 .l1 .peq{font-size:.6em}
+.g2 .l2{display:flex;align-items:baseline;gap:.1em;margin-top:-.34em;position:relative}
+.g2 .l2 .serifa{font-size:.76em}
 .g2 .l2 .pesada{font-size:1.12em}
 /* ---------- G3 — serifa em cima, chave pesada embaixo (mesmas peças, ordem invertida) ---------- */
-.g3 .l1{font-size:.8em;margin:0 0 -.3em .55em}
+.g3 .l1{font-size:.7em;margin:0 0 -.48em .55em}
 /* ---------- G4 — linha única: pesada, serifa, chave pesada ---------- */
 .g4{display:flex;align-items:baseline;gap:.12em}
-.g4 .serifa{font-size:.9em}
+.g4 .serifa{font-size:.82em}
 /* ---------- LINEAR em 2 linhas — "depois de ter / terminado o mandato" ---------- */
 .lin{text-shadow:0 0 .25cqw var(--l1),0 0 1.6cqw var(--l2),0 0 4cqw var(--l2);filter:drop-shadow(0 .3cqw .8cqw rgba(0,0,0,.45))}
-.lin .t{font-weight:600;letter-spacing:-.045em;line-height:1}
+.lin .t{font-weight:700;letter-spacing:-.03em;word-spacing:.04em;line-height:1}
 .lin2 .l1{margin-left:.32em}
-.lin2 .l2{font-size:.74em;margin-top:.02em}
+.lin2 .l2{font-size:.86em;margin-top:.06em}
 .lin .co{font-size:.4em;letter-spacing:0;margin:0 .06em}
 /* ---------- LINEAR em 1 linha ---------- */
-.lin1 .t{letter-spacing:-.05em}
+.lin1 .t{letter-spacing:-.035em}
 
 figcaption{padding:12px 2px 0}
 figcaption b{display:block;font:700 16px/1.2 var(--ui);margin-bottom:6px}
@@ -101,7 +102,7 @@ figcaption span{display:block;color:var(--suave);font-size:13.5px;line-height:1.
 <header>
   <div>
     <h1>Pacote G</h1>
-    <p>Montserrat Black bem apertada com degradê branco para cinza, serifa itálica fina (Instrument Serif) e linear em Montserrat SemiBold com glow. G1 e G2 copiam as referências; G3 e G4 usam as mesmas peças em outra ordem.</p>
+    <p>Montserrat Black bem apertada com degradê branco para cinza, serifa itálica em negrito (Playfair Display ExtraBold Italic) e linear em Montserrat Bold com glow. G1 e G2 copiam as referências; G3 e G4 usam as mesmas peças em outra ordem.</p>
   </div>
   <div class="botoes">
     <button data-paleta="prata" aria-pressed="true">Prata</button>
@@ -120,7 +121,7 @@ figcaption span{display:block;color:var(--suave);font-size:13.5px;line-height:1.
       <div><span class="pesada w">o</span> <span class="pesada chave w acende" style="--d:.1s">medo</span></div>
       <div class="l2"><span class="pesada con w" style="--d:.32s">de</span><span class="serifa w desliza" style="--d:.4s">fracassar</span></div>
     </div></div>
-    <figcaption><b>G1. "o medo / de fracassar"</b><span>Linha de cima em Montserrat Black. Embaixo, recuada e encostando nela: conectivo pesado com 46% do tamanho e serifa itálica com 92%. Bloco com 66% da largura do vídeo.</span></figcaption>
+    <figcaption><b>G1. "o medo / de fracassar"</b><span>Linha de cima em Montserrat Black. Embaixo, recuada e encostando nela: conectivo pesado com 46% do tamanho e serifa itálica com 84%. Bloco com 66% da largura do vídeo.</span></figcaption>
   </figure>
 
   <figure>
@@ -128,7 +129,7 @@ figcaption span{display:block;color:var(--suave);font-size:13.5px;line-height:1.
       <div class="l1"><span class="pesada w">só</span><span class="pesada peq w" style="--d:.1s">uma coisa</span></div>
       <div class="l2"><span class="serifa w desliza" style="--d:.24s">torna um</span><span class="pesada chave w acende" style="--d:.42s">sonho</span></div>
     </div></div>
-    <figcaption><b>G2. "só uma coisa / torna um sonho"</b><span>Em cima, primeira palavra grande e o resto com 52% do tamanho, na mesma linha de base. Embaixo, um pouco à esquerda: serifa itálica (78%) e a palavra-chave pesada, 12% maior que a de cima.</span></figcaption>
+    <figcaption><b>G2. "só uma coisa / torna um sonho"</b><span>Em cima, primeira palavra grande e o resto com 60% do tamanho, na mesma linha de base. Embaixo, um pouco à esquerda: serifa itálica (76%) e a palavra-chave pesada, 12% maior que a de cima.</span></figcaption>
   </figure>
 
   <figure>
@@ -147,18 +148,18 @@ figcaption span{display:block;color:var(--suave);font-size:13.5px;line-height:1.
   </figure>
 
   <figure>
-    <div class="q"><div class="b lin lin2" data-w="70" data-max="13">
+    <div class="q"><div class="b lin lin2" data-w="86" data-max="18">
       <div class="t l1"><span class="w surge">depois</span> <span class="w surge" style="--d:.07s">de</span> <span class="w surge" style="--d:.14s">ter</span></div>
-      <div class="t l2"><span class="w surge" style="--d:.21s">terminado</span><span class="co w surge" style="--d:.28s">o</span><span class="w surge" style="--d:.35s">mandato</span></div>
+      <div class="t l2"><span class="w surge" style="--d:.21s">terminado</span> <span class="w surge" style="--d:.28s">tudo</span></div>
     </div></div>
-    <figcaption><b>Linear em 2 linhas</b><span>Igual a "depois de ter / terminado o mandato": Montserrat SemiBold apertada, segunda linha com 74% do tamanho e começando mais à esquerda, conectivos curtos com 40% e glow forte. Para 4 a 6 palavras.</span></figcaption>
+    <figcaption><b>Linear em 2 linhas</b><span>No estilo de "depois de ter / terminado o mandato": até 3 palavras em cima e 2 embaixo, Montserrat Bold, segunda linha com 86% do tamanho e começando mais à esquerda, glow forte. Bloco com 86% da largura do vídeo.</span></figcaption>
   </figure>
 
   <figure>
-    <div class="q"><div class="b lin lin1" data-w="64" data-max="10">
+    <div class="q"><div class="b lin lin1" data-w="88" data-max="16">
       <div class="t"><span class="w surge">dois</span> <span class="w surge" style="--d:.07s">amigos</span> <span class="w surge" style="--d:.14s">goianos</span></div>
     </div></div>
-    <figcaption><b>Linear em 1 linha</b><span>O mesmo estilo em uma linha só, com o mesmo glow. Para até 3 palavras.</span></figcaption>
+    <figcaption><b>Linear em 1 linha</b><span>O mesmo estilo em uma linha só, com o mesmo glow, ocupando 88% da largura. Para até 3 palavras.</span></figcaption>
   </figure>
 </main>
 

@@ -426,7 +426,6 @@ const BlocoDePapeis: React.FC<{block: AssignedCaptionBlock; template: CaptionTem
     words.length,
     findKeywordIndex(words, block.keyword),
     words.map((word) => word.text),
-    words,
   );
   const texto = (indices: number[]) => indices.map((indice) => cleanWord(words[indice].text));
   const folgaDaCaixaPx = (estilo: CSSProperties, tamanhoPx: number) =>
@@ -442,7 +441,7 @@ const BlocoDePapeis: React.FC<{block: AssignedCaptionBlock; template: CaptionTem
     // da letra do bloco, e a letra sai do data-w e do data-max da linha mais larga.
     const {animacoes, padraoEm, mesmoPapelEm} = config.porPalavra;
     const ajuste = config.ajusteDoBloco;
-    const SEM_ESPACO: Papel[] = ["elo", "linear-conectivo"];
+    const SEM_ESPACO: Papel[] = ["elo"];
     const montadas = linhas.map((linha, indiceDaLinha) => {
       const palavras = linha.partes.flatMap((parte) => parte.palavras.map((indice) => ({indice, papel: parte.papel})));
       const daLinha = config.linhas?.[indiceDaLinha];
@@ -495,11 +494,13 @@ const BlocoDePapeis: React.FC<{block: AssignedCaptionBlock; template: CaptionTem
                     startMs={word.startMs}
                     faladaMs={word.faladaMs}
                     animation={animacoes[papel] ?? template.animations.word}
-                    style={
-                      ajuste
+                    style={{
+                      ...(ajuste
                         ? {fontSize: `${tamanhoDe(papel)}em`, marginLeft: `${(espacoEm(posicao) / tamanhoDe(papel)).toFixed(4)}em`}
-                        : {fontSize: `${(tamanhoDe(papel) * escala).toFixed(3)}cqw`, marginLeft: `${espacoEm(posicao)}em`}
-                    }
+                        : {fontSize: `${(tamanhoDe(papel) * escala).toFixed(3)}cqw`, marginLeft: `${espacoEm(posicao)}em`}),
+                      // A palavra animada tem o próprio empilhamento: o z-index do papel vai nela.
+                      ...(estilo.zIndex !== undefined ? {position: "relative" as const, zIndex: estilo.zIndex} : {}),
+                    }}
                   />
                 );
               })}
