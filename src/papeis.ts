@@ -68,8 +68,10 @@ export const linhasDosPapeis = (arranjo: ArranjoDosPapeis, n: number, k: number,
     return linhas(linhaDoLinear(intervalo(0, n)));
   }
   if (arranjo === "linear-duas-linhas") {
-    // Até 3 palavras em cima; o resto embaixo.
-    return linhas(linhaDoLinear(intervalo(0, Math.min(3, n))), linhaDoLinear(intervalo(3, n)));
+    // Duas palavras embaixo e o resto em cima (4 palavras: 2 e 2; 5: 3 e 2), sem
+    // deixar a linha de cima menor que a de baixo.
+    const corte = Math.max(n - 2, Math.ceil(n / 2));
+    return linhas(linhaDoLinear(intervalo(0, corte)), linhaDoLinear(intervalo(corte, n)));
   }
   if (arranjo === "chave-e-serifa" && depois.length === 0 && antesDaChave.length > 0) {
     // Nada depois da chave (um projeto do G antigo, ou a chave trocada à mão): o arranjo

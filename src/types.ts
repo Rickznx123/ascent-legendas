@@ -428,7 +428,7 @@ export type Papel =
 //   serifa-em-cima      serifa em cima, chave embaixo
 //   linha-mista         tudo numa linha: pesada, serifa, chave
 //   linear-uma-linha    linear numa linha
-//   linear-duas-linhas  linear em duas linhas: até 3 palavras em cima, o resto embaixo
+//   linear-duas-linhas  linear em duas linhas: duas palavras embaixo, o resto em cima
 export type ArranjoDosPapeis =
   | "gigante"
   | "pilha"

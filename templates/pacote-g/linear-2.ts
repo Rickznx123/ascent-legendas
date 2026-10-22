@@ -2,7 +2,7 @@ import {layout} from "./_estilos";
 
 /*
  * LINEAR EM 2 LINHAS — "depois de ter / terminado tudo"
- * Montserrat 700, até 3 palavras em cima e o resto embaixo; a segunda linha com 86% e
+ * Montserrat 700, duas palavras embaixo e o resto em cima (2 e 2 ou 3 e 2); a segunda linha com 86% e
  * começando mais à esquerda (a de cima recuada .32em). Bloco com 86% da largura
  * (letra de até 18%).
  */
