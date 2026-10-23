@@ -39,9 +39,11 @@ const BLOCO: CSSProperties = {
   filter: "drop-shadow(0 0 .5cqw var(--brilho-1)) drop-shadow(0 0 2.4cqw var(--brilho-2)) drop-shadow(0 .35cqw .9cqw rgba(0,0,0,.6))",
 };
 
-// .lin — o linear: glow forte no texto e sombra escura no bloco.
+// .lin — o linear: glow forte no texto e sombra escura no bloco. lineHeight 1: sem ele, o
+// invólucro de cada palavra herda o da página (1.35) e as duas linhas ficam afastadas.
 const BLOCO_LINEAR: CSSProperties = {
   ...BLOCO,
+  lineHeight: 1,
   textShadow: "0 0 .25cqw var(--l1), 0 0 1.6cqw var(--l2), 0 0 4cqw var(--l2)",
   filter: "drop-shadow(0 .3cqw .8cqw rgba(0,0,0,.45))",
 };
