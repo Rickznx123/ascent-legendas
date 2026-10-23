@@ -1,17 +1,32 @@
-// Painel do dono em /admin: a lista de assinantes. Quem não é dono vê "Página não encontrada"
+// Painel do dono em /admin: a lista de assinantes e a de leads. Quem não é dono vê "Página não encontrada"
 // (o servidor responde 404; a regra fica lá, em app/servidor/admin.ts).
 import {useEffect, useState} from "react";
 import {api} from "./api";
-import type {Assinante} from "./api";
+import type {Assinante, Lead} from "./api";
 
 const data = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("pt-BR", {timeZone: "America/Sao_Paulo"}) : "—");
 const reais = (valor: number) => valor.toLocaleString("pt-BR", {style: "currency", currency: "BRL"});
+const Whatsapp: React.FC<{numero: string | null}> = ({numero}) =>
+  numero ? (
+    <a href={`https://wa.me/${numero}`} target="_blank" rel="noopener noreferrer">
+      {numero}
+    </a>
+  ) : (
+    <>—</>
+  );
 
 export const PainelAdmin: React.FC = () => {
   const [lista, setLista] = useState<Assinante[]>();
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [erro, setErro] = useState<string>();
   useEffect(() => {
-    api.assinantes().then(setLista, () => setErro("Página não encontrada."));
+    api.painelDoDono().then(
+      (painel) => {
+        setLista(painel.assinantes);
+        setLeads(painel.leads);
+      },
+      () => setErro("Página não encontrada."),
+    );
   }, []);
   const ativos = lista?.filter((a) => a.ativo) ?? [];
   return (
@@ -46,13 +61,7 @@ export const PainelAdmin: React.FC = () => {
                   <tr key={a.email}>
                     <td>{a.email}</td>
                     <td>
-                      {a.whatsapp ? (
-                        <a href={`https://wa.me/${a.whatsapp}`} target="_blank" rel="noopener noreferrer">
-                          {a.whatsapp}
-                        </a>
-                      ) : (
-                        "—"
-                      )}
+                      <Whatsapp numero={a.whatsapp} />
                     </td>
                     <td>{a.plano}</td>
                     <td>{a.forma}</td>
@@ -60,6 +69,34 @@ export const PainelAdmin: React.FC = () => {
                     <td>{a.forma === "Cortesia" ? "—" : data(a.expira)}</td>
                     <td>{data(a.desde)}</td>
                     <td>{reais(a.pago)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <h1>Leads</h1>
+          <p className="suave">
+            {leads.length} contas sem assinatura · {leads.filter((l) => l.whatsapp).length} com WhatsApp · {leads.filter((l) => l.checkout).length} abriram o checkout
+          </p>
+          <div className="admin-tabela">
+            <table>
+              <thead>
+                <tr>
+                  <th>E-mail</th>
+                  <th>WhatsApp</th>
+                  <th>Cadastro</th>
+                  <th>Checkout</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leads.map((l) => (
+                  <tr key={l.email}>
+                    <td>{l.email}</td>
+                    <td>
+                      <Whatsapp numero={l.whatsapp} />
+                    </td>
+                    <td>{data(l.cadastro)}</td>
+                    <td className={l.checkout ? "admin-ativo" : "suave"}>{l.checkout ? "Abriu, não pagou" : "—"}</td>
                   </tr>
                 ))}
               </tbody>

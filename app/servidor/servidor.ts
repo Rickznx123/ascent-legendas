@@ -29,7 +29,7 @@ import {configDosEfeitos, planejarEfeitos} from "../../src/sons";
 import {cortesDosExcluidos, precisaoDoProjeto, sincroniaDoProjeto} from "../../src/entrada";
 import type {AssignedCaptionBlock} from "../../src/types";
 import {PASTAS_NO_BUCKET, configuracaoDoAmbiente} from "./configuracao";
-import {assinantesDoPainel, ehDono} from "./admin";
+import {ehDono, painelDoDono} from "./admin";
 import {contasDoAmbiente} from "./contas";
 import {rotasDeEnvio} from "./envio";
 import {previasLeves, tirarCapa} from "./previa-leve";
@@ -523,7 +523,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     }),
   );
 
-  // Painel do dono: a lista de assinantes (veja admin.ts). Outra conta: 404.
+  // Painel do dono: assinantes e leads (veja admin.ts). Outra conta: 404.
   app.get(
     "/api/admin/assinantes",
     handle(async (_request, response) => {
@@ -532,7 +532,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
         response.status(404).json({ok: false});
         return;
       }
-      return {assinantes: await assinantesDoPainel(contas.admin)};
+      return await painelDoDono(contas.admin);
     }),
   );
 
