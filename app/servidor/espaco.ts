@@ -143,13 +143,16 @@ export const espacoDoUsuario = (root: string, contas: Contas, usuario: Usuario, 
     usuario,
     pasta,
     videos: () => listarVideos(pasta),
+    // Um projeto com timeline ainda sem legendas tem dados vazio: não é projeto de legendas.
     lerProjeto: async (video) => {
       if (video) {
-        return (await linhaDoVideo(video))?.dados;
+        const dados = (await linhaDoVideo(video))?.dados;
+        return dados?.blocks ? dados : undefined;
       }
       const {data, error} = await banco
         .from("projetos")
         .select("dados")
+        .not("dados->blocks", "is", null)
         .order("atualizado_em", {ascending: false})
         .limit(1)
         .maybeSingle();
@@ -164,8 +167,10 @@ export const espacoDoUsuario = (root: string, contas: Contas, usuario: Usuario, 
         duracao_s: projeto.voz ? projeto.voz.duracaoMs / 1000 : null,
       };
       const existente = await linhaDoVideo(projeto.source);
+      // O nome de um projeto que já existe é o que a pessoa deu (não o do arquivo).
+      const {nome: _nome, ...semNome} = campos;
       const {error} = existente
-        ? await banco.from("projetos").update(campos).eq("id", existente.id)
+        ? await banco.from("projetos").update(semNome).eq("id", existente.id)
         : await banco.from("projetos").insert({...campos, usuario_id: usuario.id});
       if (error) throw falha("salvar o projeto", error);
     },

@@ -3,15 +3,17 @@
 import {useEffect, useRef, useState} from "react";
 import {Avisos} from "../Avisos";
 import type {Editor} from "../useEditor";
+import {EditorDeCortes} from "../Projetos";
+import {Andamento} from "./Andamento";
 import {EditorCelular} from "./EditorCelular";
 import {Inicio} from "./Inicio";
 import {TelaExportar} from "./TelaExportar";
 
-type Tela = "inicio" | "editor" | "exportar";
+type Tela = "inicio" | "cortes" | "editor" | "exportar";
 
 // Profundidade de cada tela (a folha aberta é mais um nível): o "voltar" do
 // aparelho sobe um nível em vez de sair do app.
-const NIVEL: Record<Tela, number> = {inicio: 0, editor: 1, exportar: 2};
+const NIVEL: Record<Tela, number> = {inicio: 0, cortes: 1, editor: 1, exportar: 2};
 
 // Campos que não abrem o teclado.
 const CAMPOS_SEM_TECLADO = new Set(["range", "checkbox", "radio", "button", "color", "file"]);
@@ -34,6 +36,8 @@ const centralizarNaLista = (campo: HTMLElement) => {
 export const LayoutCelular: React.FC<{e: Editor}> = ({e}) => {
   const [tela, setTela] = useState<Tela>("inicio");
   const [folhaAberta, setFolhaAberta] = useState(false);
+  // O projeto aberto na tela de cortes.
+  const [cortes, setCortes] = useState<string>();
   const nivel = NIVEL[tela] + (tela === "editor" && folhaAberta ? 1 : 0);
 
   // Cada nível a mais entra no histórico do navegador; o "voltar" do aparelho (ou
@@ -45,7 +49,7 @@ export const LayoutCelular: React.FC<{e: Editor}> = ({e}) => {
       setFolhaAberta(false);
     } else if (tela === "exportar") {
       setTela("editor");
-    } else if (tela === "editor") {
+    } else if (tela === "editor" || tela === "cortes") {
       e.playerRef.current?.pause();
       setTela("inicio");
     }
@@ -148,7 +152,30 @@ export const LayoutCelular: React.FC<{e: Editor}> = ({e}) => {
 
   return (
     <div ref={raiz} className="cel">
-      {tela === "inicio" ? <Inicio e={e} onAbrir={abrirVideo} /> : null}
+      {tela === "inicio" ? (
+        <Inicio
+          e={e}
+          onAbrir={abrirVideo}
+          onCortes={(id) => {
+            setCortes(id);
+            setTela("cortes");
+          }}
+        />
+      ) : null}
+      {tela === "cortes" && cortes ? (
+        <div className="cel-tela">
+          <header className="cel-barra">
+            <button type="button" className="cel-ic" aria-label="Voltar para os projetos" onClick={voltar}>
+              ‹
+            </button>
+            <span className="cel-nome">Vídeos do projeto</span>
+          </header>
+          <Andamento tarefa={e.tarefa} />
+          <div className="cel-rolagem">
+            <EditorDeCortes e={e} id={cortes} onLegendar={abrirVideo} onApagado={voltar} />
+          </div>
+        </div>
+      ) : null}
       {tela === "editor" ? (
         <EditorCelular
           e={e}

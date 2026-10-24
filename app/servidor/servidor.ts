@@ -32,6 +32,7 @@ import {PASTAS_NO_BUCKET, configuracaoDoAmbiente} from "./configuracao";
 import {ehDono, painelDoDono} from "./admin";
 import {contasDoAmbiente} from "./contas";
 import {rotasDeEnvio} from "./envio";
+import {rotasDeProjetos} from "./projetos";
 import {previasLeves, tirarCapa} from "./previa-leve";
 import {videosDasContas} from "./videos";
 import {apiDoMercadoPago, mercadoPagoDoAmbiente, validarWebhook} from "./mercadopago";
@@ -459,6 +460,11 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // Envio direto do navegador para o S3, em partes (veja envio.ts).
   if (contas && armazenamento && previas) {
     app.use("/api/envio", rotasDeEnvio({contas, armazenamento, previas, videos, espacoDe}));
+  }
+
+  // Projetos com timeline (veja projetos.ts). Só com login; no modo local, o de sempre.
+  if (contas) {
+    app.use("/api/projetos", rotasDeProjetos({contas, videos, espacoDe}));
   }
 
   // Prévia leve e capa do vídeo (veja previa-leve.ts). Sem S3, ou vídeo só no disco:

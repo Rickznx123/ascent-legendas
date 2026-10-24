@@ -2021,3 +2021,63 @@ h3 {
   flex-wrap: wrap;
   gap: var(--esp-2);
 }
+
+/* ---------- Projetos (Projetos.tsx): lista, novo projeto e cortes ---------- */
+/* Computador: a página rola sozinha (o body tem overflow hidden). */
+.projetos-pc {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.projetos-pc-barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-3);
+  padding: var(--esp-3) var(--esp-4);
+  background: var(--painel);
+  border-bottom: 1px solid var(--linha);
+}
+
+.projetos-pc-conteudo {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--esp-4);
+}
+
+.projetos-pc-conteudo .cel-videos {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+
+.projetos-pc-conteudo .cel-cheio {
+  max-width: 320px;
+}
+
+.novo-projeto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-3);
+  max-width: 420px;
+}
+
+.novo-projeto input {
+  width: 100%;
+  box-sizing: border-box;
+  /* 16px: o celular não aproxima a tela ao tocar no campo. */
+  font-size: 16px;
+  padding: 10px 12px;
+  color: var(--texto);
+  background: var(--painel-2);
+  border: 1px solid var(--linha);
+  border-radius: var(--raio-p);
+}
+
+.novo-projeto-botoes {
+  display: flex;
+  gap: var(--esp-3);
+}
+
+.cortes-legendar,
+.cortes-apagar {
+  margin-top: var(--esp-4);
+}

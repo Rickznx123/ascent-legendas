@@ -34,6 +34,8 @@ type Props = {
   dirAberto: boolean;
   onAlternarEsq: () => void;
   onAlternarDir: () => void;
+  // Com login: volta para a tela de projetos.
+  onProjetos?: () => void;
 };
 
 export const BarraTopo: React.FC<Props> = ({
@@ -57,6 +59,7 @@ export const BarraTopo: React.FC<Props> = ({
   dirAberto,
   onAlternarEsq,
   onAlternarDir,
+  onProjetos,
 }) => (
   <header className="barra">
     <button
@@ -131,6 +134,11 @@ export const BarraTopo: React.FC<Props> = ({
         </div>
       ) : null}
     </div>
+    {onProjetos ? (
+      <button type="button" className="bt" disabled={ocupado} onClick={onProjetos}>
+        Projetos
+      </button>
+    ) : null}
     <MenuDaConta ocupado={ocupado} />
     <button
       type="button"

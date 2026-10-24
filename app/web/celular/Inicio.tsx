@@ -11,6 +11,7 @@ import {JanelaAssinar, JanelaDaAcao, ROTULO_DA_ACAO, acaoDaAssinatura, avisoDaAs
 import type {AcaoDaAssinatura} from "../Assinatura";
 import type {ResumoDaAssinatura, UsoDoPlano} from "../api";
 import {CONFIG_CELULAR, linkDoSuporte, nomeDoPlano, resumoDasTranscricoes, resumoDoUso} from "./plano";
+import {ListaDeProjetos} from "../Projetos";
 
 // Quadro do plano: usados e restantes (o servidor manda o uso; aqui só se mostra).
 // Com a assinatura: o aviso (ativa, cancelada, cobrança que falhou) e, no grátis, "Assinar".
@@ -46,7 +47,7 @@ const QuadroDoPlano: React.FC<{uso: UsoDoPlano; assinatura?: ResumoDaAssinatura}
 
 // Um vídeo da lista: a capa e a duração só carregam quando o cartão aparece na tela.
 // Com a capa em JPG ainda sendo feita, o cartão diz "Preparando…" e troca sozinho.
-const Cartao: React.FC<{nome: string; titulo: string; situacao: string; atual: boolean; ocupado: boolean; onAbrir: () => void}> = ({
+export const Cartao: React.FC<{nome: string; titulo: string; situacao: string; atual: boolean; ocupado: boolean; onAbrir: () => void}> = ({
   nome,
   titulo,
   situacao,
@@ -226,7 +227,7 @@ const Menu: React.FC<{ocupado: boolean; onImportar: () => void}> = ({ocupado, on
   );
 };
 
-export const Inicio: React.FC<{e: Editor; onAbrir: (nome: string) => void}> = ({e, onAbrir}) => {
+export const Inicio: React.FC<{e: Editor; onAbrir: (nome: string) => void; onCortes: (id: string) => void}> = ({e, onAbrir, onCortes}) => {
   const {conta} = useConta();
   // O projeto aberto tem o número de blocos mais recente; os outros vêm da lista do
   // servidor (com login, os projetos da conta).
@@ -249,24 +250,31 @@ export const Inicio: React.FC<{e: Editor; onAbrir: (nome: string) => void}> = ({
       <Andamento tarefa={e.tarefa} />
       <div className="cel-rolagem">
         {CONFIG_CELULAR.mostrarPlano && conta?.uso ? <QuadroDoPlano uso={conta.uso} assinatura={conta.assinatura} /> : null}
-        <button type="button" className="bt primario cel-cheio" disabled={e.ocupado} onClick={() => void importar()}>
-          ＋ Importar vídeo
-        </button>
-        <div className="titulo">Seus vídeos</div>
-        {e.catalogo.videos.length === 0 ? <p className="vazio">Nenhum vídeo ainda. Toque em Importar vídeo.</p> : null}
-        <div className="cel-videos">
-          {e.catalogo.videos.map((nome) => (
-            <Cartao
-              key={nome}
-              nome={nome}
-              titulo={tituloDoVideo(e.catalogo, nome)}
-              situacao={situacao(nome)}
-              atual={nome === e.video}
-              ocupado={e.ocupado}
-              onAbrir={() => onAbrir(nome)}
-            />
-          ))}
-        </div>
+        {/* Com login: os projetos (veja Projetos.tsx). Sem login (modo local): os vídeos, como antes. */}
+        {conta ? (
+          <ListaDeProjetos e={e} onAbrir={(alvo) => ("video" in alvo ? onAbrir(alvo.video) : onCortes(alvo.id))} />
+        ) : (
+          <>
+            <button type="button" className="bt primario cel-cheio" disabled={e.ocupado} onClick={() => void importar()}>
+              ＋ Importar vídeo
+            </button>
+            <div className="titulo">Seus vídeos</div>
+            {e.catalogo.videos.length === 0 ? <p className="vazio">Nenhum vídeo ainda. Toque em Importar vídeo.</p> : null}
+            <div className="cel-videos">
+              {e.catalogo.videos.map((nome) => (
+                <Cartao
+                  key={nome}
+                  nome={nome}
+                  titulo={tituloDoVideo(e.catalogo, nome)}
+                  situacao={situacao(nome)}
+                  atual={nome === e.video}
+                  ocupado={e.ocupado}
+                  onAbrir={() => onAbrir(nome)}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

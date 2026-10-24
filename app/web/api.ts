@@ -63,6 +63,8 @@ import type {ResumoDaAssinatura} from "../servidor/assinaturas";
 import type {VistaDoPix} from "../servidor/pix";
 import type {Nivel, PlanoPago} from "../servidor/planos";
 export type {Nivel, PlanoPago, ResumoDaAssinatura, VistaDoPix};
+import type {ProjetoComTimeline, ResumoDeProjeto, Timeline, Trecho} from "../servidor/projetos";
+export type {ProjetoComTimeline, ResumoDeProjeto, Timeline, Trecho};
 export type Conta = {email: string; nome: string | null; plano: Plano; uso?: UsoDoPlano; assinatura?: ResumoDaAssinatura};
 
 // Erro de uma tarefa com um código do servidor (ex.: "assine", "sem-saldo").
@@ -195,6 +197,19 @@ export const api = {
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({nome}),
     }).then((r) => lerJson<{movidoPara?: string; apagouTranscricao: boolean}>(r)),
+
+  // Projetos com timeline (veja app/servidor/projetos.ts). Só com login.
+  projetos: () => pedir("/api/projetos").then((r) => lerJson<{projetos: ResumoDeProjeto[]; soltos: string[]}>(r)),
+  criarProjeto: (nome: string) =>
+    pedir("/api/projetos", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({nome})}).then((r) => lerJson<{id: string}>(r)),
+  projetoComTimeline: (id: string) => pedir(`/api/projetos/${id}`).then((r) => lerJson<ProjetoComTimeline>(r)),
+  salvarProjetoComTimeline: (id: string, mudanca: {nome?: string; timeline?: Timeline}) =>
+    pedir(`/api/projetos/${id}`, {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(mudanca)}).then((r) => lerJson<{ok: boolean}>(r)),
+  legendarSemMontar: (id: string, video: string) =>
+    pedir(`/api/projetos/${id}/legendar`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({video})}).then((r) =>
+      lerJson<{video: string}>(r),
+    ),
+  apagarProjeto: (id: string) => pedir(`/api/projetos/${id}`, {method: "DELETE"}).then((r) => lerJson<{ok: boolean}>(r)),
 
   sons: () => pedir("/api/sons").then((r) => lerJson<ArquivoSom[]>(r)),
 
