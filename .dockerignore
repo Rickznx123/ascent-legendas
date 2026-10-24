@@ -13,6 +13,8 @@ saidas
 removidos
 conferencia
 medicao/resultados
+# Testes de viabilidade (ex.: recorte da pessoa): sem uso no app.
+testes
 nuvem/resultados
 transcricao.json
 *.mp4

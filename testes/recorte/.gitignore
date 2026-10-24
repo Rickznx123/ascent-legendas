@@ -1,0 +1,4 @@
+# Os vídeos (entrada e tudo o que é gerado) não entram no repositório.
+entrada/*
+!entrada/.gitkeep
+saida/
