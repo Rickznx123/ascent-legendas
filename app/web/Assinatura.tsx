@@ -26,7 +26,8 @@ const marcarCheckout = (aberto: boolean) => {
 };
 import {useEffect, useState} from "react";
 import {api} from "./api";
-import type {Nivel, ResumoDaAssinatura} from "./api";
+import type {Nivel, ResumoDaAssinatura, VistaDoCupom} from "./api";
+import {valorComDesconto} from "../servidor/cupons";
 import {useConta} from "./conta";
 import {JanelaPix} from "./Pix";
 import {inicioDoCheckout} from "./meta";
@@ -117,16 +118,38 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
   // decide igual, em decidirPedidoDePlano).
   const ateQuando = resumo?.ate ? dataCurta(resumo.ate) : "o fim do período";
   const bloqueado = (nivel: Nivel) => situacao === "cancelada" && ordem(nivel) <= ordem(atual);
+  // Cupom: o servidor confere em "Aplicar" e de novo no pagamento. Descer ou desfazer
+  // uma descida (assinatura ativa, plano igual ou menor) não tem pagamento: sem desconto.
+  const [abrirCupom, setAbrirCupom] = useState(false);
+  const [codigo, setCodigo] = useState("");
+  const [cupom, setCupom] = useState<VistaDoCupom>();
+  const [erroDoCupom, setErroDoCupom] = useState<string>();
+  const [aplicando, setAplicando] = useState(false);
+  const comDesconto = (nivel: Nivel) => Boolean(cupom) && !(situacao === "ativa" && ordem(nivel) <= ordem(atual));
+  const preco = (item: {nivel: Nivel; valor: number}) => (cupom && comDesconto(item.nivel) ? valorComDesconto(item.valor, cupom.percentual) : item.valor);
+  const aplicarCupom = async (evento: React.FormEvent) => {
+    evento.preventDefault();
+    setAplicando(true);
+    setErroDoCupom(undefined);
+    try {
+      setCupom((await api.aplicarCupom(codigo)).cupom);
+    } catch (falha) {
+      setCupom(undefined);
+      setErroDoCupom(falha instanceof Error && !(falha instanceof TypeError) ? falha.message : "Não foi possível conferir o cupom agora. Tente de novo.");
+    } finally {
+      setAplicando(false);
+    }
+  };
 
   const assinar = async () => {
     setIndo(true);
     setErro(undefined);
     try {
-      const resposta = await api.assinar(escolhido);
+      const resposta = await api.assinar(escolhido, cupom && comDesconto(escolhido) ? cupom.codigo : undefined);
       if (resposta.endereco) {
         // O checkout é do Mercado Pago; a volta é para /?assinatura=retorno.
         marcarCheckout(true);
-        inicioDoCheckout(plano?.valor);
+        inicioDoCheckout(plano ? preco(plano) : undefined);
         window.location.href = resposta.endereco;
         return;
       }
@@ -144,7 +167,7 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
       setIndo(false);
     }
   };
-  if (pagandoPix) return <JanelaPix nivel={escolhido} onFechar={onFechar} />;
+  if (pagandoPix) return <JanelaPix nivel={escolhido} cupom={cupom?.codigo} onFechar={onFechar} />;
   const rotuloDoCartao =
     situacao === "nenhuma"
       ? "Cartão (renova todo mês)"
@@ -179,7 +202,9 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
               <span className="plano-opcao-minutos">
                 {bloqueado(item.nivel) ? `Você pode assinar de novo a partir de ${ateQuando}` : `${item.minutos} min por mês`}
               </span>
-              <b className="plano-opcao-preco">{reais(item.valor)}</b>
+              <b className="plano-opcao-preco">
+                {preco(item) !== item.valor ? <s className="suave">{reais(item.valor)}</s> : null} {reais(preco(item))}
+              </b>
             </button>
           ))}
         </div>
@@ -189,6 +214,36 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
           <li>Até 10 transcrições por dia</li>
         </ul>
         {sobe ? <p className="aviso-de-troca">{AVISO_DE_SUBIR}</p> : null}
+        {(podeCartao || podePix) && !feito ? (
+          cupom ? (
+            <p className="suave pequeno" role="status">
+              Cupom {cupom.codigo} aplicado: {cupom.percentual}% de desconto
+              {cupom.soPrimeiroMes ? " no 1º mês do cartão (depois, o preço normal) ou no Pix de 30 dias." : " em todos os meses."}{" "}
+              <button type="button" className="bt-link" onClick={() => setCupom(undefined)}>
+                Remover
+              </button>
+            </p>
+          ) : abrirCupom ? (
+            <form onSubmit={(evento) => void aplicarCupom(evento)}>
+              <label className="pix-campo">
+                <span>Cupom</span>
+                <input autoComplete="off" autoCapitalize="characters" value={codigo} onChange={(evento) => setCodigo(evento.target.value)} />
+              </label>
+              <button type="submit" className="bt cheio" disabled={aplicando || !codigo.trim()}>
+                {aplicando ? "Conferindo…" : "Aplicar"}
+              </button>
+              {erroDoCupom ? (
+                <p className="login-erro" role="alert">
+                  {erroDoCupom}
+                </p>
+              ) : null}
+            </form>
+          ) : (
+            <button type="button" className="bt-link" onClick={() => setAbrirCupom(true)}>
+              Tenho um cupom
+            </button>
+          )
+        ) : null}
         {feito ? (
           <p className="suave" role="status">
             {feito}
@@ -216,7 +271,7 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
               {situacao === "pix" ? (troca > 0 ? `Pix do ${plano?.nome} (começa agora)` : "Renovar com Pix (+30 dias)") : "Pix (30 dias, sem renovação)"}
             </button>
             <p className="suave pequeno">
-              {plano ? reais(plano.valor) : ""} dão 30 dias de {plano?.nome}. Não renova sozinho: para continuar, pague outro Pix.
+              {plano ? reais(cupom ? valorComDesconto(plano.valor, cupom.percentual) : plano.valor) : ""} dão 30 dias de {plano?.nome}. Não renova sozinho: para continuar, pague outro Pix.
             </p>
           </div>
         ) : null}

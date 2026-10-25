@@ -741,3 +741,26 @@ describe("voltar a assinar depois de cancelar", () => {
     assert.deepEqual(decidirPedidoDePlano(t.resumo(), "pro"), {acao: "desfazer"});
   });
 });
+
+describe("cupom no cartão", () => {
+  it("só no 1º mês: a cobrança com desconto dá o nível da assinatura e as próximas voltam ao preço cheio", async () => {
+    const t = montar({}, {valor: 39.92, nivel: "pro", cupom_codigo: "BEMVINDO20", cupom_so_primeiro_mes: true});
+    t.mp.cobrancas.set("c1", {...cobranca("c1", "approved", "p1"), transaction_amount: 39.92});
+    await t.webhook("subscription_authorized_payment", "c1");
+    assert.equal(t.perfil().plano, "assinante");
+    assert.equal(t.perfil().nivel, "pro");
+    assert.deepEqual(t.mp.valores, [[PRE, 49.9]]);
+    assert.equal(t.assinatura().valor, 49.9);
+    // Consultas seguintes não mexem de novo no valor.
+    await t.webhook("subscription_preapproval", PRE);
+    assert.equal(t.mp.valores.length, 1);
+  });
+
+  it("todos os meses: o valor com desconto continua", async () => {
+    const t = montar({}, {valor: 39.92, nivel: "pro", cupom_codigo: "SEMPRE20", cupom_so_primeiro_mes: false});
+    t.mp.cobrancas.set("c1", {...cobranca("c1", "approved", "p1"), transaction_amount: 39.92});
+    await t.webhook("subscription_authorized_payment", "c1");
+    assert.equal(t.perfil().nivel, "pro");
+    assert.deepEqual(t.mp.valores, []);
+  });
+});

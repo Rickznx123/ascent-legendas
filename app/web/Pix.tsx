@@ -53,7 +53,8 @@ const relogioDoPrazo = (ms: number) => {
 // code, o prazo correndo e a conferência automática até o pagamento cair. Abre já
 // gerando (ou retomando o código da conta que ainda vale).
 // nivel: o plano do Pix (o valor é o do servidor). Sem ele, o plano atual da conta.
-export const JanelaPix: React.FC<{nivel?: Nivel; onFechar: () => void}> = ({nivel: pedido, onFechar}) => {
+// cupom: o código já aplicado na tela de planos (o servidor valida e dá o desconto).
+export const JanelaPix: React.FC<{nivel?: Nivel; cupom?: string; onFechar: () => void}> = ({nivel: pedido, cupom, onFechar}) => {
   const {conta, atualizarConta} = useConta();
   const nivel = pedido ?? conta?.assinatura?.nivel ?? "basico";
   const [pix, setPix] = useState<VistaDoPix>();
@@ -70,7 +71,7 @@ export const JanelaPix: React.FC<{nivel?: Nivel; onFechar: () => void}> = ({nive
     setGerando(true);
     setErro(undefined);
     try {
-      const resposta = await api.gerarPix(nivel, comCpf);
+      const resposta = await api.gerarPix(nivel, comCpf, cupom);
       // Um InitiateCheckout por janela (gerar de novo, com CPF ou vencido, não conta).
       if (!contouCheckout.current) inicioDoCheckout(resposta.pix.valor);
       contouCheckout.current = true;
@@ -83,7 +84,7 @@ export const JanelaPix: React.FC<{nivel?: Nivel; onFechar: () => void}> = ({nive
     } finally {
       setGerando(false);
     }
-  }, [nivel]);
+  }, [nivel, cupom]);
   useEffect(() => {
     void gerar();
   }, [gerar]);

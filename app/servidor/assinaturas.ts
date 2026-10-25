@@ -64,6 +64,9 @@ export type Assinatura = {
   criado_em: string;
   // Plano desta assinatura (migração 009; vazio vale Básico).
   nivel?: Nivel;
+  // Cupom usado no checkout (migração 013); o valor já é o com desconto.
+  cupom_codigo?: string | null;
+  cupom_so_primeiro_mes?: boolean | null;
 };
 
 export type PagamentoDaAssinatura = {
@@ -124,6 +127,12 @@ export const assinaturaVigente = (lista: Assinatura[]): Assinatura | undefined =
 // Uma assinatura mais nova já foi paga: esta foi trocada (troca de plano).
 export const substituida = (assinatura: Assinatura, lista: Assinatura[]): boolean =>
   lista.some((outra) => outra.id !== assinatura.id && outra.pago_ate && new Date(outra.criado_em) > new Date(assinatura.criado_em));
+
+// Nível de um valor cobrado: o do plano com esse valor; com cupom, o valor com
+// desconto da assinatura vale o nível dela.
+export const nivelCobrado = (valor: number | null | undefined, assinatura?: Assinatura): Nivel | undefined =>
+  nivelPeloValor(valor) ??
+  (assinatura?.cupom_codigo && valor !== null && valor !== undefined && Math.abs(Number(assinatura.valor) - Number(valor)) < 0.005 ? (assinatura.nivel ?? "basico") : undefined);
 
 const statusDaApi: Record<Preapproval["status"], StatusDaAssinatura> = {
   pending: "pendente",
@@ -194,7 +203,7 @@ export const regraDaCobranca = (
     const fim = proxima && proxima > inicio ? proxima : UM_MES(inicio);
     const cancelada = (pre ? statusDaApi[pre.status] : assinatura.status) === "cancelada";
     // O nível pelo valor cobrado; de nenhum plano, o nível não muda.
-    const nivel = nivelPeloValor(cobranca.transaction_amount);
+    const nivel = nivelCobrado(cobranca.transaction_amount, assinatura);
     return {
       assinatura: {
         pago_ate: fim.toISOString(),
@@ -238,6 +247,7 @@ export const regraDaAutorizacao = (
   pre: Preapproval,
   perfil: PerfilDaAssinatura,
   agora: Date,
+  assinatura?: Assinatura,
 ): {assinatura: Partial<Assinatura>; perfil: Partial<PerfilDaAssinatura>} | undefined => {
   if (pre.status !== "authorized" || !cobrancaEmDia(pre)) return undefined;
   const inicio = new Date(pre.summarized?.last_charged_date ?? pre.date_created ?? agora.toISOString());
@@ -249,7 +259,7 @@ export const regraDaAutorizacao = (
     return undefined;
   }
   // O nível pelo último valor cobrado (o resumo do Mercado Pago).
-  const nivel = nivelPeloValor(pre.summarized?.last_charged_amount);
+  const nivel = nivelCobrado(pre.summarized?.last_charged_amount, assinatura);
   return {
     assinatura: {status: "autorizada", pago_ate: fim.toISOString(), proxima_cobranca: pre.next_payment_date ?? fim.toISOString(), cobranca_falhou_em: null, ...(nivel ? {nivel} : {})},
     perfil: {
@@ -397,6 +407,23 @@ export const processadorDeEventos = ({
     }
   };
 
+  // Cupom só do 1º mês: paga a 1ª cobrança, as próximas voltam ao preço cheio do plano.
+  // Falhou: fica para a próxima consulta (a verificação passa antes da cobrança seguinte).
+  const voltarAoPrecoCheio = async (assinatura: Assinatura): Promise<Assinatura> => {
+    if (!assinatura.cupom_so_primeiro_mes || !assinatura.pago_ate || assinatura.status === "cancelada") return assinatura;
+    const cheio = planoPago(assinatura.nivel ?? "basico").valor;
+    if (Number(assinatura.valor) >= cheio - 0.005) return assinatura;
+    try {
+      await api.alterarValorDaAssinatura(assinatura.mp_preapproval_id, cheio);
+      await banco.salvarAssinatura(assinatura.id, {valor: cheio});
+      registrar(`cupom ${assinatura.cupom_codigo}: ${assinatura.mp_preapproval_id} volta ao preço cheio (${cheio})`);
+      return {...assinatura, valor: cheio};
+    } catch (erro) {
+      registrar(`cupom ${assinatura.cupom_codigo}: preço cheio de ${assinatura.mp_preapproval_id}: ${erro instanceof Error ? erro.message : String(erro)}`);
+      return assinatura;
+    }
+  };
+
   // Aplica uma cobrança (vinda do webhook ou da busca das cobranças da assinatura).
   const aplicarCobranca = async (assinatura: Assinatura, cobranca: PagamentoAutorizado, pre: Preapproval | undefined) => {
     const perfil = await banco.perfil(assinatura.usuario_id);
@@ -423,7 +450,10 @@ export const processadorDeEventos = ({
       return {...atualizada, ...cancelada};
     }
     await aplicarNoPerfil(assinatura.usuario_id, efeito.perfil);
-    if (efeito.perfil?.plano === "assinante") await cancelarAsOutras(atualizada);
+    if (efeito.perfil?.plano === "assinante") {
+      await cancelarAsOutras(atualizada);
+      return voltarAoPrecoCheio(atualizada);
+    }
     return atualizada;
   };
 
@@ -456,12 +486,13 @@ export const processadorDeEventos = ({
     const autorizacao =
       assinatura.status === "cancelada" || substituida(assinatura, await banco.assinaturasDaConta(assinatura.usuario_id))
         ? undefined
-        : regraDaAutorizacao(pre, await banco.perfil(assinatura.usuario_id), agora());
+        : regraDaAutorizacao(pre, await banco.perfil(assinatura.usuario_id), agora(), assinatura);
     if (autorizacao) {
       await banco.salvarAssinatura(assinatura.id, autorizacao.assinatura);
       await aplicarNoPerfil(assinatura.usuario_id, autorizacao.perfil);
       await cancelarAsOutras({...assinatura, ...autorizacao.assinatura});
     }
+    if (pre.status === "authorized") await voltarAoPrecoCheio({...assinatura, ...autorizacao?.assinatura});
     return `assinatura ${pre.status}, ${cobrancas.length} cobrança(s)${autorizacao ? ", plano ativado pelo resumo" : ""}`;
   };
 

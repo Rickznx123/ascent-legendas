@@ -58,13 +58,15 @@ export type PixPagamento = {
   criado_em: string;
   // Plano deste Pix (migração 009; vazio vale Básico).
   nivel?: Nivel;
+  // Cupom usado (migração 013); o valor já é o com desconto.
+  cupom_codigo?: string | null;
 };
 
 export type BancoDoPix = {
   pixPorId: (id: string) => Promise<PixPagamento | undefined>;
   pixPorPagamento: (mpPaymentId: string) => Promise<PixPagamento | undefined>;
   ultimoPixDaConta: (usuarioId: string) => Promise<PixPagamento | undefined>;
-  criarPix: (linha: {id: string; usuario_id: string; valor: number; nivel: Nivel}) => Promise<PixPagamento>;
+  criarPix: (linha: {id: string; usuario_id: string; valor: number; nivel: Nivel; cupom_codigo?: string}) => Promise<PixPagamento>;
   salvarPix: (id: string, campos: Partial<PixPagamento>) => Promise<void>;
   // Para a verificação periódica: criando ou pendentes criados depois de "desde".
   pixParaConferir: (desde: Date) => Promise<PixPagamento[]>;
@@ -289,20 +291,20 @@ export const processadorDePix = ({
   // Gera um Pix para a conta (ou devolve o que ainda está dentro do prazo). Quem chama
   // já conferiu se a conta pode pagar (motivoParaNaoPagarPix).
   const MARGEM_DO_PRAZO_MS = 5 * 60_000;
-  const gerar = async (usuario: {id: string; email: string}, valor: number, cpf?: string, nivel: Nivel = "basico"): Promise<PixPagamento> => {
+  const gerar = async (usuario: {id: string; email: string}, valor: number, cpf?: string, nivel: Nivel = "basico", cupom?: string): Promise<PixPagamento> => {
     const ultimo = await banco.ultimoPixDaConta(usuario.id);
     if (ultimo && (ultimo.status === "pendente" || ultimo.status === "criando")) {
       // Antes de largar o anterior, confere se ele foi pago.
       await consultar(ultimo, 0).catch((erro: unknown) => registrar(`conferir ${ultimo.id}: ${semCpf(erro instanceof Error ? erro.message : String(erro))}`));
       const atual = await banco.pixPorId(ultimo.id);
       // O mesmo Pix só se for do mesmo plano e valor (trocou de plano: um Pix novo).
-      const mesmoPlano = (atual?.nivel ?? "basico") === nivel && Math.abs(Number(atual?.valor) - valor) < 0.005;
+      const mesmoPlano = (atual?.nivel ?? "basico") === nivel && Math.abs(Number(atual?.valor) - valor) < 0.005 && (atual?.cupom_codigo ?? undefined) === cupom;
       if (mesmoPlano && atual?.status === "pendente" && atual.qr_code && atual.expira_em && new Date(atual.expira_em).getTime() - agora().getTime() > MARGEM_DO_PRAZO_MS) {
         return atual;
       }
     }
     const id = randomUUID();
-    await banco.criarPix({id, usuario_id: usuario.id, valor, nivel});
+    await banco.criarPix({id, usuario_id: usuario.id, valor, nivel, ...(cupom ? {cupom_codigo: cupom} : {})});
     const expiraEm = new Date(agora().getTime() + VALIDADE_DO_PIX_MS);
     let pagamento: Pagamento;
     try {
@@ -370,7 +372,8 @@ export const processadorDePix = ({
 };
 
 // ---------- banco no Supabase (chave secreta) ----------
-const CAMPOS = "id, usuario_id, mp_payment_id, status, valor, expira_em, qr_code, qr_code_base64, aprovado_em, periodo_inicio, periodo_fim, estornado_em, criado_em, nivel";
+// Todas as colunas: o cupom_codigo (migração 013) vem junto quando existir.
+const CAMPOS = "*";
 export const bancoDoPixNoSupabase = (admin: SupabaseClient, perfis: Pick<BancoDoPix, "perfil" | "salvarPerfil">): BancoDoPix => {
   const falha = (acao: string, erro: {message: string} | null) => {
     if (erro) throw new Error(`Pix: não foi possível ${acao}: ${erro.message}`);

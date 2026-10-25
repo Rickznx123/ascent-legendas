@@ -64,6 +64,8 @@ import {rendersNoLambda} from "./renders";
 import {cookieDoPedido, metaDoAmbiente, scriptDoPixel} from "./meta";
 import {boasVindasDoAmbiente} from "./boas-vindas";
 import {assinaturasAoAprovar, pixAoAprovar} from "./pagamento-aprovado";
+import {cuponsNoSupabase, valorComDesconto, vistaDoCupom} from "./cupons";
+import type {Cupom} from "./cupons";
 import type {AoAprovar} from "./pagamento-aprovado";
 import type {ExportacaoMontada} from "./renders";
 import type {AwsRegion} from "@remotion/lambda/client";
@@ -199,13 +201,15 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // da conta, o e-mail de boas-vindas (veja boas-vindas.ts).
   const meta = contas ? metaDoAmbiente(contas.admin, configuracaoDoAmbiente().enderecoDoApp) : undefined;
   const boasVindas = contas ? boasVindasDoAmbiente(contas.admin) : undefined;
-  const aoAprovar: AoAprovar | undefined =
-    meta || boasVindas
-      ? ({usuarioId, id, valor, nivel}) => {
-          void meta?.compra(usuarioId, id, valor);
-          void boasVindas?.(usuarioId, nivel);
-        }
-      : undefined;
+  // Cupons de desconto (migração 013, veja cupons.ts): o uso conta aqui, no pagamento aprovado.
+  const cupons = contas ? cuponsNoSupabase(contas.admin) : undefined;
+  const aoAprovar: AoAprovar | undefined = contas
+    ? ({usuarioId, id, valor, nivel, cupom}) => {
+        void meta?.compra(usuarioId, id, valor);
+        void boasVindas?.(usuarioId, nivel);
+        if (cupom) void cupons?.contarUso(cupom.codigo, cupom.referencia).catch((erro: unknown) => console.log(erro instanceof Error ? erro.message : String(erro)));
+      }
+    : undefined;
   const bancoDasAssinaturas = contas ? assinaturasAoAprovar(bancoNoSupabase(contas.admin), aoAprovar) : undefined;
   // Pix avulso de 30 dias (Etapa 2d, veja pix.ts): o mesmo token e o mesmo webhook.
   const pixMp = apiMp && bancoDasAssinaturas && contas ? processadorDePix({banco: pixAoAprovar(bancoDoPixNoSupabase(contas.admin, bancoDasAssinaturas), aoAprovar), api: apiMp}) : undefined;
@@ -556,6 +560,27 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     if (!nivelValido(pedido)) throw new Error("Plano desconhecido.");
     return pedido;
   };
+  // Cupom pedido pela tela (corpo: {cupom}), validado aqui a cada pedido; sem: undefined.
+  const cupomDoPedido = async (request: Request): Promise<Cupom | undefined> => {
+    const codigo = (request.body as {cupom?: unknown} | undefined)?.cupom;
+    if (codigo === undefined || codigo === null || codigo === "") return undefined;
+    if (!cupons) throw new ErroParaATela("Cupom indisponível agora.");
+    try {
+      return await cupons.validar(codigo);
+    } catch (erro) {
+      throw new ErroParaATela(erro instanceof Error ? erro.message : String(erro));
+    }
+  };
+  // "Aplicar": o cupom vale agora? A tela mostra o preço com desconto (o servidor
+  // recalcula no pagamento).
+  app.post(
+    "/api/cupom",
+    handle(async (request) => {
+      const cupom = await cupomDoPedido(request);
+      if (!cupom) throw new Error("Digite o código do cupom.");
+      return {cupom: vistaDoCupom(cupom)};
+    }),
+  );
 
   // "Assinar": cria a assinatura no Mercado Pago e devolve o checkout (init_point).
   // O retorno do checkout não vale como prova de pagamento: o plano só muda pelo
@@ -600,6 +625,8 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
         return {trocado: true, assinatura: await resumoDaConta(espaco, response.locals.token as string)};
       }
       const troca = pedido.acao === "checkout" && pedido.subir ? 1 : 0;
+      const cupom = await cupomDoPedido(request);
+      const valor = cupom ? valorComDesconto(plano.valor, Number(cupom.percentual)) : plano.valor;
       const atual = lista[0];
       // Assinar de novo depois de um pagamento recusado: a assinatura recusada é
       // cancelada no Mercado Pago (para ele não tentar cobrar de novo e a pessoa
@@ -611,7 +638,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
         await bancoDasAssinaturas.salvarAssinatura(atual.id, efeito.assinatura);
         if (efeito.perfil) await bancoDasAssinaturas.salvarPerfil(espaco.usuario.id, efeito.perfil);
         console.log(`Assinatura: recusada cancelada antes do novo checkout de ${espaco.usuario.id} (${atual.mp_preapproval_id}).`);
-      } else if (atual?.status === "pendente" && atual.init_point && (atual.nivel ?? "basico") === nivel && Date.now() - new Date(atual.criado_em).getTime() < 60 * 60 * 1000) {
+      } else if (atual?.status === "pendente" && atual.init_point && (atual.nivel ?? "basico") === nivel && (atual.cupom_codigo ?? undefined) === cupom?.codigo && Date.now() - new Date(atual.criado_em).getTime() < 60 * 60 * 1000) {
         // Tocou em Assinar de novo logo depois: o mesmo checkout.
         return {endereco: atual.init_point};
       }
@@ -619,7 +646,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
         apiMp.criarAssinatura({
           usuarioId: espaco.usuario!.id,
           email: espaco.usuario!.email,
-          valor: plano.valor,
+          valor,
           nome: plano.nome,
           voltaPara: `${configuracaoDoAmbiente().enderecoDoApp}/?assinatura=retorno`,
         }),
@@ -632,11 +659,12 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
         usuario_id: espaco.usuario.id,
         mp_preapproval_id: pre.id,
         status: "pendente",
-        valor: plano.valor,
+        valor,
         nivel,
         init_point: pre.init_point,
+        ...(cupom ? {cupom_codigo: cupom.codigo, cupom_so_primeiro_mes: cupom.so_primeiro_mes} : {}),
       });
-      console.log(`Assinatura: checkout ${troca > 0 ? `de troca para ${nivel}` : `do ${nivel}`} aberto para ${espaco.usuario.id} (${pre.id}).`);
+      console.log(`Assinatura: checkout ${troca > 0 ? `de troca para ${nivel}` : `do ${nivel}`} aberto para ${espaco.usuario.id} (${pre.id}${cupom ? `, cupom ${cupom.codigo}: R$ ${valor}` : ""}).`);
       return {endereco: pre.init_point};
     }),
   );
@@ -734,6 +762,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       const recebido = String((request.body as {cpf?: unknown} | undefined)?.cpf ?? "").trim();
       const cpf = recebido ? cpfValido(recebido) : undefined;
       if (recebido && !cpf) throw new ErroDoPix("cpf-invalido", "CPF inválido. Confira os 11 números.");
+      const cupom = await cupomDoPedido(request);
       // Um checkout de cartão aberto e não pago é cancelado (para não haver as duas cobranças).
       const cartao = await bancoDasAssinaturas?.assinaturaDaConta(usuario.id).catch(() => undefined);
       if (cartao?.status === "pendente" && apiMp && bancoDasAssinaturas) {
@@ -742,7 +771,8 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
           .then(() => bancoDasAssinaturas.salvarAssinatura(cartao.id, {status: "cancelada", cancelada_em: new Date().toISOString()}))
           .catch((erro: unknown) => console.log(`Pix: cancelar o checkout de cartão ${cartao.mp_preapproval_id}: ${erro instanceof Error ? erro.message : String(erro)}`));
       }
-      return {pix: vistaDoPix(await pix.gerar({id: usuario.id, email: usuario.email}, planoPago(nivel).valor, cpf, nivel))};
+      const valor = cupom ? valorComDesconto(planoPago(nivel).valor, Number(cupom.percentual)) : planoPago(nivel).valor;
+      return {pix: vistaDoPix(await pix.gerar({id: usuario.id, email: usuario.email}, valor, cpf, nivel, cupom?.codigo))};
     }),
   );
   // A tela do Pix conferindo se o pagamento caiu (o servidor consulta o Mercado Pago).
