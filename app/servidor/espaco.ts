@@ -89,7 +89,8 @@ export const espacoDoUsuario = (root: string, contas: Contas, usuario: Usuario, 
   // Ciclo pago da assinatura ou do Pix (só de quem paga pelo Mercado Pago; veja
   // cota.ts e pix.ts).
   // segundos: os minutos do nível do assinante (planos.ts).
-  const planoECiclo = async (): Promise<{plano: Plano; ciclo?: CicloDoPlano; segundos: number}> => {
+  // bonus: o bônus manual ativo (já somado em segundos), para a tela mostrar à parte.
+  const planoECiclo = async (): Promise<{plano: Plano; ciclo?: CicloDoPlano; segundos: number; bonus?: {minutos: number; ate: string}}> => {
     const perfil = await contas.perfil(usuario, token);
     const {plano_origem, ciclo_inicio, ciclo_fim} = perfil.assinatura;
     const ciclo =
@@ -100,8 +101,9 @@ export const espacoDoUsuario = (root: string, contas: Contas, usuario: Usuario, 
           : plano_origem === "assinatura" && ciclo_inicio && ciclo_fim
             ? {inicio: new Date(ciclo_inicio), fim: new Date(ciclo_fim)}
             : undefined;
-    const minutos = planoPago(perfil.assinatura.nivel ?? "basico").minutos + minutosDeBonus(perfil.minutosBonus, perfil.bonusAte, new Date());
-    return {plano: perfil.plano, ciclo, segundos: minutos * 60};
+    const bonus = minutosDeBonus(perfil.minutosBonus, perfil.bonusAte, new Date());
+    const minutos = planoPago(perfil.assinatura.nivel ?? "basico").minutos + bonus;
+    return {plano: perfil.plano, ciclo, segundos: minutos * 60, ...(bonus > 0 && perfil.bonusAte ? {bonus: {minutos: bonus, ate: perfil.bonusAte}} : {})};
   };
   const historico = async (): Promise<RegistroDeExportacao[]> => {
     const {data, error} = await contas.admin
@@ -190,9 +192,13 @@ export const espacoDoUsuario = (root: string, contas: Contas, usuario: Usuario, 
     cota: {
       uso: async () => {
         const agora = new Date();
-        const [{plano: p, ciclo, segundos}, h, hoje] = await Promise.all([planoECiclo(), historico(), transcricoesDeHoje(agora).catch(() => undefined)]);
+        const [{plano: p, ciclo, segundos, bonus}, h, hoje] = await Promise.all([planoECiclo(), historico(), transcricoesDeHoje(agora).catch(() => undefined)]);
         // Sem a tabela (migração 004 ainda não rodou), o quadro só não mostra as transcrições.
-        return {...usoDoPlano(p, h, agora, ciclo, segundos), ...(hoje === undefined ? {} : {transcricoes: usoDeTranscricoes(p, hoje, agora)})};
+        return {
+          ...usoDoPlano(p, h, agora, ciclo, segundos),
+          ...(hoje === undefined ? {} : {transcricoes: usoDeTranscricoes(p, hoje, agora)}),
+          ...(bonus && p === "assinante" ? {bonus} : {}),
+        };
       },
       podeTranscrever: async () => {
         const agora = new Date();

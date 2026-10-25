@@ -57,6 +57,7 @@ export const MenuDaConta: React.FC<{ocupado: boolean}> = ({ocupado}) => {
               <div className="conta-uso">
                 <div>{resumoDoUso(conta.uso).titulo}</div>
                 <div className="suave pequeno">{resumoDoUso(conta.uso).detalhe}</div>
+                {resumoDoUso(conta.uso).etiqueta ? <span className="etiqueta-bonus">{resumoDoUso(conta.uso).etiqueta}</span> : null}
                 {resumoDasTranscricoes(conta.uso) ? <div className="suave pequeno">{resumoDasTranscricoes(conta.uso)}</div> : null}
                 {avisoDaAssinatura(conta.assinatura) ? (
                   <div className={`pequeno ${conta.assinatura?.situacao === "falhou" ? "assinatura-aviso" : "suave"}`}>{avisoDaAssinatura(conta.assinatura)}</div>

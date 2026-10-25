@@ -34,8 +34,9 @@ export const duracaoEmTexto = (segundos: number): string => {
 // No horário de Brasília (o mês do plano vira à meia-noite de lá, não no fuso do aparelho).
 const dataCurta = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", {day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo"});
 
-// Quadro do plano: título, detalhe e quanto da barra está cheio (0 a 1).
-export const resumoDoUso = (uso: UsoDoPlano): {titulo: string; detalhe: string; fracao: number} => {
+// Quadro do plano: título, detalhe e quanto da barra está cheio (0 a 1). Com bônus
+// ativo, o total (e a barra) já o soma; o detalhe o mostra à parte, com a etiqueta.
+export const resumoDoUso = (uso: UsoDoPlano): {titulo: string; detalhe: string; fracao: number; etiqueta?: string} => {
   if (uso.plano === "gratis") {
     const restantes = Math.max(0, uso.videosDoPlano - uso.videosUsados);
     return {
@@ -45,10 +46,13 @@ export const resumoDoUso = (uso: UsoDoPlano): {titulo: string; detalhe: string; 
     };
   }
   const restante = Math.max(0, uso.segundosDoPlano - uso.segundosUsados);
+  const bonus = uso.bonus && uso.bonus.minutos > 0 ? uso.bonus : undefined;
+  const doPlano = Math.round(uso.segundosDoPlano / 60 - (bonus?.minutos ?? 0));
   return {
     titulo: `${duracaoEmTexto(uso.segundosUsados)} usados · restam ${duracaoEmTexto(restante)}`,
-    detalhe: `Assinante · ${Math.round(uso.segundosDoPlano / 60)} min por mês · renova em ${dataCurta(uso.renovaEm)}`,
+    detalhe: `Assinante · ${doPlano} min por mês${bonus ? ` + ${Math.round(bonus.minutos)} min de bônus` : ""} · renova em ${dataCurta(uso.renovaEm)}`,
     fracao: uso.segundosUsados / Math.max(1, uso.segundosDoPlano),
+    ...(bonus ? {etiqueta: `Bônus até ${dataCurta(bonus.ate)}`} : {}),
   };
 };
 

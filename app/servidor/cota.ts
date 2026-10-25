@@ -43,7 +43,7 @@ export type UsoDeTranscricoes = {usadas: number; doPlano: number; renovaEm: stri
 export type UsoDoPlano = (
   | {plano: "gratis"; comMarca: true; videosUsados: number; videosDoPlano: number}
   | {plano: "assinante"; comMarca: false; segundosUsados: number; segundosDoPlano: number; renovaEm: string}
-) & {transcricoes?: UsoDeTranscricoes};
+) & {transcricoes?: UsoDeTranscricoes; bonus?: {minutos: number; ate: string}};
 
 // O que uma exportação vai fazer, ou por que não pode.
 export type DecisaoDeExportacao = {

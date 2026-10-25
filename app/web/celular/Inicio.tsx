@@ -16,7 +16,7 @@ import {ListaDeProjetos} from "../Projetos";
 // Quadro do plano: usados e restantes (o servidor manda o uso; aqui só se mostra).
 // Com a assinatura: o aviso (ativa, cancelada, cobrança que falhou) e, no grátis, "Assinar".
 const QuadroDoPlano: React.FC<{uso: UsoDoPlano; assinatura?: ResumoDaAssinatura}> = ({uso, assinatura}) => {
-  const {titulo, detalhe, fracao} = resumoDoUso(uso);
+  const {titulo, detalhe, fracao, etiqueta} = resumoDoUso(uso);
   const transcricoes = resumoDasTranscricoes(uso);
   const aviso = avisoDaAssinatura(assinatura);
   const [assinando, setAssinando] = useState(false);
@@ -24,6 +24,7 @@ const QuadroDoPlano: React.FC<{uso: UsoDoPlano; assinatura?: ResumoDaAssinatura}
     <div className="cel-uso">
       <b>{titulo}</b>
       <small>{detalhe}</small>
+      {etiqueta ? <span className="etiqueta-bonus">{etiqueta}</span> : null}
       <div className="cel-medidor">
         <i style={{width: `${Math.min(100, fracao * 100)}%`}} />
       </div>
