@@ -13,12 +13,14 @@
 // meia-noite de Brasília. Só contam as que terminaram ("Recomeçar do zero" conta;
 // a detecção de voz sozinha, não).
 import type {Plano} from "./contas";
+import type {Nivel} from "./planos";
 
 export const LIMITES = {
   videosNoGratis: 1,
   segundosPorMesNoAssinante: 30 * 60,
   reexportacoesSemDesconto: 5,
-  transcricoesPorDia: {gratis: 3, assinante: 10} satisfies Record<Plano, number>,
+  // Grátis e cada nível pago (perfis.nivel, o mesmo dos minutos; veja planos.ts).
+  transcricoesPorDia: {gratis: 3, basico: 10, pro: 15, editor: 25} satisfies Record<"gratis" | Nivel, number>,
   // Envio de vídeo (Etapa 3): tamanho e duração máximos de cada arquivo.
   envio: {
     gratis: {bytes: 300 * 1024 * 1024, segundos: 2 * 60},
@@ -77,20 +79,24 @@ export const diaDoCalendario = (agora: Date): {inicio: Date; fim: Date} => {
   return {inicio, fim: new Date(inicio.getTime() + 24 * 3600_000)};
 };
 
-export const usoDeTranscricoes = (plano: Plano, usadasHoje: number, agora: Date): UsoDeTranscricoes => ({
+// O limite do dia lê o nível atual a cada pedido: quem sobe de plano ganha o novo na hora.
+export const transcricoesPorDia = (plano: Plano, nivel: Nivel = "basico"): number =>
+  LIMITES.transcricoesPorDia[plano === "gratis" ? "gratis" : nivel];
+
+export const usoDeTranscricoes = (plano: Plano, usadasHoje: number, agora: Date, nivel: Nivel = "basico"): UsoDeTranscricoes => ({
   usadas: usadasHoje,
-  doPlano: LIMITES.transcricoesPorDia[plano],
+  doPlano: transcricoesPorDia(plano, nivel),
   renovaEm: diaDoCalendario(agora).fim.toISOString(),
 });
 
-// Pode transcrever agora? Sem: o motivo, com quando renova.
-export const decidirTranscricao = (uso: UsoDeTranscricoes, plano: Plano): {permitido: boolean; motivo?: string} =>
+// Pode transcrever agora? Sem: o motivo, com quando renova. nomeDoNivel: "Pro" etc.
+export const decidirTranscricao = (uso: UsoDeTranscricoes, plano: Plano, nomeDoNivel = "Assinante"): {permitido: boolean; motivo?: string} =>
   uso.usadas < uso.doPlano
     ? {permitido: true}
     : {
         permitido: false,
         motivo:
-          `Você já usou as ${uso.doPlano} transcrições de hoje do plano ${plano === "assinante" ? "Assinante" : "grátis"}. ` +
+          `Você já usou as ${uso.doPlano} transcrições de hoje do plano ${plano === "assinante" ? nomeDoNivel : "grátis"}. ` +
           "Elas renovam à meia-noite (horário de Brasília).",
       };
 

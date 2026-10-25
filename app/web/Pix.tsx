@@ -6,6 +6,7 @@ import {api} from "./api";
 import type {Nivel, VistaDoPix} from "./api";
 import {useConta} from "./conta";
 import {inicioDoCheckout} from "./meta";
+import {transcricoesPorDia} from "../servidor/cota";
 
 const dataCurta = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", {day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo"});
 const reais = (valor: number) => valor.toLocaleString("pt-BR", {style: "currency", currency: "BRL"});
@@ -57,6 +58,7 @@ const relogioDoPrazo = (ms: number) => {
 export const JanelaPix: React.FC<{nivel?: Nivel; cupom?: string; onFechar: () => void}> = ({nivel: pedido, cupom, onFechar}) => {
   const {conta, atualizarConta} = useConta();
   const nivel = pedido ?? conta?.assinatura?.nivel ?? "basico";
+  const minutosDoPix = conta?.assinatura?.planos.find((plano) => plano.nivel === nivel)?.minutos ?? 30;
   const [pix, setPix] = useState<VistaDoPix>();
   const [gerando, setGerando] = useState(true);
   const [erro, setErro] = useState<string>();
@@ -148,8 +150,8 @@ export const JanelaPix: React.FC<{nivel?: Nivel; cupom?: string; onFechar: () =>
         <div className="login-caixa">
           <h1 id="pix-titulo">Pagamento confirmado</h1>
           <p>
-            Pronto! Você é assinante{pix.periodoFim ? ` até ${dataCurta(pix.periodoFim)}` : ""}: 30 minutos exportados, sem marca d'água e até 10
-            transcrições por dia.
+            Pronto! Você é assinante{pix.periodoFim ? ` até ${dataCurta(pix.periodoFim)}` : ""}: {minutosDoPix} minutos exportados, sem marca d'água e até{" "}
+            {transcricoesPorDia("assinante", nivel)} transcrições por dia.
           </p>
           <button type="button" className="bt primario cheio" onClick={onFechar}>
             Continuar

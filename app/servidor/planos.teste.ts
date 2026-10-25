@@ -53,3 +53,18 @@ describe("minutos bônus (migração 014)", () => {
     assert.equal(minutosDeBonus(undefined, "2026-10-25T00:00:00Z", agora), 0);
   });
 });
+
+describe("transcrições por dia por nível", () => {
+  it("grátis 3, Básico 10, Pro 15, Editor 25; a mensagem cita o plano", async () => {
+    const {decidirTranscricao, transcricoesPorDia, usoDeTranscricoes} = await import("./cota");
+    assert.equal(transcricoesPorDia("gratis", "editor"), 3);
+    assert.equal(transcricoesPorDia("assinante", "basico"), 10);
+    assert.equal(transcricoesPorDia("assinante", "pro"), 15);
+    assert.equal(transcricoesPorDia("assinante", "editor"), 25);
+    const agora = new Date("2026-10-24T12:00:00Z");
+    // Subiu para o Editor depois de 12 no Pro: segue podendo, com o limite novo.
+    assert.equal(decidirTranscricao(usoDeTranscricoes("assinante", 15, agora, "pro"), "assinante", "Pro").permitido, false);
+    assert.equal(decidirTranscricao(usoDeTranscricoes("assinante", 15, agora, "editor"), "assinante", "Editor").permitido, true);
+    assert.match(decidirTranscricao(usoDeTranscricoes("assinante", 25, agora, "editor"), "assinante", "Editor").motivo!, /25 transcrições de hoje do plano Editor/u);
+  });
+});

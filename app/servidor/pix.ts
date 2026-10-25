@@ -1,6 +1,6 @@
 // Pix avulso pelo Mercado Pago (Etapa 2d). R$ 30 dão 30 dias de assinante, com os
-// mesmos direitos da assinatura (30 minutos exportados no período, sem marca d'água,
-// 10 transcrições por dia). Não renova sozinho.
+// mesmos direitos da assinatura do mesmo nível (minutos exportados no período, sem
+// marca d'água, transcrições por dia; veja planos.ts e cota.ts). Não renova sozinho.
 //
 // Fluxo: "Pix" na tela Assinar → POST /api/pix cria o pagamento no Mercado Pago
 // (POST /v1/payments, external_reference = id da linha em pix_pagamentos) e devolve o

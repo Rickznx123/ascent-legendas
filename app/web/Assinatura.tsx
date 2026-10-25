@@ -28,6 +28,7 @@ import {useEffect, useState} from "react";
 import {api} from "./api";
 import type {Nivel, ResumoDaAssinatura, VistaDoCupom} from "./api";
 import {valorComDesconto} from "../servidor/cupons";
+import {transcricoesPorDia} from "../servidor/cota";
 import {useConta} from "./conta";
 import {JanelaPix} from "./Pix";
 import {inicioDoCheckout} from "./meta";
@@ -211,7 +212,7 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
         <ul className="assinatura-lista">
           <li>{plano?.minutos ?? 30} minutos de vídeo exportado por mês</li>
           <li>Vídeos sem a marca d'água</li>
-          <li>Até 10 transcrições por dia</li>
+          <li>Até {transcricoesPorDia("assinante", escolhido)} transcrições por dia</li>
         </ul>
         {sobe ? <p className="aviso-de-troca">{AVISO_DE_SUBIR}</p> : null}
         {(podeCartao || podePix) && !feito ? (

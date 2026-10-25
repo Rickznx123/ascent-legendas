@@ -1,6 +1,7 @@
 // Planos pagos: Básico, Pro e Editor (migração 009). O plano do perfil continua
 // "gratis" ou "assinante"; o nível diz quantos minutos o assinante exporta por ciclo
-// e quanto custa. Todos sem marca d'água e com as mesmas transcrições por dia.
+// e quanto custa. Todos sem marca d'água; as transcrições por dia de cada nível ficam
+// em LIMITES (cota.ts).
 // Valores e minutos vêm do ambiente (sem eles, os padrões abaixo):
 //   ASSINATURA_VALOR_BRL      preço do Básico (o plano de antes; padrão 30)
 //   PLANO_PRO_VALOR_BRL       padrão 49.90
