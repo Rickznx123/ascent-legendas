@@ -12,7 +12,8 @@ export type Usuario = {id: string; email: string};
 
 // plano: o que vale agora (o assinante por assinatura acaba em plano_ate; veja
 // assinaturas.ts). assinatura: os campos da assinatura no perfil (migração 007).
-export type Perfil = {nome: string | null; plano: Plano; assinatura: PerfilDaAssinatura};
+// minutosBonus/bonusAte: bônus manual (migração 014), definido só por SQL.
+export type Perfil = {nome: string | null; plano: Plano; assinatura: PerfilDaAssinatura; minutosBonus?: number; bonusAte?: string | null};
 
 // O que a tela pode saber (a chave publicável é pública por definição).
 export type ConfigDoLogin = {
@@ -83,7 +84,7 @@ export const contasDoAmbiente = (): Contas | undefined => {
     // Sem as colunas do nível (migração 009) ou da assinatura (007): o que existir.
     let data: unknown = null;
     let error: {message: string} | null = null;
-    for (const colunas of [...COLUNAS_DO_PERFIL.map((lista) => `nome, ${lista}`), "nome, plano"]) {
+    for (const colunas of [`nome, ${COLUNAS_DO_PERFIL[0]}, minutos_bonus, bonus_ate`, ...COLUNAS_DO_PERFIL.map((lista) => `nome, ${lista}`), "nome, plano"]) {
       ({data, error} = await banco.from("perfis").select(colunas).eq("id", usuario.id).maybeSingle());
       if (!error || !/column|coluna/iu.test(error.message)) break;
     }
@@ -91,7 +92,7 @@ export const contasDoAmbiente = (): Contas | undefined => {
       throw new Error(`Não foi possível ler o perfil: ${error.message}`);
     }
     if (data) {
-      const linha = data as {nome: string | null; plano: Plano} & Partial<PerfilDaAssinatura>;
+      const linha = data as {nome: string | null; plano: Plano; minutos_bonus?: number; bonus_ate?: string | null} & Partial<PerfilDaAssinatura>;
       const assinatura: PerfilDaAssinatura = {
         plano: linha.plano,
         plano_origem: linha.plano_origem ?? "manual",
@@ -101,7 +102,7 @@ export const contasDoAmbiente = (): Contas | undefined => {
         nivel: linha.nivel ?? "basico",
         nivel_na_renovacao: linha.nivel_na_renovacao ?? null,
       };
-      return {nome: linha.nome, plano: planoEfetivo(assinatura, new Date()), assinatura};
+      return {nome: linha.nome, plano: planoEfetivo(assinatura, new Date()), assinatura, minutosBonus: Number(linha.minutos_bonus ?? 0), bonusAte: linha.bonus_ate ?? null};
     }
     // O trigger de cadastro não criou o perfil (veja 002_perfil_sem_travar_cadastro.sql):
     // cria agora, no plano grátis.

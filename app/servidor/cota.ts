@@ -100,6 +100,11 @@ export const decidirTranscricao = (uso: UsoDeTranscricoes, plano: Plano): {permi
 // novos até o pagamento entrar).
 export type CicloDoPlano = {inicio: Date; fim: Date};
 
+// Bônus manual (migração 014): soma aos minutos do plano enquanto agora < bonus_ate;
+// sem data, não conta. Não acumula entre ciclos nem passa de um plano para outro.
+export const minutosDeBonus = (minutos: number | null | undefined, ate: string | null | undefined, agora: Date): number =>
+  ate && agora < new Date(ate) ? Math.max(0, Number(minutos) || 0) : 0;
+
 // segundosDoAssinante: os minutos do nível do assinante (planos.ts), em segundos.
 export const usoDoPlano = (
   plano: Plano,

@@ -9,7 +9,7 @@ import path from "node:path";
 import {listarVideos, readProject, saveProject} from "../../src/motor/projeto";
 import type {Projeto} from "../../src/motor/projeto";
 import type {Contas, Usuario} from "./contas";
-import {decidirExportacao, decidirTranscricao, diaDoCalendario, usoDeTranscricoes, usoDoPlano} from "./cota";
+import {decidirExportacao, decidirTranscricao, diaDoCalendario, minutosDeBonus, usoDeTranscricoes, usoDoPlano} from "./cota";
 import type {CicloDoPlano, DecisaoDeExportacao, RegistroDeExportacao, UsoDeTranscricoes, UsoDoPlano} from "./cota";
 import type {Plano} from "./contas";
 import {cicloDoPix} from "./pix";
@@ -100,7 +100,8 @@ export const espacoDoUsuario = (root: string, contas: Contas, usuario: Usuario, 
           : plano_origem === "assinatura" && ciclo_inicio && ciclo_fim
             ? {inicio: new Date(ciclo_inicio), fim: new Date(ciclo_fim)}
             : undefined;
-    return {plano: perfil.plano, ciclo, segundos: planoPago(perfil.assinatura.nivel ?? "basico").minutos * 60};
+    const minutos = planoPago(perfil.assinatura.nivel ?? "basico").minutos + minutosDeBonus(perfil.minutosBonus, perfil.bonusAte, new Date());
+    return {plano: perfil.plano, ciclo, segundos: minutos * 60};
   };
   const historico = async (): Promise<RegistroDeExportacao[]> => {
     const {data, error} = await contas.admin

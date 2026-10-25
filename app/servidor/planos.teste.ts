@@ -41,3 +41,15 @@ describe("planos pagos", () => {
     assert.equal(uso.plano === "assinante" && uso.segundosDoPlano, 7200);
   });
 });
+
+describe("minutos bônus (migração 014)", () => {
+  it("soma só enquanto agora < bonus_ate; sem data ou vencido, nada", async () => {
+    const {minutosDeBonus} = await import("./cota");
+    const agora = new Date("2026-10-24T12:00:00Z");
+    assert.equal(minutosDeBonus(30, "2026-10-25T00:00:00Z", agora), 30);
+    assert.equal(minutosDeBonus(30, "2026-10-24T12:00:00Z", agora), 0);
+    assert.equal(minutosDeBonus(30, null, agora), 0);
+    assert.equal(minutosDeBonus(-5, "2026-10-25T00:00:00Z", agora), 0);
+    assert.equal(minutosDeBonus(undefined, "2026-10-25T00:00:00Z", agora), 0);
+  });
+});
