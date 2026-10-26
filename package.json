@@ -19,7 +19,8 @@
     "teste:assinaturas": "tsx --test app/servidor/assinaturas.teste.ts app/servidor/pix.teste.ts app/servidor/planos.teste.ts app/servidor/pagamento-aprovado.teste.ts app/servidor/cupons.teste.ts",
     "app:publico": "tsx app/servidor/index.ts --producao",
     "teste:tempos": "tsx --test src/tempos.teste.ts",
-    "teste:projetos": "tsx --test app/servidor/projetos.teste.ts"
+    "teste:projetos": "tsx --test app/servidor/projetos.teste.ts",
+    "teste:renders": "tsx --test app/servidor/renders.teste.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.986.0",

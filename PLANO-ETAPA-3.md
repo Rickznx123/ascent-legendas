@@ -272,6 +272,23 @@ Feito (06/10/2026, testado): e-mail do login pelo Resend no domínio (`login@asc
 
 Render no plano Starter desde 07/10/2026. Falta: crédito no Replicate (US$ 20–25); alertas de orçamento da AWS (Budgets e Cost Anomaly Detection).
 
+**Exportação acima de 1080p** (26/10/2026): com o disco de 2 GB no Lambda, todo vídeo acima de 1080p (1440p, 4K, de qualquer codec) falhava com "Failed to fetch … disk space is low" (o Chrome guarda no disco cada quadro grande do OffthreadVideo). A exportação passou a usar a função `remotion-render-4-0-532-mem2048mb-disk10240mb-900sec` (2048 MB, disco de 10 GB, `LAMBDA.discoMb`); a de 2 GB continua lá, sem uso. Vídeo maior que a saída vai sempre em pedaços de 60 quadros. Medido na função nova: 4K H.264 de 125 s (pacote B) em 809 s / US$ 0,28 com 200 quadros e 174 s / US$ 0,19 com 60; 1440p HEVC 60 fps de 153 s (pacote F, 200 quadros) em 265 s / US$ 0,19; 1080p de 70 s em 70 s / US$ 0,038 (na função antiga, US$ 0,033). Os testes de validação foram feitos sem efeitos sonoros.
+
+Falta: dar à chave `remotion-user` permissão de ler os logs do Lambda (`logs:FilterLogEvents`), para investigar falhas pelo CloudWatch. No console da AWS:
+1. IAM → Users → `remotion-user` → aba Permissions → Add permissions → Create inline policy.
+2. Na aba JSON, colar:
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Effect": "Allow",
+       "Action": ["logs:FilterLogEvents", "logs:GetLogEvents", "logs:DescribeLogStreams"],
+       "Resource": "arn:aws:logs:us-east-2:275060989338:log-group:/aws/lambda/remotion-render-*"
+     }]
+   }
+   ```
+3. Next → nome `ler-logs-do-lambda` → Create policy.
+
 **Etapa 2c — Assinatura pelo Mercado Pago** ✅ concluída: **cobrança real ligada em 07/10/2026** (credenciais de produção no Render), testada com dinheiro de verdade.
 
 Feito (commits `33e7abd`, `808a6a8`, `20eb69b`, 06/10/2026): "Assinar" cria a assinatura no Mercado Pago (R$ 30 por mês, sem plano associado) e leva ao checkout; a volta ao app nunca vale como prova: o servidor consulta o Mercado Pago no retorno, a cada webhook validado (x-signature) e na verificação periódica (a cada minuto: pendentes há mais de 2 minutos e ativas perto da cobrança). Regras: aprovado → assinante até o fim do ciclo + 5 dias; recusado → aviso e 5 dias de tolerância; cancelado → assinante até o fim do ciclo pago; estorno/chargeback → grátis na hora e assinatura cancelada. Contas de `npm run plano` (origem "manual") nunca são tocadas. Migração 007. Testes: `npm run teste:assinaturas`.

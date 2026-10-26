@@ -31,9 +31,15 @@ import type {SiteDoLambda} from "./site-lambda";
 // Decisões do bloco 6: função de 2048 MB; 60 quadros por Lambda até 90 s de vídeo
 // e 200 acima disso; saída limitada a 1080 x 1920 (o lado maior a 1920 e o menor
 // a 1080, mantendo a proporção).
+// Disco de 10 GB: com 2 GB, vídeo acima de 1080p falhava sempre ("Failed to fetch":
+// o Chrome guarda no disco cada quadro do OffthreadVideo grande demais; 26/10/2026).
+// Vídeo acima da saída (1440p, 4K) vai sempre em pedaços de 60 quadros: o 4K de
+// 125 s levou 809 s com 200 (perto do limite de 900 s) e 174 s com 60, mais barato.
 export const LAMBDA = {
   memoriaMb: 2048,
-  quadrosPorLambda: (duracaoS: number) => (duracaoS <= 90 ? 60 : 200),
+  discoMb: 10240,
+  quadrosPorLambda: (duracaoS: number, fonte?: VideoMetadata) =>
+    duracaoS <= 90 || (fonte && tamanhoDaSaida(fonte) !== fonte) ? 60 : 200,
   ladoMaior: 1920,
   ladoMenor: 1080,
   // Vigia: de quanto em quanto tempo pergunta o andamento ao Lambda.
@@ -136,7 +142,7 @@ export const rendersNoLambda = ({
     if (!pronto.site || !pronto.funcao || Date.now() - lidoEm > 60_000) {
       const [site, funcoes] = await Promise.all([siteDaVersao(raiz, regiao), getFunctions({region: regiao, compatibleOnly: true})]);
       const funcao = funcoes
-        .filter((f) => f.memorySizeInMb === LAMBDA.memoriaMb)
+        .filter((f) => f.memorySizeInMb === LAMBDA.memoriaMb && f.diskSizeInMb === LAMBDA.discoMb)
         .sort((a, b) => b.timeoutInSeconds - a.timeoutInSeconds)[0]?.functionName;
       pronto = {site, funcao};
       lidoEm = Date.now();
@@ -147,7 +153,7 @@ export const rendersNoLambda = ({
       );
     }
     if (!pronto.funcao) {
-      throw new Error(`A exportação na nuvem não está configurada (falta a função de ${LAMBDA.memoriaMb} MB no Lambda).`);
+      throw new Error(`A exportação na nuvem não está configurada (falta a função de ${LAMBDA.memoriaMb} MB e disco de ${LAMBDA.discoMb} MB no Lambda).`);
     }
     return {site: pronto.site, funcao: pronto.funcao};
   };
@@ -383,7 +389,7 @@ export const rendersNoLambda = ({
           com_marca: montada.decisao?.comMarca ?? false,
           props,
           video_chave: chaveDoVideo,
-          quadros_por_lambda: LAMBDA.quadrosPorLambda(montada.duracaoS),
+          quadros_por_lambda: LAMBDA.quadrosPorLambda(montada.duracaoS, montada.props.video),
         })
         .select("*")
         .single();
