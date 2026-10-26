@@ -1,7 +1,8 @@
 # Imagem do servidor público (Render). Node 24 (a mesma versão do computador) e o
 # ffmpeg completo do Debian: duração, detecção de voz, áudio para o WhisperX/Groq
 # e sons tocados. O render vai para o Lambda; a transcrição, para o WhisperX.
-FROM node:24-bookworm-slim
+# Versão fixa (24.22.1: correção de segurança do Node de 21/10/2026).
+FROM node:24.22.1-bookworm-slim
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
