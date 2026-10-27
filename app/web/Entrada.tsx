@@ -9,12 +9,12 @@ import type {Session} from "@supabase/supabase-js";
 import {App} from "./App";
 import {Apresentacao, TITULO_DA_APRESENTACAO} from "./Apresentacao";
 import {EVENTO_SESSAO_EXPIRADA, api, executarTarefa} from "./api";
-import type {Andamento, Conta} from "./api";
+import type {Andamento, Conta, Nivel, VistaDoCupom} from "./api";
 import {ContaContexto} from "./conta";
 import {TelaDeLogin} from "./Login";
 import {PainelAdmin} from "./Admin";
 import {FormularioDeSenhaNova} from "./Senha";
-import {RetornoDaAssinatura, checkoutRecente} from "./Assinatura";
+import {JanelaAssinar, RetornoDaAssinatura, checkoutRecente} from "./Assinatura";
 import {AvisoDoPix} from "./Pix";
 import {iniciarSessao, lerConfig, noAppInstalado, ouvirSessao, pedeSenhaNova, sair} from "./sessao";
 import type {ConfigDoLogin} from "./sessao";
@@ -45,6 +45,28 @@ const semSessao = (): Estado => {
   const vista = vistaDoEndereco();
   if (vista) return {tela: "login", vista};
   return noAppInstalado() ? {tela: "login"} : {tela: "apresentacao"};
+};
+
+// "Assinar <plano>" na página de apresentação: o plano (e o cupom) ficam guardados neste
+// navegador (o cadastro pode voltar por um link em outra aba) e, depois do login, a
+// janela de assinar abre nele, uma vez. Vale por 1 dia.
+type AssinarDepois = {nivel: Nivel; cupom?: VistaDoCupom; quando: number};
+const CHAVE_DO_ASSINAR = "assinar-depois";
+const guardarAssinar = (nivel: Nivel, cupom?: VistaDoCupom) => {
+  try {
+    localStorage.setItem(CHAVE_DO_ASSINAR, JSON.stringify({nivel, cupom, quando: Date.now()} satisfies AssinarDepois));
+  } catch {
+    // Sem localStorage: o cadastro segue e a pessoa assina pelo menu.
+  }
+};
+const tirarAssinar = (): AssinarDepois | undefined => {
+  try {
+    const guardado = JSON.parse(localStorage.getItem(CHAVE_DO_ASSINAR) ?? "null") as AssinarDepois | null;
+    localStorage.removeItem(CHAVE_DO_ASSINAR);
+    return guardado && Date.now() - guardado.quando < 24 * 3600_000 ? guardado : undefined;
+  } catch {
+    return undefined;
+  }
 };
 
 // "Agora não" na importação fica lembrado neste navegador, por conta.
@@ -138,6 +160,7 @@ export const Entrada: React.FC = () => {
     return () => document.removeEventListener("visibilitychange", aoVoltar);
   }, []);
   const [config, setConfig] = useState<ConfigDoLogin>();
+  const [assinarDepois, setAssinarDepois] = useState<AssinarDepois>();
   const [estado, setEstado] = useState<Estado>({tela: "carregando"});
   const telaAtual = useRef<Estado["tela"]>("carregando");
   telaAtual.current = estado.tela;
@@ -152,6 +175,9 @@ export const Entrada: React.FC = () => {
       // Veio da página de apresentação (#entrar, #criar-conta): limpa o endereço.
       if (vistaDoEndereco()) history.replaceState(null, "", location.pathname + location.search);
       const usuario = sessao.user.id;
+      // Veio de "Assinar <plano>" na página: o pagamento dele abre no editor (só no grátis).
+      const pedido = tirarAssinar();
+      if (pedido && conta.plano === "gratis") setAssinarDepois(pedido);
       const oferta = recusou(usuario) ? {disponivel: false} : await api.importacaoLocal();
       setEstado(
         oferta.disponivel
@@ -279,7 +305,15 @@ export const Entrada: React.FC = () => {
     case "apresentacao":
       // Sem os números dos planos (servidor antigo), o login de sempre.
       return config?.planos ? (
-        <Apresentacao planos={config.planos} onCriarConta={() => irParaOLogin("criar")} onEntrar={() => irParaOLogin("entrar")} />
+        <Apresentacao
+          planos={config.planos}
+          onCriarConta={() => irParaOLogin("criar")}
+          onEntrar={() => irParaOLogin("entrar")}
+          onAssinar={(nivel, cupom) => {
+            guardarAssinar(nivel, cupom);
+            irParaOLogin("criar");
+          }}
+        />
       ) : (
         <TelaDeLogin google={Boolean(config?.google)} />
       );
@@ -334,6 +368,7 @@ export const Entrada: React.FC = () => {
         <ContaContexto.Provider value={{conta: estado.conta, sair: sairDaConta, atualizarConta}}>
           <App key={estado.usuario} />
           {mostrarRetorno ? <RetornoDaAssinatura onFechar={() => setMostrarRetorno(false)} /> : null}
+          {assinarDepois ? <JanelaAssinar nivelInicial={assinarDepois.nivel} cupomInicial={assinarDepois.cupom} onFechar={() => setAssinarDepois(undefined)} /> : null}
           <AvisoDoPix />
         </ContaContexto.Provider>
       );

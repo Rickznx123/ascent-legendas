@@ -49,3 +49,7 @@ export const nivelPeloValor = (valor: number | null | undefined): Nivel | undefi
 
 // -1, 0 ou 1: a ordem dos níveis (para subir ou descer).
 export const compararNiveis = (a: Nivel, b: Nivel): number => Math.sign(NIVEIS.indexOf(a) - NIVEIS.indexOf(b));
+
+// Vídeos exportados no selo da página de apresentação: arredondado para baixo, de cem
+// em cem (537 → 500); abaixo de 100, nada (a página esconde o número).
+export const videosNoSelo = (total: number): number | undefined => (total < 100 ? undefined : Math.floor(total / 100) * 100);

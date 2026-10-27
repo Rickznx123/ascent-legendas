@@ -40,7 +40,7 @@ import {assinaturaVigente, bancoNoSupabase, decidirPedidoDePlano, processadorDeE
 import type {ResumoDaAssinatura} from "./assinaturas";
 import {DIAS_DO_PIX, ErroDoPix, bancoDoPixNoSupabase, cpfValido, motivoParaNaoPagarPix, processadorDePix, vistaDoPix} from "./pix";
 import {LIMITES} from "./cota";
-import {nivelValido, planoPago, planosPagos} from "./planos";
+import {nivelValido, planoPago, planosPagos, videosNoSelo} from "./planos";
 import type {Nivel} from "./planos";
 import type {PlanoPago} from "./planos";
 import {LIMITES_DE_USO, filaComVagas, limiteDePedidos, textoDaFila} from "./limites";
@@ -56,6 +56,8 @@ export type PlanosDaApresentacao = {
   minutosDoAssinante: number;
   diasDoPix: number;
   videosNoGratis: number;
+  // Vídeos exportados com sucesso, arredondado (videosNoSelo); abaixo de 100, ausente.
+  videosExportados?: number;
 };
 
 // Erro com mensagem já pronta para a tela.
@@ -71,7 +73,7 @@ import type {ExportacaoMontada} from "./renders";
 import type {AwsRegion} from "@remotion/lambda/client";
 import {tituloDoVideo} from "./titulo";
 import {tarefasSoltas} from "./tarefas-soltas";
-import {eventoDaTela, registrarEvento} from "./eventos";
+import {eventoDaTela, registrarEvento, registrarEventoDoVisitante} from "./eventos";
 import {emailsDeRecuperacao} from "./recuperacao";
 import {s3DoAmbiente} from "./s3";
 import type {ConfigDoLogin} from "./contas";
@@ -404,7 +406,17 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
 
   // O que a tela precisa para mostrar (ou não) o login. Sem token: é o primeiro
   // pedido. A chave publicável pode ir ao navegador; a secreta nunca.
-  app.get("/api/config", (_request, response) => {
+  // A contagem de exportações do selo da página: lida no máximo a cada 10 minutos.
+  let exportados = {total: 0, lidoEm: 0};
+  const totalDeExportados = async (): Promise<number> => {
+    if (contas && Date.now() - exportados.lidoEm > 10 * 60_000) {
+      const {count, error} = await contas.admin.from("exportacoes").select("id", {count: "exact", head: true});
+      if (error) console.log(`Config: contar as exportações: ${error.message}`);
+      else exportados = {total: count ?? 0, lidoEm: Date.now()};
+    }
+    return exportados.total;
+  };
+  app.get("/api/config", async (_request, response) => {
     const config: ConfigDoLogin = contas ? {...contas.config, envioDireto: Boolean(armazenamento)} : {login: false};
     const planos: PlanosDaApresentacao = {
       precoBRL: mercadoPago?.valor,
@@ -412,6 +424,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       minutosDoAssinante: LIMITES.segundosPorMesNoAssinante / 60,
       diasDoPix: DIAS_DO_PIX,
       videosNoGratis: LIMITES.videosNoGratis,
+      videosExportados: videosNoSelo(await totalDeExportados().catch(() => 0)),
     };
     response.json(contas ? {...config, planos} : config);
   });
@@ -451,6 +464,24 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   };
   app.get("/email/sair", (request, response) => void sairDaLista(request, response));
   app.post("/email/sair", (request, response) => void sairDaLista(request, response));
+
+  // Página de apresentação, sem login: o campo de cupom (só diz se vale e quanto) e os
+  // cliques em "Testar grátis" e "Assinar" (eventos.ts). Pedidos por minuto, por endereço.
+  const limiteDoVisitante = limiteDePedidos((request) => request.ip ?? "?");
+  app.post("/api/cupom/conferir", limiteDoVisitante, (request: Request, response: Response) => {
+    if (!cupons) {
+      response.status(503).json({mensagem: "Cupom indisponível agora."});
+      return;
+    }
+    cupons.validar((request.body as {cupom?: unknown} | undefined)?.cupom).then(
+      (cupom) => response.json({cupom: vistaDoCupom(cupom)}),
+      (erro: unknown) => response.status(400).json({mensagem: erro instanceof Error ? erro.message : String(erro)}),
+    );
+  });
+  app.post("/api/eventos/visitante", limiteDoVisitante, (request: Request, response: Response) => {
+    response.status(204).end();
+    registrarEventoDoVisitante(contas?.admin, request.body);
+  });
 
   // Todas as outras rotas: com login, o token do usuário é validado e o pedido
   // passa a usar o espaço dele; sem login, o espaço local.

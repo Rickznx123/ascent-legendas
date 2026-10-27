@@ -1,205 +1,172 @@
 // Página de apresentação: o que vê quem abre o app sem sessão (fora do app instalado;
-// veja Entrada.tsx). Referência visual: landing-referencia.html. Os botões levam às
-// telas que já existem: "Testar grátis", "Assinar com cartão" e "Pagar com Pix" ao
-// criar conta; "Entrar" e "Já tenho conta" ao entrar.
-// Os vídeos de exemplo ficam em app/web/public/landing/ (hero.mp4, antes.mp4 e
-// depois.mp4, e o poster de cada um em .jpg). Enquanto um vídeo não existe, o espaço
-// mostra o fundo provisório e a legenda animada da prancha.
+// veja Entrada.tsx). Especificação: landing-v2-referencia.html (textos, cores, fontes e
+// as animações dos estilos, em CSS puro: apresentacao.css). "Testar grátis" leva ao
+// cadastro; "Assinar <plano>" também, e depois do login abre o pagamento daquele plano
+// (com o cupom do campo, se valeu). Preços, minutos e o número de vídeos exportados vêm
+// do servidor (/api/config). Os cliques vão para a tabela de eventos do funil pelo id
+// do visitante (ainda sem conta).
+// Sem material ainda ([TROCAR] na prancha): o hero fica com o celular animado e o botão
+// do WhatsApp não aparece.
 import {useEffect, useRef, useState} from "react";
 import type {ReactNode} from "react";
 import type {PlanosDaApresentacao} from "../servidor/servidor";
+import type {Nivel} from "../servidor/planos";
+import {transcricoesPorDia} from "../servidor/cota";
+import {valorComDesconto} from "../servidor/cupons";
+import type {VistaDoCupom} from "./api";
 import "./apresentacao.css";
 
-// Fontes das amostras de estilo, como na prancha (só esta página carrega).
 const FONTES =
-  "https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@1,700&family=Instrument+Serif:ital@0;1&family=Inter+Tight:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,900&family=Playfair+Display:ital,wght@1,600&family=Urbanist:ital,wght@1,500&display=swap";
+  "https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,300;0,400;0,600;0,800;0,900;1,800;1,900&family=Instrument+Serif:ital@1&family=Playfair+Display:ital,wght@1,800;1,900&family=Urbanist:ital,wght@1,700&family=EB+Garamond:ital,wght@1,700&family=Montserrat:ital,wght@0,800;1,900&display=swap";
 
 // Título e descrição da chamada principal (também em index.html, para quem lê o
 // endereço sem rodar a página: buscadores e prévias de link).
-export const TITULO_DA_APRESENTACAO = "Ascent Legendas: legenda dinâmica pronta em 1 minuto";
+export const TITULO_DA_APRESENTACAO = "Ascent Legendas: legenda que prende até o fim, pronta em 1 minuto";
 
-// Legenda de demonstração: alterna linear e destaque, como no app.
-type Bloco = {tipo: "linear"; palavras: string[]} | {tipo: "destaque"; cima: string[]; chave: string};
-const BLOCOS: Bloco[] = [
-  {tipo: "linear", palavras: ["olha", "só", "isso"]},
-  {tipo: "destaque", cima: ["sua", "legenda"], chave: "pronta"},
-  {tipo: "linear", palavras: ["em", "um", "minuto"]},
-  {tipo: "destaque", cima: ["direto", "do"], chave: "celular"},
-  {tipo: "linear", palavras: ["sem", "editar", "nada"]},
-  {tipo: "destaque", cima: ["é", "só"], chave: "postar"},
-];
-
-const semMovimento = (): boolean => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-
-// Bloco atual da demonstração: troca a cada 1,5 s (sem movimento, fica parado no segundo).
-const useBlocoDaDemonstracao = (): number => {
-  const [atual, setAtual] = useState(() => (semMovimento() ? 1 : 0));
-  useEffect(() => {
-    if (semMovimento()) return;
-    const relogio = window.setInterval(() => setAtual((indice) => indice + 1), 1500);
-    return () => window.clearInterval(relogio);
-  }, []);
-  return atual;
+// Id do visitante (sem conta ainda), guardado neste navegador, para os eventos do funil.
+const visitante = (): string => {
+  try {
+    const guardado = localStorage.getItem("visitante");
+    if (guardado) return guardado;
+    const novo = crypto.randomUUID();
+    localStorage.setItem("visitante", novo);
+    return novo;
+  } catch {
+    return crypto.randomUUID();
+  }
 };
-
-const palavra = (texto: string, ordem: number) => (
-  <span key={ordem} style={{animationDelay: `${ordem * 0.11}s`}}>
-    {texto}
-  </span>
-);
-
-// key: cada bloco novo remonta as palavras e a animação de entrada recomeça.
-const Legenda: React.FC<{passo: number}> = ({passo}) => {
-  const bloco = BLOCOS[passo % BLOCOS.length];
-  return (
-    <div className="ap-palco">
-      {bloco.tipo === "linear" ? (
-        <div key={passo} className="leg linear">
-          {bloco.palavras.map(palavra)}
-        </div>
-      ) : (
-        <div key={passo} className="leg destaque">
-          <div className="cima">{bloco.cima.map(palavra)}</div>
-          <div className="chave">{palavra(bloco.chave, bloco.cima.length)}</div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Um celular com o vídeo de exemplo /landing/<nome>.mp4. O vídeo só é pedido perto
-// da tela; se ele existe, aparece por cima do fundo provisório e a legenda animada
-// some (o vídeo já vem legendado). Sem o arquivo, o servidor devolve outra coisa, o
-// vídeo dá erro e o espaço continua com o fundo e a legenda da prancha.
-const EspacoDeVideo: React.FC<{nome: "hero" | "antes" | "depois"; legenda?: ReactNode; rotulo?: string}> = ({nome, legenda, rotulo}) => {
-  const caixa = useRef<HTMLDivElement>(null);
-  const [perto, setPerto] = useState(false);
-  const [temVideo, setTemVideo] = useState(false);
-  useEffect(() => {
-    const elemento = caixa.current;
-    if (!elemento || typeof IntersectionObserver === "undefined") {
-      setPerto(true);
-      return;
-    }
-    const observador = new IntersectionObserver(
-      ([entrada]) => {
-        if (entrada.isIntersecting) {
-          setPerto(true);
-          observador.disconnect();
-        }
-      },
-      {rootMargin: "300px 0px"},
-    );
-    observador.observe(elemento);
-    return () => observador.disconnect();
-  }, []);
-  return (
-    <div ref={caixa} className={`celular${temVideo ? " com-video" : ""}`} aria-label={rotulo}>
-      <div className="video" />
-      {perto ? (
-        <video
-          src={`/landing/${nome}.mp4`}
-          poster={`/landing/${nome}.jpg`}
-          muted
-          loop
-          playsInline
-          // Sem movimento (prefers-reduced-motion): o vídeo fica parado no poster.
-          autoPlay={!semMovimento()}
-          preload="metadata"
-          aria-hidden="true"
-          // Aparece com o primeiro quadro pronto (sem um quadro vazio por cima do fundo);
-          // parado (sem movimento), já com os dados do vídeo, no poster.
-          onLoadedData={() => setTemVideo(true)}
-          onLoadedMetadata={() => {
-            if (semMovimento()) setTemVideo(true);
-          }}
-          onError={() => setTemVideo(false)}
-        />
-      ) : null}
-      {legenda}
-    </div>
-  );
-};
-
-// Cartão de estilo com o clipe /landing/estilos/<nome>.mp4 (npm run landing:estilos).
-// O clipe só carrega e toca com o cartão na tela e pausa quando ele sai; sem
-// movimento, fica no poster. Sem os arquivos, fica o texto do cartão.
-const Amostra: React.FC<{nome: string; className: string; children: ReactNode}> = ({nome, className, children}) => {
-  const caixa = useRef<HTMLDivElement>(null);
-  const video = useRef<HTMLVideoElement>(null);
-  const [perto, setPerto] = useState(false);
-  const [comClipe, setComClipe] = useState(false);
-  const poster = `/landing/estilos/${nome}.jpg`;
-  useEffect(() => {
-    const elemento = caixa.current;
-    if (!elemento || typeof IntersectionObserver === "undefined") return;
-    const observador = new IntersectionObserver(([entrada]) => {
-      if (entrada.isIntersecting) {
-        setPerto(true);
-        if (!semMovimento()) video.current?.play().catch(() => undefined);
-      } else {
-        video.current?.pause();
-      }
-    });
-    observador.observe(elemento);
-    return () => observador.disconnect();
-  }, [perto]);
-  // O poster existe: o clipe (ou só o poster, sem movimento) cobre o texto.
-  useEffect(() => {
-    if (!perto) return;
-    const imagem = new Image();
-    imagem.onload = () => setComClipe(true);
-    imagem.src = poster;
-  }, [perto, poster]);
-  return (
-    <div ref={caixa} className={`amostra ${className}${comClipe ? " com-clipe" : ""}`}>
-      {children}
-      {perto ? (
-        <video
-          ref={video}
-          src={`/landing/estilos/${nome}.mp4`}
-          poster={poster}
-          muted
-          loop
-          playsInline
-          preload="none"
-          aria-hidden="true"
-          onError={() => setComClipe(false)}
-        />
-      ) : null}
-    </div>
-  );
+const evento = (nome: "clicou_testar_gratis" | "clicou_assinar", dados: Record<string, string>) => {
+  void fetch("/api/eventos/visitante", {
+    method: "POST",
+    keepalive: true,
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({nome, visitante: visitante(), dados}),
+  }).catch(() => undefined);
 };
 
 const reais = (valor: number): string =>
   `R$ ${valor.toLocaleString("pt-BR", {minimumFractionDigits: Number.isInteger(valor) ? 0 : 2, maximumFractionDigits: 2})}`;
+const porMinuto = (valor: number, minutos: number) => reais(Math.round((valor / minutos) * 100) / 100);
 
-// Link que troca de tela sem recarregar (o endereço de verdade fica no href).
-const Ir: React.FC<{href: string; className?: string; ir: () => void; id?: string; children: ReactNode}> = ({href, className, ir, id, children}) => (
-  <a
-    id={id}
-    className={className}
-    href={href}
-    onClick={(evento) => {
-      evento.preventDefault();
-      ir();
-    }}
-  >
-    {children}
-  </a>
-);
+// Uma palavra (ou trecho) animada: classes da prancha (w, a animação, o atraso, o estilo).
+const W: React.FC<{c: string; children: ReactNode}> = ({c, children}) => <span className={`w ${c}`}>{children}</span>;
+const Linha: React.FC<{children: ReactNode}> = ({children}) => <span className="linha">{children}</span>;
+
+// Os pacotes do app (A a G), recriados em CSS (apresentacao.css).
+const ESTILOS: {classe: string; nome: string; bloco: ReactNode}[] = [
+  {
+    classe: "pA",
+    nome: "Dourado",
+    bloco: (
+      <>
+        <Linha><W c="up d1 s">tem novidade</W></Linha>
+        <Linha><W c="up d3 g"><i>chegando</i></W></Linha>
+      </>
+    ),
+  },
+  {
+    classe: "pB",
+    nome: "Itálico",
+    bloco: (
+      <>
+        <Linha><W c="fade d1 pf">o segredo</W></Linha>
+        <Linha><W c="up d3 hv">que ninguém</W></Linha>
+        <Linha><W c="up d4 hv">te conta</W></Linha>
+      </>
+    ),
+  },
+  {
+    classe: "pC",
+    nome: "Imobiliário",
+    bloco: (
+      <>
+        <Linha><W c="down d1 tag">atenção</W></Linha>
+        <Linha><W c="down d2 cx">essa</W> <W c="down d3 cx">casa</W></Linha>
+        <Linha><W c="right d4 cx neon">vendeu</W></Linha>
+      </>
+    ),
+  },
+  {
+    classe: "pD",
+    nome: "Minúsculo",
+    bloco: (
+      <>
+        <Linha><W c="up d1 lv">você</W> <W c="up d2 lv">precisa</W></Linha>
+        <Linha><span className="pz pisca">ver isso</span></Linha>
+      </>
+    ),
+  },
+  {
+    classe: "pE",
+    nome: "Três fontes",
+    bloco: (
+      <>
+        <Linha><W c="left d1 ub">olha só</W></Linha>
+        <Linha><W c="down d2 hv">o que</W></Linha>
+        <Linha><W c="right d4 gm">acontece</W></Linha>
+      </>
+    ),
+  },
+  {
+    classe: "pF",
+    nome: "Editorial",
+    bloco: (
+      <>
+        <Linha><W c="up d1 tt">a melhor</W></Linha>
+        <Linha><W c="up d3 sf">decisão</W></Linha>
+      </>
+    ),
+  },
+  {
+    classe: "pG",
+    nome: "Glow",
+    bloco: (
+      <>
+        <Linha><W c="up d1 mt">só uma coisa</W></Linha>
+        <Linha><W c="pop d3 mi">torna</W></Linha>
+        <Linha><W c="pop d4 mi">um sonho</W></Linha>
+      </>
+    ),
+  },
+];
+
+// Cenas do celular do topo (A → Imobiliário → Glow), uma a cada ciclo da animação.
+const CENAS = [ESTILOS[0], ESTILOS[2], {...ESTILOS[6], bloco: (
+  <>
+    <Linha><W c="up d1 mt">o medo</W></Linha>
+    <Linha><W c="pop d3 mi">de fracassar</W></Linha>
+  </>
+)}];
+const CICLO_MS = 3400;
+
+// O que cada plano lista, além dos minutos (os números vêm do servidor).
+const VANTAGENS: Record<Nivel, (pagos: {nivel: Nivel; minutos: number}[]) => string[]> = {
+  basico: () => ["Todos os estilos", "Sem marca d'água", `${transcricoesPorDia("assinante", "basico")} transcrições por dia`],
+  pro: (pagos) => {
+    const basico = pagos.find((p) => p.nivel === "basico")?.minutos;
+    const pro = pagos.find((p) => p.nivel === "pro")?.minutos;
+    return ["Tudo do Básico", basico && pro === basico * 2 ? "O dobro de minutos" : `${pro} minutos por mês`, `${transcricoesPorDia("assinante", "pro")} transcrições por dia`];
+  },
+  editor: () => ["Tudo do Pro", "Para quem edita para clientes", `${transcricoesPorDia("assinante", "editor")} transcrições por dia`],
+};
 
 export const Apresentacao: React.FC<{
-  // Números dos planos, da configuração do servidor (/api/config).
   planos: PlanosDaApresentacao;
   onCriarConta: () => void;
   onEntrar: () => void;
-}> = ({planos, onCriarConta, onEntrar}) => {
-  const passo = useBlocoDaDemonstracao();
-  const ctaDoTopo = useRef<HTMLAnchorElement>(null);
+  // Assinar um plano: cadastro e, depois do login, o pagamento dele (com o cupom).
+  onAssinar: (nivel: Nivel, cupom?: VistaDoCupom) => void;
+}> = ({planos, onCriarConta, onEntrar, onAssinar}) => {
+  const hero = useRef<HTMLElement>(null);
   const [barraVisivel, setBarraVisivel] = useState(false);
+  const [antes, setAntes] = useState(false);
+  const [cena, setCena] = useState(0);
+  const [codigo, setCodigo] = useState("");
+  const [cupom, setCupom] = useState<VistaDoCupom>();
+  const [erroDoCupom, setErroDoCupom] = useState<string>();
+  const [conferindo, setConferindo] = useState(false);
 
-  // Fontes das amostras: só quando a página aparece.
+  // Fontes dos estilos: só quando a página aparece.
   useEffect(() => {
     if (document.querySelector(`link[href="${FONTES}"]`)) return;
     const link = document.createElement("link");
@@ -208,289 +175,413 @@ export const Apresentacao: React.FC<{
     document.head.appendChild(link);
   }, []);
 
-  // Barra fixa (celular): aparece quando o botão do topo sai da tela.
+  // Barra fixa (celular): aparece quando o topo sai da tela.
   useEffect(() => {
-    const botao = ctaDoTopo.current;
-    if (!botao || typeof IntersectionObserver === "undefined") return;
+    const elemento = hero.current;
+    if (!elemento || typeof IntersectionObserver === "undefined") return;
     const observador = new IntersectionObserver(([entrada]) => setBarraVisivel(!entrada.isIntersecting));
-    observador.observe(botao);
+    observador.observe(elemento);
     return () => observador.disconnect();
   }, []);
 
-  const {minutosDoAssinante: minutos, diasDoPix: dias, videosNoGratis: videosGratis} = planos;
-  // Básico, Pro e Editor, com os valores da configuração (/api/config). Sem o Mercado
-  // Pago no servidor, só os minutos do Básico, sem preço.
-  const pagos: {nivel: string; nome: string; minutos: number; valor?: number}[] = planos.pagos ?? [{nivel: "basico", nome: "Assinatura", minutos}];
-  const criar = {href: "#criar-conta", ir: onCriarConta};
+  // Cenas do celular: a cada ciclo, a próxima (a key remonta e a animação recomeça).
+  useEffect(() => {
+    const relogio = window.setInterval(() => setCena((n) => n + 1), CICLO_MS);
+    return () => window.clearInterval(relogio);
+  }, []);
+
+  const testar = (onde: string) => (clique: React.MouseEvent) => {
+    clique.preventDefault();
+    evento("clicou_testar_gratis", {onde});
+    onCriarConta();
+  };
+  const assinar = (nivel: Nivel) => (clique: React.MouseEvent) => {
+    clique.preventDefault();
+    evento("clicou_assinar", {onde: "landing", nivel, cupom: cupom?.codigo ?? ""});
+    onAssinar(nivel, cupom);
+  };
+  const aplicarCupom = async (envio: React.FormEvent) => {
+    envio.preventDefault();
+    setConferindo(true);
+    setErroDoCupom(undefined);
+    try {
+      const resposta = await fetch("/api/cupom/conferir", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({cupom: codigo})});
+      const dados = (await resposta.json()) as {cupom?: VistaDoCupom; mensagem?: string};
+      if (!resposta.ok || !dados.cupom) throw new Error(dados.mensagem ?? "Não foi possível conferir o cupom.");
+      setCupom(dados.cupom);
+    } catch (falha) {
+      setCupom(undefined);
+      setErroDoCupom(falha instanceof Error && !(falha instanceof TypeError) ? falha.message : "Não foi possível conferir o cupom agora. Tente de novo.");
+    } finally {
+      setConferindo(false);
+    }
+  };
+
+  const {videosNoGratis: videosGratis, diasDoPix: dias, videosExportados} = planos;
+  const pagos = planos.pagos ?? [];
+  const basico = pagos.find((plano) => plano.nivel === "basico");
+  const atual = CENAS[cena % CENAS.length];
+  const exportados = videosExportados ? `+${videosExportados.toLocaleString("pt-BR")}` : undefined;
+  const botaoTestar = (onde: string, classe = "btn full") => (
+    <a href="#criar-conta" className={classe} onClick={testar(onde)}>
+      Testar grátis agora →
+    </a>
+  );
 
   return (
-    <div className="apresentacao">
-      <header className="largura topo">
-        <a className="ap-marca" href="/">
-          <img className="marca-icone" src="/icones/icone-192.png" alt="" aria-hidden="true" width={34} height={34} />
-          Ascent Legendas
-        </a>
-        <Ir className="entrar" href="#entrar" ir={onEntrar}>
-          Entrar
-        </Ir>
-      </header>
+    <div className="lp">
+      <nav>
+        <div className="wrap">
+          <div className="logo">
+            <i>A</i>Ascent Legendas
+          </div>
+          <a
+            href="#entrar"
+            className="entrar"
+            onClick={(clique) => {
+              clique.preventDefault();
+              onEntrar();
+            }}
+          >
+            Entrar
+          </a>
+        </div>
+      </nav>
 
-      <main>
-        {/* 1. Chamada principal */}
-        <section className="largura hero">
+      {/* 1. Hero */}
+      <header className="hero" ref={hero}>
+        <div className="wrap">
           <div>
-            <h1>Legenda dinâmica pronta em 1 minuto, direto do celular.</h1>
-            <p>Envie o vídeo. O app transcreve, sincroniza com a sua fala e anima cada palavra. Você só baixa e posta.</p>
-            <a
-              ref={ctaDoTopo}
-              className="botao cheio"
-              href="#criar-conta"
-              onClick={(evento) => {
-                evento.preventDefault();
-                onCriarConta();
-              }}
-            >
-              Testar grátis
-            </a>
-            <p className="nota">
-              {videosGratis} {videosGratis === 1 ? "vídeo grátis" : "vídeos grátis"}. Não pede cartão.
+            {exportados ? (
+              <div className="lp-selo">
+                🎬 <b>{exportados}</b> vídeos já legendados
+              </div>
+            ) : null}
+            <h1>
+              Legenda que <span className="serif grad">prende</span> até o fim. Pronta em 1 minuto.
+            </h1>
+            <p className="sub">
+              Envie o vídeo pelo celular. O app transcreve, sincroniza com a sua fala e anima cada palavra no estilo dos vídeos virais. Você só baixa e posta.
+            </p>
+            <div className="hero-ctas">
+              {botaoTestar("hero")}
+              <a href="#estilos" className="btn sec full">
+                Ver os estilos
+              </a>
+            </div>
+            <div className="garantias">
+              <span>Sem cartão</span>
+              <span>Sem instalar nada</span>
+              <span>Funciona no celular</span>
+            </div>
+          </div>
+          <div>
+            <div className="fone">
+              <div className={`tela${antes ? " antes" : ""}`}>
+                <div className="toggle">
+                  <button type="button" className={antes ? "on" : ""} aria-pressed={antes} onClick={() => setAntes(true)}>
+                    Antes
+                  </button>
+                  <button type="button" className={antes ? "" : "on"} aria-pressed={!antes} onClick={() => setAntes(false)}>
+                    Depois
+                  </button>
+                </div>
+                <div className="pessoa" />
+                <div className="hero-leg" aria-hidden="true">
+                  <div key={cena} className={`cena on ${atual.classe}`}>
+                    <div className="lp-bloco">{atual.bloco}</div>
+                  </div>
+                </div>
+                <div className="leg-antes">
+                  <b>tem novidade chegando</b>
+                </div>
+              </div>
+            </div>
+            <p className="nota lp-centro" style={{marginTop: 12}}>
+              Toque em "Antes" e "Depois"
             </p>
           </div>
-          <div className="hero-demo">
-            <EspacoDeVideo nome="hero" rotulo="Exemplo de vídeo com legenda dinâmica" legenda={<Legenda passo={passo} />} />
-          </div>
-        </section>
+        </div>
+      </header>
 
-        {/* 2. Antes e depois */}
-        <section className="secao">
-          <div className="largura">
-            <h2>O mesmo vídeo, antes e depois.</h2>
-            <p className="sub">Muita gente assiste sem som. Sem legenda, a sua mensagem não chega.</p>
-            <div className="par">
-              <figure>
-                <EspacoDeVideo nome="antes" />
-                <figcaption>
-                  <strong>Antes</strong>Vídeo sem legenda.
-                </figcaption>
-              </figure>
-              <figure>
-                <EspacoDeVideo nome="depois" legenda={<Legenda passo={passo} />} />
-                <figcaption>
-                  <strong>Depois</strong>Legenda animada no ritmo da fala.
-                </figcaption>
-              </figure>
+      {/* 2. Prova (só números reais) */}
+      <div className="prova">
+        <div className="wrap">
+          <div>
+            <b>1 min</b>
+            <small>do envio ao vídeo pronto</small>
+          </div>
+          <div>
+            <b>{ESTILOS.length} estilos</b>
+            <small>e novos chegando sempre</small>
+          </div>
+          {exportados ? (
+            <div>
+              <b>{exportados}</b>
+              <small>vídeos legendados</small>
             </div>
-          </div>
-        </section>
+          ) : null}
+        </div>
+      </div>
 
-        {/* 3. Como funciona */}
-        <section className="secao">
-          <div className="largura">
-            <h2>Como funciona</h2>
-            <p className="sub">Três passos, tudo pelo navegador do celular.</p>
-            <ol className="passos">
-              <li>
-                <h3>Envie o vídeo</h3>
-                <p>Escolha direto da galeria. O app transcreve e sincroniza cada palavra sozinho.</p>
-              </li>
-              <li>
-                <h3>Escolha o estilo</h3>
-                <p>Troque o estilo e as cores e veja a prévia na hora. Errou uma palavra? Corrija com um toque.</p>
-              </li>
-              <li>
-                <h3>Baixe e poste</h3>
-                <p>Exporte em vertical (1080 x 1920), pronto para Reels, TikTok e Shorts.</p>
-              </li>
-            </ol>
-          </div>
-        </section>
-
-        {/* 4. Estilos */}
-        <section className="secao">
-          <div className="largura">
-            <h2>Estilos de legenda</h2>
-            <p className="sub">Escolha um estilo ou deixe o app misturar todos no mesmo vídeo.</p>
-            <div className="estilos">
-              <article className="estilo">
-                <Amostra nome="a" className="am-a">
-                  <div className="l1">tem novidade</div>
-                  <div className="l2">chegando</div>
-                </Amostra>
-                <h3>Estilo A</h3>
-                <p>Limpo, com destaque em serifa</p>
-              </article>
-              <article className="estilo">
-                <Amostra nome="b" className="am-b">
-                  <div className="l1">o segredo</div>
-                  <div className="l2">é esse</div>
-                </Amostra>
-                <h3>Estilo B</h3>
-                <p>Criativo, com brilho</p>
-              </article>
-              <article className="estilo">
-                <Amostra nome="c" className="am-c">
-                  <div>
-                    <span className="tag">Atenção</span>
-                  </div>
-                  <div className="l1">olha esse</div>
-                  <div className="l2">imóvel</div>
-                </Amostra>
-                <h3>Estilo C</h3>
-                <p>Impacto, estilo imobiliário</p>
-              </article>
-              <article className="estilo">
-                <Amostra nome="d" className="am-d">
-                  <div className="l1">isso muda</div>
-                  <div className="l2">tudo</div>
-                </Amostra>
-                <h3>Estilo D</h3>
-                <p>Minúsculas, leve e pesado</p>
-              </article>
-              <article className="estilo">
-                <Amostra nome="e" className="am-e">
-                  <div className="l1">você vai</div>
-                  <div className="l2">amar</div>
-                  <div className="l3">esse resultado</div>
-                </Amostra>
-                <h3>Estilo E</h3>
-                <p>Três fontes, palavras deslizando</p>
-              </article>
-              <article className="estilo">
-                <Amostra nome="f" className="am-f">
-                  <div className="l1">feito para</div>
-                  <div className="l2">vender</div>
-                </Amostra>
-                <h3>Estilo F</h3>
-                <p>Editorial</p>
-              </article>
-              <article className="estilo">
-                <Amostra nome="misto" className="am-m">
-                  <div className="l1">um pouco</div>
-                  <div className="l2">de cada</div>
-                  <div className="l3">estilo</div>
-                </Amostra>
-                <h3>Misto</h3>
-                <p>Todos os estilos no mesmo vídeo</p>
-              </article>
-            </div>
-          </div>
-        </section>
-
-        {/* 5. Planos */}
-        <section className="secao" id="planos">
-          <div className="largura">
-            <h2>Planos e preços</h2>
-            <p className="sub">Comece grátis. Assine quando quiser tirar a marca d'água.</p>
-            <div className="planos">
-              <div className="plano">
-                <h3>Grátis</h3>
-                <div className="preco">{reais(0)}</div>
+      {/* 3. Ancoragem (com os números do Básico) */}
+      {basico?.valor !== undefined ? (
+        <section>
+          <div className="wrap lp-centro">
+            <h2>
+              Pare de pagar <span className="serif grad">por vídeo</span>
+            </h2>
+            <p className="sub">Legenda dinâmica feita por editor custa caro e demora. Aqui você faz sozinho, na hora.</p>
+            <div className="ancora" style={{textAlign: "left"}}>
+              <div className="caixa ruim">
+                <h3>Editor de vídeo</h3>
+                <div className="preco">R$ 100+</div>
+                <p className="nota">por vídeo</p>
                 <ul>
-                  <li>
-                    {videosGratis} {videosGratis === 1 ? "vídeo" : "vídeos"} para testar
-                  </li>
-                  <li>Com marca d'água</li>
+                  <li>Espera dias pela entrega</li>
+                  <li>Cada ajuste é uma nova mensagem</li>
+                  <li>30 vídeos = R$ 3.000</li>
                 </ul>
-                <Ir className="botao vazado cheio" {...criar}>
-                  Testar grátis
-                </Ir>
               </div>
-              {pagos.map((plano) => (
-                <div key={plano.nivel} className={`plano${plano.nivel === "pro" ? " principal" : ""}`}>
-                  {plano.nivel === "pro" ? <span className="ap-selo">Mais escolhido</span> : null}
-                  <h3>{plano.nome}</h3>
-                  {plano.valor !== undefined ? (
-                    <div className="preco">
-                      {reais(plano.valor)} <small>por mês</small>
-                    </div>
-                  ) : null}
-                  <ul>
-                    <li>{plano.minutos} minutos exportados por mês</li>
-                    <li>Sem marca d'água</li>
-                    <li>Cancele quando quiser e use até o fim do período</li>
-                  </ul>
-                  <Ir className={`botao cheio${plano.nivel === "pro" ? "" : " vazado"}`} {...criar}>
-                    Assinar o {plano.nome}
-                  </Ir>
+              <div className="caixa bom">
+                <h3>Ascent Legendas</h3>
+                <div className="preco">{porMinuto(basico.valor, basico.minutos)}</div>
+                <p className="nota">por minuto de vídeo, no plano {basico.nome}</p>
+                <ul>
+                  <li>Pronto em 1 minuto</li>
+                  <li>Você muda palavra, cor e estilo</li>
+                  <li>
+                    {basico.minutos} min de vídeo por {reais(basico.valor)}/mês
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {/* 4. Como funciona */}
+      <section style={{background: "var(--bg2)"}}>
+        <div className="wrap lp-centro">
+          <h2>
+            Três toques. <span className="serif grad">Só isso.</span>
+          </h2>
+          <div className="passos" style={{textAlign: "left"}}>
+            <div className="passo">
+              <div className="n">1</div>
+              <h3>Envie o vídeo</h3>
+              <p>Direto da galeria do celular. Pode juntar vários takes.</p>
+              <div className="lp-mini" aria-hidden="true">
+                <div className="envio">
+                  <i />
                 </div>
-              ))}
+                <span className="rot">enviando video.mov…</span>
+              </div>
             </div>
-            <p className="pagamento">Todos os planos no cartão ou no Pix de {dias} dias.</p>
-            <p className="pagamento">Pagamento pelo Mercado Pago. Não precisa ter conta lá.</p>
+            <div className="passo">
+              <div className="n">2</div>
+              <h3>Escolha o estilo</h3>
+              <p>A legenda já sai sincronizada. Troque o estilo, a cor ou uma palavra com um toque.</p>
+              <div className="lp-mini" aria-hidden="true">
+                <div className="lp-chips">
+                  <span>Pacote A</span>
+                  <span>Imobiliário</span>
+                  <span>Editorial</span>
+                  <span>Glow</span>
+                </div>
+              </div>
+            </div>
+            <div className="passo">
+              <div className="n">3</div>
+              <h3>Baixe e poste</h3>
+              <p>Vídeo em 1080×1920, pronto para Reels, TikTok e Shorts.</p>
+              <div className="lp-mini" aria-hidden="true">
+                <div className="ok">✓</div>
+                <span className="rot">salvo na galeria</span>
+              </div>
+            </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* 6. Perguntas frequentes */}
-        <section className="secao">
-          <div className="largura">
-            <h2>Perguntas frequentes</h2>
-            <div className="faq">
-              <details>
-                <summary>Preciso instalar alguma coisa?</summary>
-                <p>
-                  Não. O app abre no navegador do celular ou do computador. Se quiser, você pode adicionar o ícone à tela inicial e usar como um
-                  aplicativo.
+      {/* 5. Estilos */}
+      <section id="estilos">
+        <div className="wrap lp-centro">
+          <h2>
+            Estilos que <span className="serif grad">viralizam</span>
+          </h2>
+          <p className="sub">Do editorial ao impacto. Use um só ou misture todos no mesmo vídeo.</p>
+          <div className="estilos">
+            {ESTILOS.map((estilo) => (
+              <div key={estilo.classe} className={`est ${estilo.classe}`}>
+                <div className="fundo" />
+                <div className="lp-bloco" aria-hidden="true">
+                  {estilo.bloco}
+                </div>
+                <span className="lp-nome">{estilo.nome}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 6. Para quem é */}
+      <section style={{background: "var(--bg2)"}}>
+        <div className="wrap lp-centro">
+          <h2>
+            Feito para quem <span className="serif grad">posta todo dia</span>
+          </h2>
+          <div className="quem">
+            <div className="q">
+              <div className="lp-ic">📱</div>
+              <h3>Criadores de conteúdo</h3>
+              <p>Mais retenção nos Reels sem passar a noite editando.</p>
+            </div>
+            <div className="q">
+              <div className="lp-ic">🎬</div>
+              <h3>Editores de vídeo</h3>
+              <p>Entregue mais vídeos por dia e cobre o mesmo dos seus clientes.</p>
+            </div>
+            <div className="q">
+              <div className="lp-ic">🏠</div>
+              <h3>Corretores e lojas</h3>
+              <p>Vídeo de imóvel e produto com cara de agência, feito no celular.</p>
+            </div>
+            <div className="q">
+              <div className="lp-ic">💬</div>
+              <h3>Profissionais liberais</h3>
+              <p>Médicos, advogados, coaches: sua fala com legenda profissional.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 7. Planos */}
+      <section id="planos">
+        <div className="wrap lp-centro">
+          <h2>
+            Comece grátis. <span className="serif grad">Assine quando amar.</span>
+          </h2>
+          <p className="sub">
+            {videosGratis} {videosGratis === 1 ? "vídeo grátis" : "vídeos grátis"} com marca d'água. Cancele quando quiser: os minutos ficam até o fim do mês.
+          </p>
+          {pagos.length ? (
+            <>
+              <form className="cupom" onSubmit={(envio) => void aplicarCupom(envio)}>
+                <input placeholder="Tenho um cupom" aria-label="Cupom" autoComplete="off" value={codigo} onChange={(campo) => setCodigo(campo.target.value)} />
+                <button type="submit" disabled={conferindo || !codigo.trim()}>
+                  {conferindo ? "…" : "Aplicar"}
+                </button>
+              </form>
+              {cupom ? (
+                <p className="nota" role="status" style={{marginTop: 8}}>
+                  Cupom {cupom.codigo}: {cupom.percentual}% de desconto{cupom.soPrimeiroMes ? " no 1º mês" : ""}. Já vai aplicado no pagamento.
                 </p>
-              </details>
-              <details>
-                <summary>Funciona no iPhone e no Android?</summary>
-                <p>Sim, nos dois, e também no computador.</p>
-              </details>
-              <details>
-                <summary>E se a legenda vier com uma palavra errada?</summary>
-                <p>Você corrige antes de exportar: toque na legenda para editar o texto, apagar uma palavra ou trocar a palavra em destaque.</p>
-              </details>
-              <details>
-                <summary>O que conta nos minutos do plano?</summary>
-                <p>Só os vídeos que você exporta. Um vídeo de 1 minuto exportado gasta 1 minuto do plano.</p>
-              </details>
-              <details>
-                <summary>Como cancelo a assinatura?</summary>
-                <p>Dentro do app, a qualquer momento. Você continua usando até o fim do período já pago e não é cobrado de novo.</p>
-              </details>
-              <details>
-                <summary>O Pix renova sozinho?</summary>
-                <p>Não. Vale por {dias} dias. Depois disso, você paga outro Pix só se quiser continuar.</p>
-              </details>
-              <details>
-                <summary>O teste grátis pede cartão?</summary>
-                <p>Não. Você cria a conta com e-mail e senha e já pode fazer o primeiro vídeo, com marca d'água.</p>
-              </details>
-            </div>
-          </div>
-        </section>
+              ) : erroDoCupom ? (
+                <p className="nota" role="alert" style={{marginTop: 8, color: "#ff6b6b"}}>
+                  {erroDoCupom}
+                </p>
+              ) : null}
+              <div className="planos">
+                {pagos.map((plano) => {
+                  const destaque = plano.nivel === "pro";
+                  const comDesconto = cupom ? valorComDesconto(plano.valor, cupom.percentual) : plano.valor;
+                  return (
+                    <div key={plano.nivel} className={`plano${destaque ? " dest" : ""}`}>
+                      {destaque ? <span className="tag">⭐ Mais escolhido</span> : null}
+                      <h3>{plano.nome}</h3>
+                      <div className="p">
+                        {reais(comDesconto)}
+                        <small>/mês{cupom?.soPrimeiroMes ? " no 1º mês" : ""}</small>
+                      </div>
+                      {cupom ? <s className="eq">{reais(plano.valor)}/mês</s> : null}
+                      <div className="eq">
+                        {plano.minutos} min de vídeo · {porMinuto(plano.valor, plano.minutos)} por minuto
+                      </div>
+                      <ul>
+                        {VANTAGENS[plano.nivel](pagos).map((vantagem) => (
+                          <li key={vantagem}>{vantagem}</li>
+                        ))}
+                      </ul>
+                      <a href="#criar-conta" className={`btn full${destaque ? "" : " sec"}`} onClick={assinar(plano.nivel)}>
+                        Assinar {plano.nome}
+                      </a>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="nota" style={{marginTop: 14}}>
+                Cartão (renova todo mês) ou Pix de {dias} dias. Pagamento seguro pelo Mercado Pago.
+              </p>
+            </>
+          ) : (
+            <div style={{marginTop: 22}}>{botaoTestar("planos", "btn")}</div>
+          )}
+        </div>
+      </section>
 
-        {/* Chamada final */}
-        <section className="secao final">
-          <div className="largura">
-            <h2>Faça o primeiro vídeo agora.</h2>
-            <Ir className="botao" {...criar}>
-              Testar grátis
-            </Ir>
+      {/* 8. Dúvidas */}
+      <section style={{background: "var(--bg2)"}}>
+        <div className="wrap lp-centro">
+          <h2>Dúvidas</h2>
+          <div className="faq">
+            <details>
+              <summary>Preciso saber editar vídeo?</summary>
+              <p>Não. Você envia o vídeo e o app faz o resto. Se quiser, troca uma palavra ou a cor com um toque.</p>
+            </details>
+            <details>
+              <summary>Funciona no celular?</summary>
+              <p>Sim, foi feito para o celular. Abre no navegador e dá para instalar como app na tela inicial.</p>
+            </details>
+            <details>
+              <summary>A legenda fica sincronizada com a fala?</summary>
+              <p>Sim. Cada palavra aparece no momento exato em que é falada.</p>
+            </details>
+            <details>
+              <summary>Posso cancelar quando quiser?</summary>
+              <p>Pode. Sem multa. Os minutos do mês continuam valendo até o fim do período.</p>
+            </details>
+            <details>
+              <summary>Aceita vídeo do iPhone e em 4K?</summary>
+              <p>Aceita. O vídeo sai em 1080×1920, a resolução ideal para Reels, TikTok e Shorts.</p>
+            </details>
+            <details>
+              <summary>O vídeo grátis tem marca d'água?</summary>
+              <p>Tem, uma pequena. Nos planos pagos o vídeo sai limpo.</p>
+            </details>
           </div>
-        </section>
-      </main>
+        </div>
+      </section>
 
-      {/* 7. Rodapé */}
-      <footer className="rodape">
-        <div className="largura">
-          <nav aria-label="Rodapé">
-            <a href="/termos.html">Termos de uso</a>
-            <a href="/privacidade.html">Política de privacidade</a>
-            <a href="https://ascentstudio.com.br">Ascent Studio</a>
-            <Ir href="#entrar" ir={onEntrar}>
-              Já tenho conta
-            </Ir>
-          </nav>
-          <div>Ascent Legendas é um produto da Ascent Studio.</div>
+      {/* 9. Final */}
+      <section className="final">
+        <div className="wrap">
+          <h2>
+            Seu próximo vídeo pode sair <span className="serif grad">hoje</span>.
+          </h2>
+          <p className="sub" style={{margin: "0 auto 24px"}}>
+            Teste grátis agora. Leva 1 minuto.
+          </p>
+          {botaoTestar("final", "btn")}
+          <div className="garantias" style={{justifyContent: "center"}}>
+            <span>Sem cartão</span>
+            <span>Sem instalar nada</span>
+          </div>
+        </div>
+      </section>
+
+      <footer>
+        <div className="wrap">
+          Ascent Legendas · Ascent Studio
+          <br />
+          <br />
+          <a href="/termos.html">Termos</a>
+          <a href="/privacidade.html">Privacidade</a>
+          <a href="mailto:contato@ascentstudio.com.br">Suporte</a>
         </div>
       </footer>
 
-      <div className={`ap-barra${barraVisivel ? " visivel" : ""}`}>
-        <Ir className="botao cheio" {...criar}>
-          Testar grátis
-        </Ir>
-      </div>
+      <div className={`fixo${barraVisivel ? " on" : ""}`}>{botaoTestar("barra_fixa")}</div>
     </div>
   );
 };

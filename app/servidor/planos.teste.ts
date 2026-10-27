@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import {describe, it} from "node:test";
 import {usoDoPlano} from "./cota";
-import {compararNiveis, nivelPeloValor, planoPago, planosPagos} from "./planos";
+import {compararNiveis, nivelPeloValor, planoPago, planosPagos, videosNoSelo} from "./planos";
 
 describe("planos pagos", () => {
   it("padrões: Básico R$ 30 / 30 min, Pro R$ 49,90 / 60 min, Editor R$ 79,90 / 120 min", () => {
@@ -66,5 +66,14 @@ describe("transcrições por dia por nível", () => {
     assert.equal(decidirTranscricao(usoDeTranscricoes("assinante", 15, agora, "pro"), "assinante", "Pro").permitido, false);
     assert.equal(decidirTranscricao(usoDeTranscricoes("assinante", 15, agora, "editor"), "assinante", "Editor").permitido, true);
     assert.match(decidirTranscricao(usoDeTranscricoes("assinante", 25, agora, "editor"), "assinante", "Editor").motivo!, /25 transcrições de hoje do plano Editor/u);
+  });
+});
+
+describe("vídeos no selo da página", () => {
+  it("arredonda para baixo de cem em cem e esconde abaixo de 100", () => {
+    assert.equal(videosNoSelo(99), undefined);
+    assert.equal(videosNoSelo(100), 100);
+    assert.equal(videosNoSelo(537), 500);
+    assert.equal(videosNoSelo(1234), 1200);
   });
 });

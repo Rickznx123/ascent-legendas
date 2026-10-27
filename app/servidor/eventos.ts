@@ -30,7 +30,8 @@ export type NomeDoEvento =
   | "export_iniciado"
   | "export_concluido"
   | "export_falhou"
-  | "email_enviado";
+  | "email_enviado"
+  | "clicou_testar_gratis";
 
 export type Dados = Record<string, string | number | boolean | null>;
 
@@ -45,10 +46,28 @@ export const registrarEvento = (banco: SupabaseClient | undefined, usuarioId: st
     );
 };
 
+// Página de apresentação, sem conta ainda (migração 017): pelo id do visitante
+// (gerado no navegador), sem usuario_id.
+export const EVENTOS_DO_VISITANTE = ["clicou_testar_gratis", "clicou_assinar"] as const;
+export type EventoDoVisitante = (typeof EVENTOS_DO_VISITANTE)[number];
+
+export const registrarEventoDoVisitante = (banco: SupabaseClient | undefined, corpo: unknown): void => {
+  const {visitante} = (corpo ?? {}) as {visitante?: unknown};
+  const evento = eventoDaTela(corpo, EVENTOS_DO_VISITANTE);
+  if (!banco || !evento || typeof visitante !== "string" || !/^[0-9a-f-]{36}$/iu.test(visitante)) return;
+  void banco
+    .from("eventos")
+    .insert({visitante, nome: evento.nome, dados: evento.dados ?? null})
+    .then(
+      ({error}) => error && console.log(`Evento ${evento.nome}: ${error.message}`),
+      (erro: unknown) => console.log(`Evento ${evento.nome}: ${erro instanceof Error ? erro.message : String(erro)}`),
+    );
+};
+
 // O que a tela manda: um nome da lista e dados planos e curtos (texto cortado).
-export const eventoDaTela = (corpo: unknown): {nome: NomeDoEvento; dados?: Dados} | undefined => {
+export const eventoDaTela = (corpo: unknown, nomes: readonly string[] = EVENTOS_DA_TELA): {nome: NomeDoEvento; dados?: Dados} | undefined => {
   const {nome, dados} = (corpo ?? {}) as {nome?: unknown; dados?: unknown};
-  if (!EVENTOS_DA_TELA.includes(nome as (typeof EVENTOS_DA_TELA)[number])) return undefined;
+  if (!nomes.includes(nome as string)) return undefined;
   if (dados === undefined || dados === null) return {nome: nome as NomeDoEvento};
   if (typeof dados !== "object" || Array.isArray(dados)) return undefined;
   const limpos: Dados = {};
