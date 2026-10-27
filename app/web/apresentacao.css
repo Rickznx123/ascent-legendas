@@ -1,7 +1,8 @@
 /* Página de apresentação (Apresentacao.tsx), da especificação landing-v2-referencia.html.
    Tudo sob .lp, para não vazar para o app; as classes que o app já usa (bloco, centro,
    chips, ic, mini, nome, selo) levam o prefixo lp-. Gerado da prancha e ajustado à mão.
-   overflow-x: clip (não hidden), para a barra do topo continuar grudada. */
+   O body do app não rola (estilos.css): a página rola dentro de .lp, e a barra do topo
+   gruda nela. */
 .lp{--bg:#030210; --bg2:#0b0920; --card:#12102a; --borda:#262248;
   --texto:#f4f2ff; --suave:#a9a4c9; --roxo:#7c5cff; --rosa:#ff4fa3;
   --verde:#25d366; --dourado:#ffcc4d; --ciano:#3ee6ff; --neon:#d7ff3a; --verm:#e0262e;
@@ -9,8 +10,7 @@
   --ouro:linear-gradient(90deg,#ffe08a,#ffb347 55%,#ff8a3d);
   --ciclo:3.4s;}
 .lp *, .lp *::before, .lp *::after{box-sizing:border-box;margin:0;padding:0}
-html:has(.lp){scroll-behavior:smooth}
-.lp{background:var(--bg);color:var(--texto);font-family:"Inter Tight",system-ui,sans-serif;line-height:1.45;-webkit-font-smoothing:antialiased;padding-bottom:84px;overflow-x:clip;min-height:100vh}
+.lp{background:var(--bg);color:var(--texto);font-family:"Inter Tight",system-ui,sans-serif;line-height:1.45;-webkit-font-smoothing:antialiased;padding-bottom:84px;height:100%;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;scroll-behavior:smooth}
 .lp a{color:inherit;text-decoration:none}
 .lp .wrap{max-width:1080px;margin:0 auto;padding:0 16px}
 .lp section{padding:64px 0}
