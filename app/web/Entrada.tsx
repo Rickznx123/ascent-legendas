@@ -50,7 +50,20 @@ const semSessao = (): Estado => {
 // "Assinar <plano>" na página de apresentação: o plano (e o cupom) ficam guardados neste
 // navegador (o cadastro pode voltar por um link em outra aba) e, depois do login, a
 // janela de assinar abre nele, uma vez. Vale por 1 dia.
-type AssinarDepois = {nivel: Nivel; cupom?: VistaDoCupom; quando: number};
+type AssinarDepois = {nivel?: Nivel; cupom?: VistaDoCupom; quando: number};
+
+// Link com ?cupom=CODIGO (campanha): lido uma vez, ao abrir, e tirado do endereço. Com
+// conta grátis logada, a janela de assinar abre com ele; sem login, a página de
+// apresentação já o aplica no campo de cupom.
+let cupomDoEndereco = (() => {
+  const parametros = new URLSearchParams(location.search);
+  const codigo = parametros.get("cupom")?.trim();
+  if (!codigo) return undefined;
+  parametros.delete("cupom");
+  const resto = parametros.toString();
+  history.replaceState(null, "", location.pathname + (resto ? `?${resto}` : "") + location.hash);
+  return codigo;
+})();
 const CHAVE_DO_ASSINAR = "assinar-depois";
 const guardarAssinar = (nivel: Nivel, cupom?: VistaDoCupom) => {
   try {
@@ -177,7 +190,15 @@ export const Entrada: React.FC = () => {
       const usuario = sessao.user.id;
       // Veio de "Assinar <plano>" na página: o pagamento dele abre no editor (só no grátis).
       const pedido = tirarAssinar();
-      if (pedido && conta.plano === "gratis") setAssinarDepois(pedido);
+      const codigo = cupomDoEndereco;
+      cupomDoEndereco = undefined;
+      if (conta.plano === "gratis" && pedido) setAssinarDepois(pedido);
+      // Cupom do link que não vale mais: a janela abre sem ele (e com "Tenho um cupom").
+      else if (conta.plano === "gratis" && codigo)
+        api.aplicarCupom(codigo).then(
+          ({cupom}) => setAssinarDepois({cupom, quando: Date.now()}),
+          () => setAssinarDepois({quando: Date.now()}),
+        );
       const oferta = recusou(usuario) ? {disponivel: false} : await api.importacaoLocal();
       setEstado(
         oferta.disponivel
@@ -307,6 +328,7 @@ export const Entrada: React.FC = () => {
       return config?.planos ? (
         <Apresentacao
           planos={config.planos}
+          cupomInicial={cupomDoEndereco}
           onCriarConta={() => irParaOLogin("criar")}
           onEntrar={() => irParaOLogin("entrar")}
           onAssinar={(nivel, cupom) => {

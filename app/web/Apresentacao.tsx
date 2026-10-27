@@ -152,16 +152,18 @@ const VANTAGENS: Record<Nivel, (pagos: {nivel: Nivel; minutos: number}[]) => str
 
 export const Apresentacao: React.FC<{
   planos: PlanosDaApresentacao;
+  // ?cupom= do link: já aplicado no campo ao abrir.
+  cupomInicial?: string;
   onCriarConta: () => void;
   onEntrar: () => void;
   // Assinar um plano: cadastro e, depois do login, o pagamento dele (com o cupom).
   onAssinar: (nivel: Nivel, cupom?: VistaDoCupom) => void;
-}> = ({planos, onCriarConta, onEntrar, onAssinar}) => {
+}> = ({planos, cupomInicial, onCriarConta, onEntrar, onAssinar}) => {
   const hero = useRef<HTMLElement>(null);
   const [barraVisivel, setBarraVisivel] = useState(false);
   const [antes, setAntes] = useState(false);
   const [cena, setCena] = useState(0);
-  const [codigo, setCodigo] = useState("");
+  const [codigo, setCodigo] = useState(cupomInicial ?? "");
   const [cupom, setCupom] = useState<VistaDoCupom>();
   const [erroDoCupom, setErroDoCupom] = useState<string>();
   const [conferindo, setConferindo] = useState(false);
@@ -200,12 +202,11 @@ export const Apresentacao: React.FC<{
     evento("clicou_assinar", {onde: "landing", nivel, cupom: cupom?.codigo ?? ""});
     onAssinar(nivel, cupom);
   };
-  const aplicarCupom = async (envio: React.FormEvent) => {
-    envio.preventDefault();
+  const conferirCupom = async (texto: string) => {
     setConferindo(true);
     setErroDoCupom(undefined);
     try {
-      const resposta = await fetch("/api/cupom/conferir", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({cupom: codigo})});
+      const resposta = await fetch("/api/cupom/conferir", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({cupom: texto})});
       const dados = (await resposta.json()) as {cupom?: VistaDoCupom; mensagem?: string};
       if (!resposta.ok || !dados.cupom) throw new Error(dados.mensagem ?? "Não foi possível conferir o cupom.");
       setCupom(dados.cupom);
@@ -216,6 +217,11 @@ export const Apresentacao: React.FC<{
       setConferindo(false);
     }
   };
+
+  useEffect(() => {
+    if (cupomInicial) void conferirCupom(cupomInicial);
+    // Só ao abrir, com o cupom do link.
+  }, []);
 
   const {videosNoGratis: videosGratis, diasDoPix: dias, videosExportados} = planos;
   const pagos = planos.pagos ?? [];
@@ -274,6 +280,11 @@ export const Apresentacao: React.FC<{
               <span>Sem instalar nada</span>
               <span>Funciona no celular</span>
             </div>
+            {cupom ? (
+              <p className="nota" role="status" style={{marginTop: 12}}>
+                Cupom {cupom.codigo} aplicado: {cupom.percentual}% de desconto{cupom.soPrimeiroMes ? " no 1º mês" : ""}. <a href="#planos">Ver os planos</a>
+              </p>
+            ) : null}
           </div>
           <div>
             <div className="fone">
@@ -467,7 +478,13 @@ export const Apresentacao: React.FC<{
           </p>
           {pagos.length ? (
             <>
-              <form className="cupom" onSubmit={(envio) => void aplicarCupom(envio)}>
+              <form
+                className="cupom"
+                onSubmit={(envio) => {
+                  envio.preventDefault();
+                  void conferirCupom(codigo);
+                }}
+              >
                 <input placeholder="Tenho um cupom" aria-label="Cupom" autoComplete="off" value={codigo} onChange={(campo) => setCodigo(campo.target.value)} />
                 <button type="submit" disabled={conferindo || !codigo.trim()}>
                   {conferindo ? "…" : "Aplicar"}
