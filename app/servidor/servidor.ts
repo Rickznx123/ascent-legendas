@@ -71,6 +71,7 @@ import type {ExportacaoMontada} from "./renders";
 import type {AwsRegion} from "@remotion/lambda/client";
 import {tituloDoVideo} from "./titulo";
 import {tarefasSoltas} from "./tarefas-soltas";
+import {eventoDaTela, registrarEvento} from "./eventos";
 import {s3DoAmbiente} from "./s3";
 import type {ConfigDoLogin} from "./contas";
 import {espacoDoUsuario, espacoLocal} from "./espaco";
@@ -460,6 +461,13 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     "/api",
     limiteDePedidos((request, response) => (response.locals.espaco as Espaco | undefined)?.usuario?.id ?? request.ip ?? "?"),
   );
+
+  // Eventos do funil vindos da tela (veja eventos.ts). Nome fora da lista: ignorado.
+  app.post("/api/eventos", (request: Request, response: Response) => {
+    response.status(204).end();
+    const evento = eventoDaTela(request.body);
+    if (evento) registrarEvento(contas?.admin, (response.locals.espaco as Espaco | undefined)?.usuario?.id, evento.nome, evento.dados);
+  });
 
   // Envio direto do navegador para o S3, em partes (veja envio.ts).
   if (contas && armazenamento && previas) {
@@ -1023,6 +1031,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       if (espaco.cota) {
         const decisao = await espaco.cota.podeTranscrever();
         if (!decisao.permitido) {
+          registrarEvento(contas?.admin, espaco.usuario?.id, "viu_limite_gratis", {onde: "transcricao", motivo: decisao.motivo ?? null});
           response.status(429).json({mensagem: decisao.motivo, codigo: "limite-transcricoes", uso: decisao.uso});
           return undefined;
         }
@@ -1042,6 +1051,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
           const liberar = await filaDeTranscricoes.entrar((posicao) => progress(textoDaFila(posicao)));
           const esperaNaFila = segundos(pedido);
           const inicio = Date.now();
+          registrarEvento(contas?.admin, espaco.usuario?.id, "transcricao_iniciada", {video});
           console.log(`[${video}] Transcrição: saiu da fila de transcrições depois de ${esperaNaFila}; começou.`);
           let resultado = "falhou";
           try {
@@ -1091,10 +1101,12 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
             console.log(`[${video}] Transcrição: não deu para registrar no limite do dia: ${erro instanceof Error ? erro.message : String(erro)}`);
           });
           resultado = motor;
+          registrarEvento(contas?.admin, espaco.usuario?.id, "transcricao_concluida", {video, motor, segundos: Math.round((Date.now() - inicio) / 1000)});
           // A tela mostra qual reserva foi usada, se não foi o WhisperX.
           return {projeto, avisos};
           } catch (erro) {
             resultado = `falhou (${semEnderecos(erro instanceof Error ? erro.message : String(erro)).split("\n")[0].slice(0, 200)})`;
+            registrarEvento(contas?.admin, espaco.usuario?.id, "transcricao_falhou", {video, motivo: resultado});
             throw erro;
           } finally {
             liberar();
@@ -1140,7 +1152,9 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       }
       const video = String(request.query.video ?? "");
       const metadados = await getVideoMetadata(await videos.entrada(espaco, video));
-      return espaco.cota.decidir(video, metadados.durationInFrames / metadados.fps);
+      const decisao = await espaco.cota.decidir(video, metadados.durationInFrames / metadados.fps);
+      if (!decisao.permitido) registrarEvento(contas?.admin, espaco.usuario?.id, "viu_limite_gratis", {onde: "previa_exportar", codigo: decisao.codigo ?? null});
+      return decisao;
     }),
   );
 

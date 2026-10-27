@@ -25,7 +25,7 @@ const marcarCheckout = (aberto: boolean) => {
   }
 };
 import {useEffect, useState} from "react";
-import {api} from "./api";
+import {api, evento} from "./api";
 import type {Nivel, ResumoDaAssinatura, VistaDoCupom} from "./api";
 import {valorComDesconto} from "../servidor/cupons";
 import {transcricoesPorDia} from "../servidor/cota";
@@ -108,6 +108,7 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
   const [erro, setErro] = useState<string>();
   const [feito, setFeito] = useState<string>();
   const [pagandoPix, setPagandoPix] = useState(false);
+  useEffect(() => evento("viu_oferta", {onde: "janela_assinar"}), []);
   const plano = planos.find((item) => item.nivel === escolhido);
   const troca = atual ? Math.sign(ordem(escolhido) - ordem(atual)) : 0;
   const desfazDescida = situacao === "ativa" && troca === 0 && Boolean(resumo?.nivelNaRenovacao);
@@ -143,6 +144,7 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
   };
 
   const assinar = async () => {
+    evento("clicou_assinar", {forma: "cartao", nivel: escolhido, cupom: cupom?.codigo ?? null});
     setIndo(true);
     setErro(undefined);
     try {
@@ -268,7 +270,10 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
         ) : null}
         {podePix && !feito ? (
           <div className="assinatura-opcao">
-            <button type="button" className={`bt cheio${podeCartao ? "" : " primario"}`} disabled={indo} onClick={() => setPagandoPix(true)}>
+            <button type="button" className={`bt cheio${podeCartao ? "" : " primario"}`} disabled={indo} onClick={() => {
+                evento("clicou_assinar", {forma: "pix", nivel: escolhido, cupom: cupom?.codigo ?? null});
+                setPagandoPix(true);
+              }}>
               {situacao === "pix" ? (troca > 0 ? `Pix do ${plano?.nome} (começa agora)` : "Renovar com Pix (+30 dias)") : "Pix (30 dias, sem renovação)"}
             </button>
             <p className="suave pequeno">

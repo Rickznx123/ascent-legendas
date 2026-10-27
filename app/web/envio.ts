@@ -7,7 +7,7 @@
 // - Os limites do plano são do servidor (rotas em app/servidor/envio.ts); aqui só se
 //   mede a duração antes, para avisar sem gastar dados.
 // - O erro diz em que etapa o envio parou; 30 s sem andamento avisam a tela.
-import {pedir} from "./api";
+import {evento, pedir} from "./api";
 import {usuarioDaSessao} from "./sessao";
 
 export class ErroDeEnvio extends Error {
@@ -286,6 +286,8 @@ export const enviarDireto = async (
     if (statusDo(erro) === 409) {
       throw erro;
     }
+    // Funil: a recusa com resposta do servidor já fica registrada lá; aqui, o que só a tela vê.
+    if (!statusDo(erro)) evento("envio_falhou", {etapa, motivo: erro instanceof Error ? erro.message : String(erro)});
     throw new ErroDeEnvio(`${erro instanceof Error ? erro.message : String(erro)} (parou na etapa: ${etapa})`, statusDo(erro));
   } finally {
     clearInterval(vigia);

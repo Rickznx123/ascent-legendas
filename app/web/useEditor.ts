@@ -37,7 +37,7 @@ import {POSICAO_PADRAO, escalaDoBloco, posicaoDoBloco} from "../../src/posicao";
 import type {Posicao} from "../../src/posicao";
 import {computeTimeline, findActiveBlockIndex} from "../../src/tempos";
 import type {AssignedCaptionBlock, CaptionBlock, VideoMetadata} from "../../src/types";
-import {api} from "./api";
+import {api, evento} from "./api";
 import type {Exportacao, TranscricaoNoServidor} from "./api";
 import {acompanharTarefa, marcarTarefaMostrada, tarefaJaMostrada} from "./tarefas-soltas";
 import type {TarefaSolta} from "./tarefas-soltas";
@@ -443,6 +443,7 @@ export const useEditor = () => {
         novoEstilo = {...novoEstilo, paleta: paletaDoPacote, palette: novoEstilo.paletas[paletaDoPacote]};
       }
       setEstilo(novoEstilo);
+      evento("trocou_estilo", {pacote, video: video ?? null});
       if (projetoDoVideo) {
         const semente = projetoDoVideo.semente ?? novaSemente();
         // Pacote com agrupamento próprio (pacote H), entrando ou saindo: a fala é
@@ -686,6 +687,7 @@ export const useEditor = () => {
     if (!conta || !projetoDoVideo) {
       return;
     }
+    evento("abriu_exportar", {video: projetoDoVideo.source});
     try {
       const previa = await api.previaExportacao(projetoDoVideo.source);
       // Sem limite (a conta do dono): nada a confirmar, exporta direto.
@@ -936,6 +938,21 @@ export const useEditor = () => {
   // Vídeo da prévia: a prévia leve do S3 quando pronta; vídeo só no disco (ou sem
   // login), o de sempre. Preparando ou com falha: nenhum (a tela mostra a capa).
   const previaLeve = usePreviaLeve(video);
+  // Funil: a prévia deste vídeo carregou, falhou ou passou de 10 s (uma vez por vídeo).
+  const medicaoDaPrevia = useRef<{video?: string; inicio: number; fim?: boolean}>({inicio: 0});
+  useEffect(() => {
+    if (!video) return;
+    medicaoDaPrevia.current = {video, inicio: Date.now()};
+    const lenta = window.setTimeout(() => medicaoDaPrevia.current.fim || evento("previa_lenta", {video}), 10_000);
+    return () => window.clearTimeout(lenta);
+  }, [video]);
+  useEffect(() => {
+    const medicao = medicaoDaPrevia.current;
+    const estado = previaLeve.estado?.estado;
+    if (medicao.fim || medicao.video !== video || (estado !== "pronta" && estado !== "local" && estado !== "falhou")) return;
+    medicao.fim = true;
+    evento(estado === "falhou" ? "previa_falhou" : "previa_carregou", {video: video ?? null, ms: Date.now() - medicao.inicio});
+  }, [previaLeve.estado, video]);
   const videoUrlDaPrevia =
     previaLeve.estado?.estado === "pronta"
       ? previaLeve.estado.video

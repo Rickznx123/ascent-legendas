@@ -27,6 +27,7 @@ import type {ArmazenamentoS3} from "./s3";
 import {LIMITES_DE_USO, textoDaFila} from "./limites";
 import {siteDaVersao} from "./site-lambda";
 import type {SiteDoLambda} from "./site-lambda";
+import {registrarEvento} from "./eventos";
 
 // Decisões do bloco 6: função de 2048 MB; 60 quadros por Lambda até 90 s de vídeo
 // e 200 acima disso; saída limitada a 1080 x 1920 (o lado maior a 1920 e o menor
@@ -217,7 +218,8 @@ export const rendersNoLambda = ({
     if (error) console.log(`Exportar: não deu para atualizar o render ${id}: ${error.message}`);
   };
 
-  const falhar = async (linha: Pick<Linha, "id" | "saida_chave">, erro: string, custoUsd?: number) => {
+  const falhar = async (linha: Pick<Linha, "id" | "saida_chave" | "usuario_id" | "video">, erro: string, custoUsd?: number) => {
+    registrarEvento(banco, linha.usuario_id, "export_falhou", {video: linha.video, motivo: erro});
     await atualizar(linha.id, {situacao: "falhou", erro, props: null, terminado_em: new Date().toISOString(), ...(custoUsd === undefined ? {} : {custo_usd: custoUsd})});
     // O arquivo parcial (se o Lambda chegou a gravar algo) sai do bucket.
     await s3.send(new DeleteObjectCommand({Bucket, Key: linha.saida_chave})).catch(() => undefined);
@@ -360,7 +362,10 @@ export const rendersNoLambda = ({
       } catch (erro) {
         // O plano não deixou (nem começa, nem fica registrado).
         const codigo = (erro as {codigo?: string}).codigo;
-        if (codigo) return {id: `recusada-${Date.now()}`, video, estado: "falhou", mensagem: mensagem(erro), codigo};
+        if (codigo) {
+          registrarEvento(banco, usuario.id, "viu_limite_gratis", {onde: "exportar", codigo, motivo: mensagem(erro)});
+          return {id: `recusada-${Date.now()}`, video, estado: "falhou", mensagem: mensagem(erro), codigo};
+        }
         throw erro;
       }
       const props = {...montada.props, video: tamanhoDaSaida(montada.props.video)};
@@ -395,6 +400,7 @@ export const rendersNoLambda = ({
         .single();
       if (error) throw new Error(`Não foi possível registrar a exportação (as migrações 005 e 006 já rodaram no Supabase?): ${error.message}`);
       const linha = data as Linha;
+      registrarEvento(banco, usuario.id, "export_iniciado", {video, duracaoS: Math.round(montada.duracaoS), comMarca: montada.decisao?.comMarca ?? false, largura: montada.props.video.width, altura: montada.props.video.height});
       await despachar();
       const agora = await ultimaDoVideo(usuario.id, video);
       return paraTela(agora ?? linha);
@@ -468,6 +474,7 @@ export const rendersNoLambda = ({
                 com_marca_dagua: linha.com_marca,
               });
               if (erroDoRegistro) console.log(`Exportar: não deu para registrar a exportação ${linha.id}: ${erroDoRegistro.message}`);
+              registrarEvento(banco, linha.usuario_id, "export_concluido", {video: linha.video, comMarca: linha.com_marca});
               console.log(
                 `Exportar: ${linha.video} pronto no Lambda (custo US$ ${progresso.costs.accruedSoFar.toFixed(4)}, desconto ${Number(linha.desconto_s).toFixed(1)} s).`,
               );

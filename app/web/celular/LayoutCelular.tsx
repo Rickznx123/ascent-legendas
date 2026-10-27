@@ -3,6 +3,7 @@
 import {useEffect, useRef, useState} from "react";
 import {Avisos} from "../Avisos";
 import type {Editor} from "../useEditor";
+import {useTempoNaEdicao} from "../tempo-na-edicao";
 import {EditorDeCortes} from "../Projetos";
 import {Andamento} from "./Andamento";
 import {EditorCelular} from "./EditorCelular";
@@ -39,6 +40,7 @@ export const LayoutCelular: React.FC<{e: Editor}> = ({e}) => {
   // O projeto aberto na tela de cortes.
   const [cortes, setCortes] = useState<string>();
   const nivel = NIVEL[tela] + (tela === "editor" && folhaAberta ? 1 : 0);
+  useTempoNaEdicao(tela === "editor", e.video);
 
   // Cada nível a mais entra no histórico do navegador; o "voltar" do aparelho (ou
   // os botões de voltar da tela) tira um.

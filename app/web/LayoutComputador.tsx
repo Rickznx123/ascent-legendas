@@ -22,6 +22,7 @@ import {api} from "./api";
 import {plataforma} from "./plataforma";
 import {PreparandoPrevia} from "./PreparandoPrevia";
 import type {Editor} from "./useEditor";
+import {useTempoNaEdicao} from "./tempo-na-edicao";
 
 const ABAS_DIREITA = ["legendas", "ajustes", "geral"] as const;
 type AbaDireita = (typeof ABAS_DIREITA)[number];
@@ -45,6 +46,7 @@ export const LayoutComputador: React.FC<{e: Editor; onProjetos?: () => void}> = 
     setAbaDireita(aba);
     guardarAba("abaDireita", aba);
   };
+  useTempoNaEdicao(true, e.video);
   const [esqAberto, setEsqAberto] = useState(true);
   const [dirAberto, setDirAberto] = useState(true);
 

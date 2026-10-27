@@ -32,6 +32,7 @@ import {LIMITES, duracaoEmTexto} from "./cota";
 import type {Espaco} from "./espaco";
 import type {PreviasLeves} from "./previa-leve";
 import type {VideosDasContas} from "./videos";
+import {registrarEvento} from "./eventos";
 import {idDoEnvio, registrarEnvio, segundos} from "./registro";
 import {tituloDoVideo} from "./titulo";
 import type {ArmazenamentoS3} from "./s3";
@@ -99,6 +100,11 @@ export const rotasDeEnvio = ({
         const status = erro instanceof ErroDoEnvio ? erro.status : 400;
         const mensagem = erro instanceof Error ? erro.message : String(erro);
         console.log(`Envio: ${request.method} ${request.path} recusado (${status}): ${mensagem}`);
+        const usuarioId = espacoDe(response).usuario?.id;
+        if (request.path === "/iniciar" || request.path === "/concluir") {
+          registrarEvento(contas.admin, usuarioId, "envio_falhou", {etapa: request.path.slice(1), status, motivo: mensagem});
+          if (status === 413 && mensagem.includes("grátis")) registrarEvento(contas.admin, usuarioId, "viu_limite_gratis", {onde: "envio", motivo: mensagem});
+        }
         response.status(status).json({mensagem});
       }
     };
@@ -148,6 +154,7 @@ export const rotasDeEnvio = ({
       // arquivo do S3 (metadados só aceitam ASCII: vão codificados). Veja titulo.ts.
       const Metadata = {"nome-original": encodeURIComponent(String(pedido)), titulo: encodeURIComponent(tituloDoVideo(nome, new Date()))};
       const {UploadId} = await s3.send(new CreateMultipartUploadCommand({Bucket, Key: chave, ContentType: tipoDoVideo(nome), Metadata}));
+      registrarEvento(contas.admin, espaco.usuario.id, "envio_iniciado", {bytes, duracaoS: Number(duracaoS) || null, plano: limite.plano});
       return {chave, envio: UploadId, tamanhoDaParte: TAMANHO_DA_PARTE, partes: Math.ceil(bytes / TAMANHO_DA_PARTE)};
     }),
   );
@@ -246,6 +253,7 @@ export const rotasDeEnvio = ({
       );
       // Capa e prévia leve, sem esperar (a tela pergunta o estado em /api/previa).
       previas.gerar(espaco.usuario.id, nome);
+      registrarEvento(contas.admin, espaco.usuario.id, "envio_concluido", {video: nome, bytes: ContentLength, duracaoS: Math.round(duracaoS)});
       return {nome, duracaoS, bytes: ContentLength};
     }),
   );

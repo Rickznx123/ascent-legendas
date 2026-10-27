@@ -5,6 +5,7 @@ import type {ArquivoSom} from "../../src/sons";
 import type {VideoMetadata, VozDoAudio} from "../../src/types";
 import {tokenDaSessao} from "./sessao";
 import type {TarefaSolta} from "./tarefas-soltas";
+import type {EventoDaTela} from "../servidor/eventos";
 
 // Com login, todo pedido leva o token da sessão; um 401 (sessão expirada) avisa a
 // tela para voltar ao login. Sem login, é o fetch de sempre.
@@ -16,6 +17,14 @@ export const pedir = async (url: string, init: RequestInit = {}): Promise<Respon
     window.dispatchEvent(new Event(EVENTO_SESSAO_EXPIRADA));
   }
   return resposta;
+};
+
+// Evento do funil (veja app/servidor/eventos.ts): sem esperar a resposta, e chega
+// mesmo com a página fechando (keepalive).
+export const evento = (nome: EventoDaTela, dados?: Record<string, string | number | boolean | null>): void => {
+  void pedir("/api/eventos", {method: "POST", keepalive: true, headers: {"Content-Type": "application/json"}, body: JSON.stringify({nome, dados})}).catch(
+    () => undefined,
+  );
 };
 
 // Uma linha do painel do dono (veja app/servidor/admin.ts).
