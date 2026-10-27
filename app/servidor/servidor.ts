@@ -72,6 +72,7 @@ import type {AwsRegion} from "@remotion/lambda/client";
 import {tituloDoVideo} from "./titulo";
 import {tarefasSoltas} from "./tarefas-soltas";
 import {eventoDaTela, registrarEvento} from "./eventos";
+import {emailsDeRecuperacao} from "./recuperacao";
 import {s3DoAmbiente} from "./s3";
 import type {ConfigDoLogin} from "./contas";
 import {espacoDoUsuario, espacoLocal} from "./espaco";
@@ -430,6 +431,26 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     const cookie = request.headers.cookie;
     void meta.cadastro(usuario, eventId, {fbp: cookieDoPedido(cookie, "_fbp"), fbc: cookieDoPedido(cookie, "_fbc"), ip: request.ip, ua: request.header("user-agent")});
   });
+
+  // E-mails de recuperação (veja recuperacao.ts): o vigia só no servidor da internet;
+  // "Sair da lista" sem login (o link do e-mail é assinado). POST: o descadastro de um
+  // clique do cabeçalho List-Unsubscribe.
+  const recuperacao = contas ? emailsDeRecuperacao(contas.admin) : undefined;
+  if (recuperacao && publico) recuperacao.vigiar();
+  const sairDaLista = async (request: Request, response: Response) => {
+    const saiu = await recuperacao?.sair(request.query.u, request.query.t).catch((erro: unknown) => {
+      console.log(`E-mails: sair da lista falhou: ${erro instanceof Error ? erro.message : String(erro)}`);
+      return false;
+    });
+    response
+      .status(saiu ? 200 : 400)
+      .type("html")
+      .send(
+        `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ascent Legendas</title><body style="font-family:sans-serif;background:#030210;color:#ececf1;padding:40px 20px;text-align:center"><p>${saiu ? "Pronto: você não recebe mais estes e-mails." : "Link inválido. Responda qualquer e-mail nosso pedindo para sair da lista."}</p></body></html>`,
+      );
+  };
+  app.get("/email/sair", (request, response) => void sairDaLista(request, response));
+  app.post("/email/sair", (request, response) => void sairDaLista(request, response));
 
   // Todas as outras rotas: com login, o token do usuário é validado e o pedido
   // passa a usar o espaço dele; sem login, o espaço local.

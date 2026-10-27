@@ -21,7 +21,7 @@
     "teste:tempos": "tsx --test src/tempos.teste.ts",
     "teste:projetos": "tsx --test app/servidor/projetos.teste.ts",
     "teste:renders": "tsx --test app/servidor/renders.teste.ts",
-    "teste:eventos": "tsx --test app/servidor/eventos.teste.ts"
+    "teste:eventos": "tsx --test app/servidor/eventos.teste.ts app/servidor/recuperacao.teste.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.986.0",

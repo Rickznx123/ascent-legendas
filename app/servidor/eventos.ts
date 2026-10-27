@@ -29,7 +29,8 @@ export type NomeDoEvento =
   | "transcricao_falhou"
   | "export_iniciado"
   | "export_concluido"
-  | "export_falhou";
+  | "export_falhou"
+  | "email_enviado";
 
 export type Dados = Record<string, string | number | boolean | null>;
 
