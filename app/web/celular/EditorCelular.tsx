@@ -11,6 +11,7 @@ import {api, tituloDoVideo} from "../api";
 import {tempoDoBloco} from "../quadro";
 import type {Editor} from "../useEditor";
 import {Andamento} from "./Andamento";
+import {useConta} from "../conta";
 import {AvisoDesfazer} from "./AvisoDesfazer";
 import {CoresCelular} from "./CoresCelular";
 import type {AvisoComDesfazer} from "./AvisoDesfazer";
@@ -95,16 +96,28 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
     onAbrirFolha();
   });
 
+  // Sem transcrição: o andamento enquanto transcreve; com erro, o motivo e "Tentar de novo".
   const naoTranscrito = (
     <div className="cel-vazio">
-      <p className="vazio">{video ? "Este vídeo ainda não foi transcrito." : "Nenhum vídeo aberto."}</p>
-      {video ? (
+      {e.tarefa ? (
+        <p className="vazio">Criando as legendas… {e.tarefa.etapa}</p>
+      ) : e.erro && video ? (
+        <p className="login-erro" role="alert">
+          Não deu para criar as legendas: {e.erro}
+        </p>
+      ) : (
+        <p className="vazio">{video ? "Este vídeo ainda não foi transcrito." : "Nenhum vídeo aberto."}</p>
+      )}
+      {video && !e.tarefa ? (
         <button type="button" className="bt primario cel-cheio" disabled={e.ocupado} onClick={() => void e.transcrever()}>
-          Transcrever
+          {e.erro ? "Tentar de novo" : "Transcrever"}
         </button>
       ) : null}
     </div>
   );
+  // Grátis: depois da transcrição, "Exportar meu vídeo grátis" fixo embaixo, sempre à vista.
+  const uso = useConta().conta?.uso;
+  const botaoFixo = projetoDoVideo && uso?.plano === "gratis";
 
   return (
     <div className={`cel-tela cel-editor ${folhaVisivel ? "cel-com-folha" : ""} ${telaCheia ? "cel-em-tela-cheia" : ""}`}>
@@ -166,6 +179,11 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
                   onToque={() => e.playerRef.current?.toggle()}
                 />
               </div>
+            ) : null}
+            {e.semSom ? (
+              <button type="button" className="cel-ligar-som" onClick={e.ligarSom}>
+                🔇 Toque para ouvir
+              </button>
             ) : null}
             {telaCheia ? (
               <div className="cel-tela-cheia-controles">
@@ -302,6 +320,13 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
           ) : null}
         </div>
 
+        {botaoFixo && !folhaVisivel ? (
+          <div className="cel-exportar-fixo">
+            <button type="button" className="bt primario cel-cheio" disabled={e.ocupado || !e.podeExportar} onClick={onExportar}>
+              {uso.videosUsados < uso.videosDoPlano ? "Exportar meu vídeo grátis" : "Exportar"}
+            </button>
+          </div>
+        ) : null}
         <nav className="cel-abas" role="tablist" aria-label="Seções do editor">
           {ABAS.map(({valor, nome, icone}) => (
             <button

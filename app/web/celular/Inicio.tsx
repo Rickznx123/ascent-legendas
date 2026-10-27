@@ -12,6 +12,7 @@ import type {AcaoDaAssinatura} from "../Assinatura";
 import type {ResumoDaAssinatura, UsoDoPlano} from "../api";
 import {CONFIG_CELULAR, linkDoSuporte, nomeDoPlano, resumoDasTranscricoes, resumoDoUso} from "./plano";
 import {ListaDeProjetos} from "../Projetos";
+import {LIMITES} from "../../servidor/cota";
 
 // Quadro do plano: usados e restantes (o servidor manda o uso; aqui só se mostra).
 // Com a assinatura: o aviso (ativa, cancelada, cobrança que falhou) e, no grátis, "Assinar".
@@ -228,8 +229,60 @@ const Menu: React.FC<{ocupado: boolean; onImportar: () => void}> = ({ocupado, on
   );
 };
 
+// Primeiro uso (conta grátis sem vídeos): direto para "Envie seu primeiro vídeo", com os
+// três passos e o vídeo de exemplo. O vídeo já é transcrito ao chegar (primeiroVideo).
+const PrimeiroVideo: React.FC<{e: Editor; onAbrir: (nome: string) => void; onProjetos: () => void}> = ({e, onAbrir, onProjetos}) => {
+  const [exemplo, setExemplo] = useState(false);
+  useEffect(() => {
+    api.exemploDisponivel().then(({disponivel}) => setExemplo(disponivel), () => undefined);
+  }, []);
+  const comecar = (nome: string | undefined) => {
+    if (!nome) return;
+    onAbrir(nome);
+    void e.primeiroVideo(nome);
+  };
+  return (
+    <div className="cel-primeiro">
+      <h1>Envie seu primeiro vídeo</h1>
+      <ol className="cel-passos">
+        <li>
+          <b>Envie o vídeo</b>
+          <small>Até {LIMITES.envio.gratis.segundos / 60} minutos, do jeito que você gravou.</small>
+        </li>
+        <li>
+          <b>A legenda sai sozinha</b>
+          <small>Com estilo e animação, em menos de um minuto.</small>
+        </li>
+        <li>
+          <b>Exporte grátis</b>
+          <small>O primeiro vídeo é por nossa conta.</small>
+        </li>
+      </ol>
+      {e.erro && !e.tarefa ? (
+        <p className="login-erro" role="alert">
+          {e.erro}
+        </p>
+      ) : null}
+      <button type="button" className="bt primario cel-cheio" disabled={e.ocupado} onClick={() => void e.escolherEImportar({galeria: true}).then(comecar)}>
+        {e.erro && !e.tarefa ? "Tentar de novo" : "Escolher vídeo"}
+      </button>
+      {exemplo ? (
+        <button type="button" className="bt cel-cheio" disabled={e.ocupado} onClick={() => void e.usarExemplo().then(comecar)}>
+          Testar com um vídeo de exemplo
+        </button>
+      ) : null}
+      <button type="button" className="bt-link" onClick={onProjetos}>
+        Ver meus projetos
+      </button>
+    </div>
+  );
+};
+
 export const Inicio: React.FC<{e: Editor; onAbrir: (nome: string) => void; onCortes: (id: string) => void}> = ({e, onAbrir, onCortes}) => {
   const {conta} = useConta();
+  // Catálogo já lido (os pacotes chegam junto) e nenhum vídeo na conta grátis.
+  const [verProjetos, setVerProjetos] = useState(false);
+  const primeiroUso = Boolean(conta?.plano === "gratis" && e.catalogo.pacotes.length > 0 && e.catalogo.videos.length === 0) && !verProjetos;
   // O projeto aberto tem o número de blocos mais recente; os outros vêm da lista do
   // servidor (com login, os projetos da conta).
   const situacao = (nome: string) => {
@@ -250,9 +303,11 @@ export const Inicio: React.FC<{e: Editor; onAbrir: (nome: string) => void; onCor
       </header>
       <Andamento tarefa={e.tarefa} />
       <div className="cel-rolagem">
-        {CONFIG_CELULAR.mostrarPlano && conta?.uso ? <QuadroDoPlano uso={conta.uso} assinatura={conta.assinatura} /> : null}
+        {CONFIG_CELULAR.mostrarPlano && conta?.uso && !primeiroUso ? <QuadroDoPlano uso={conta.uso} assinatura={conta.assinatura} /> : null}
         {/* Com login: os projetos (veja Projetos.tsx). Sem login (modo local): os vídeos, como antes. */}
-        {conta ? (
+        {primeiroUso ? (
+          <PrimeiroVideo e={e} onAbrir={onAbrir} onProjetos={() => setVerProjetos(true)} />
+        ) : conta ? (
           <ListaDeProjetos e={e} onAbrir={(alvo) => ("video" in alvo ? onAbrir(alvo.video) : onCortes(alvo.id))} />
         ) : (
           <>

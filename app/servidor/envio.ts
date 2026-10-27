@@ -15,6 +15,7 @@ import path from "node:path";
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
+  CopyObjectCommand,
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
@@ -44,6 +45,11 @@ export const TAMANHO_DA_PARTE = 5 * 1024 * 1024;
 const VALIDADE_DA_ASSINATURA_S = 3600;
 
 const EXTENSAO_DE_VIDEO = /\.(mp4|mov|m4v|mkv|webm)$/iu;
+
+// "Testar com um vídeo de exemplo" (primeiro uso): este arquivo do bucket é copiado
+// para a pasta da conta. Sem ele no bucket, a tela não mostra o botão.
+const CHAVE_DO_EXEMPLO = "exemplo/video-de-exemplo.mp4";
+const NOME_DO_EXEMPLO = "video-de-exemplo.mp4";
 
 class ErroDoEnvio extends Error {
   constructor(
@@ -255,6 +261,34 @@ export const rotasDeEnvio = ({
       previas.gerar(espaco.usuario.id, nome);
       registrarEvento(contas.admin, espaco.usuario.id, "envio_concluido", {video: nome, bytes: ContentLength, duracaoS: Math.round(duracaoS)});
       return {nome, duracaoS, bytes: ContentLength};
+    }),
+  );
+
+  rotas.get(
+    "/exemplo",
+    responder(async () => ({disponivel: await armazenamento.existe(CHAVE_DO_EXEMPLO)})),
+  );
+
+  rotas.post(
+    "/exemplo",
+    responder(async (_request, _response, espaco) => {
+      const chave = `${prefixoDe(espaco.usuario.id)}${NOME_DO_EXEMPLO}`;
+      // Já copiado antes (testou de novo): o mesmo vídeo.
+      if (!(await armazenamento.existe(chave))) {
+        await s3.send(
+          new CopyObjectCommand({
+            Bucket,
+            Key: chave,
+            CopySource: `${Bucket}/${CHAVE_DO_EXEMPLO}`,
+            MetadataDirective: "REPLACE",
+            ContentType: "video/mp4",
+            Metadata: {"nome-original": NOME_DO_EXEMPLO, titulo: encodeURIComponent("Vídeo de exemplo")},
+          }),
+        );
+        previas.gerar(espaco.usuario.id, NOME_DO_EXEMPLO);
+      }
+      registrarEvento(contas.admin, espaco.usuario.id, "usou_exemplo");
+      return {nome: NOME_DO_EXEMPLO};
     }),
   );
 

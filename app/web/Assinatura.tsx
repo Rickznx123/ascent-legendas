@@ -93,7 +93,8 @@ export const AVISO_DE_SUBIR = "Você paga o plano novo cheio hoje e o seu mês r
 // depois, cartão ou Pix com o valor do escolhido. Quem já assina vê o plano atual
 // marcado: subir abre o pagamento do plano novo (com o aviso acima); descer vale a
 // partir da próxima renovação. O valor cobrado é sempre o do servidor.
-export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
+// cupomInicial: já aplicado ao abrir (a oferta do grátis); o servidor confere no pagamento.
+export const JanelaAssinar: React.FC<{onFechar: () => void; cupomInicial?: VistaDoCupom}> = ({onFechar, cupomInicial}) => {
   const {conta, atualizarConta} = useConta();
   const resumo = conta?.assinatura;
   const planos = resumo?.planos ?? [];
@@ -124,7 +125,7 @@ export const JanelaAssinar: React.FC<{onFechar: () => void}> = ({onFechar}) => {
   // uma descida (assinatura ativa, plano igual ou menor) não tem pagamento: sem desconto.
   const [abrirCupom, setAbrirCupom] = useState(false);
   const [codigo, setCodigo] = useState("");
-  const [cupom, setCupom] = useState<VistaDoCupom>();
+  const [cupom, setCupom] = useState<VistaDoCupom | undefined>(cupomInicial);
   const [erroDoCupom, setErroDoCupom] = useState<string>();
   const [aplicando, setAplicando] = useState(false);
   const comDesconto = (nivel: Nivel) => Boolean(cupom) && !(situacao === "ativa" && ordem(nivel) <= ordem(atual));

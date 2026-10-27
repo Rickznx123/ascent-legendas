@@ -537,7 +537,11 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       const perfil = await contas.perfil(espaco.usuario, response.locals.token as string);
       const uso = await espaco.cota?.uso();
       const assinatura = await resumoDaConta(espaco, response.locals.token as string);
-      return {conta: {email: espaco.usuario.email, nome: perfil.nome, plano: perfil.plano, uso, assinatura}};
+      // Oferta do grátis (veja app/web/Oferta.tsx): o cupom de CUPOM_DA_OFERTA, se ainda vale.
+      const codigoDaOferta = process.env.CUPOM_DA_OFERTA?.trim();
+      const oferta =
+        perfil.plano === "gratis" && codigoDaOferta && cupons ? await cupons.validar(codigoDaOferta).then(vistaDoCupom, () => undefined) : undefined;
+      return {conta: {email: espaco.usuario.email, nome: perfil.nome, plano: perfil.plano, uso, assinatura, oferta}};
     }),
   );
 

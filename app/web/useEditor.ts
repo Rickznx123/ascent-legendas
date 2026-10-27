@@ -566,8 +566,9 @@ export const useEditor = () => {
     }
   };
 
-  const transcrever = async (recomecar = false) => {
-    if (!video) {
+  // alvo e pacote: o primeiro vídeo (veja primeiroVideo), que ainda não é o "video" desta renderização.
+  const transcrever = async (recomecar = false, alvo = video, pacote = estilo?.pacote) => {
+    if (!alvo) {
       return;
     }
     const nome = recomecar ? "Recomeçar do zero" : "Transcrever";
@@ -577,10 +578,13 @@ export const useEditor = () => {
     setAviso(undefined);
     setTarefa({nome, etapa: "Começando..."});
     try {
-      const tarefa = await api.transcrever({video, pacote: estilo?.pacote, paleta: estilo?.paleta, manterAjustes: recomecar});
+      const tarefa = await api.transcrever({video: alvo, pacote, paleta: estilo?.paleta, manterAjustes: recomecar});
       void acompanharTranscricao(tarefa, nome, recomecar);
     } catch (error) {
-      // Sem transcrições no dia: a mensagem do servidor diz quando renova.
+      // Sem transcrições no dia: a mensagem do servidor diz quando renova (no grátis, com a oferta).
+      if ((error as {codigo?: string}).codigo === "limite-transcricoes" && conta?.plano === "gratis") {
+        setLimiteDoGratis({onde: "limite_transcricao", motivo: error instanceof Error ? error.message : String(error)});
+      }
       mostrarErro(error);
       setTarefa(undefined);
       atualizarConta();
@@ -666,12 +670,42 @@ export const useEditor = () => {
       setAviso(`Vídeo importado: ${nome}`);
       return nome;
     } catch (error) {
+      // Passou do limite do grátis (2 min ou 300 MB): o motivo e a oferta, além do erro.
+      if ((error as {status?: number}).status === 413 && conta?.plano === "gratis") {
+        setLimiteDoGratis({onde: "limite_envio", motivo: error instanceof Error ? error.message.replace(/ \(parou na etapa: .*\)$/u, "") : String(error)});
+      }
       mostrarErro(error);
       return undefined;
     } finally {
       setTarefa(undefined);
     }
   };
+
+  // Primeiro uso: o vídeo enviado (ou o de exemplo) já é transcrito no pacote A e,
+  // pronta a transcrição, a prévia toca sozinha (sem som, até um toque: o navegador
+  // não deixa tocar com som sem um toque recente).
+  const [tocarSozinho, setTocarSozinho] = useState(false);
+  const [semSom, setSemSom] = useState(false);
+  const primeiroVideo = async (nome: string) => {
+    setVideo(nome);
+    setTocarSozinho(true);
+    await transcrever(false, nome, "a");
+  };
+  const usarExemplo = async () => {
+    setErro(undefined);
+    setTarefa({nome: "Importar", etapa: "Preparando o vídeo de exemplo..."});
+    try {
+      const {nome} = await api.usarExemplo();
+      setCatalogo(await api.catalogo());
+      return nome;
+    } catch (error) {
+      mostrarErro(error);
+      return undefined;
+    } finally {
+      setTarefa(undefined);
+    }
+  };
+  const [limiteDoGratis, setLimiteDoGratis] = useState<{onde: string; motivo: string}>();
 
   const escolherEImportar = async (opcoes?: {galeria?: boolean}): Promise<string | undefined> => {
     const escolhido = await plataforma.escolherVideo(opcoes);
@@ -960,6 +994,17 @@ export const useEditor = () => {
         ? api.videoUrl(video)
         : undefined;
   const previaAtiva = Boolean(video && videoInfo && estilo && videoUrlDaPrevia);
+  useEffect(() => {
+    if (!tocarSozinho || !previaAtiva || !projetoDoVideo || !playerRef.current) return;
+    setTocarSozinho(false);
+    playerRef.current.mute();
+    playerRef.current.play();
+    setSemSom(true);
+  }, [tocarSozinho, previaAtiva, projetoDoVideo]);
+  const ligarSom = () => {
+    playerRef.current?.unmute();
+    setSemSom(false);
+  };
   const podeExportar = Boolean(projetoDoVideo && estilo);
   const temBlocoSelecionado = blocoSelecionado >= 0 && blocoSelecionado < blocos.length;
 
@@ -1029,6 +1074,12 @@ export const useEditor = () => {
     trocarPaleta,
     recarregarTemplates,
     transcrever,
+    primeiroVideo,
+    usarExemplo,
+    semSom,
+    ligarSom,
+    limiteDoGratis,
+    fecharLimiteDoGratis: () => setLimiteDoGratis(undefined),
     recomecarDoZero,
     removerVideo,
     importarVideo,

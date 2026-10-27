@@ -75,7 +75,8 @@ import type {VistaDoCupom} from "../servidor/cupons";
 export type {Nivel, PlanoPago, ResumoDaAssinatura, VistaDoCupom, VistaDoPix};
 import type {ProjetoComTimeline, ResumoDeProjeto, Timeline, Trecho} from "../servidor/projetos";
 export type {ProjetoComTimeline, ResumoDeProjeto, Timeline, Trecho};
-export type Conta = {email: string; nome: string | null; plano: Plano; uso?: UsoDoPlano; assinatura?: ResumoDaAssinatura};
+// oferta: o cupom já aplicado na oferta do grátis (veja Oferta.tsx); sem ele, preço cheio.
+export type Conta = {email: string; nome: string | null; plano: Plano; uso?: UsoDoPlano; assinatura?: ResumoDaAssinatura; oferta?: VistaDoCupom};
 
 // Erro de uma tarefa com um código do servidor (ex.: "assine", "sem-saldo").
 export class ErroDaTarefa extends Error {
@@ -116,6 +117,10 @@ export const api = {
       .then((data) => data.projeto),
 
   // Conta logada (e-mail e plano do perfil); sem login, null.
+  // Vídeo de exemplo do primeiro uso (veja app/servidor/envio.ts): copiado para a conta.
+  exemploDisponivel: () => pedir("/api/envio/exemplo").then((r) => lerJson<{disponivel: boolean}>(r)),
+  usarExemplo: () => pedir("/api/envio/exemplo", {method: "POST"}).then((r) => lerJson<{nome: string}>(r)),
+
   conta: () =>
     pedir("/api/conta")
       .then((r) => lerJson<{conta: Conta | null}>(r))

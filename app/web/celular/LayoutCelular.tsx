@@ -2,6 +2,7 @@
 // funções vêm de useEditor, os mesmos do computador.
 import {useEffect, useRef, useState} from "react";
 import {Avisos} from "../Avisos";
+import {JanelaDoLimite} from "../Oferta";
 import type {Editor} from "../useEditor";
 import {useTempoNaEdicao} from "../tempo-na-edicao";
 import {EditorDeCortes} from "../Projetos";
@@ -197,6 +198,7 @@ export const LayoutCelular: React.FC<{e: Editor}> = ({e}) => {
         />
       ) : null}
       {tela === "exportar" ? <TelaExportar e={e} onVoltar={voltar} /> : null}
+      <JanelaDoLimite limite={e.limiteDoGratis} onFechar={e.fecharLimiteDoGratis} />
       <Avisos avisos={e.avisos} erro={e.erro} onFecharAviso={e.fecharAviso} onFecharErro={() => e.setErro(undefined)} />
     </div>
   );

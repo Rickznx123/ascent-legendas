@@ -1333,3 +1333,92 @@
 .cel-centro .aviso-do-plano-botoes {
   flex-direction: column;
 }
+
+/* Primeiro uso: "Envie seu primeiro vídeo" com os três passos (Inicio.tsx). */
+.cel-primeiro {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0 24px;
+}
+.cel-primeiro h1 {
+  margin: 4px 0;
+  font-size: 24px;
+}
+.cel-passos {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  counter-reset: passo;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cel-passos li {
+  counter-increment: passo;
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  column-gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--painel-2);
+}
+.cel-passos li::before {
+  content: counter(passo);
+  grid-row: span 2;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  background: var(--acento-fraco);
+  color: var(--texto);
+}
+.cel-passos small {
+  color: var(--suave);
+}
+
+/* Prévia tocando sozinha sem som (primeiro uso): um toque liga o som. */
+.cel-ligar-som {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 3;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--veu);
+  color: var(--texto);
+  font-weight: 600;
+}
+
+/* Grátis: "Exportar meu vídeo grátis" fixo acima das abas do editor. */
+.cel-exportar-fixo {
+  flex: none;
+  padding: 8px 12px;
+  background: var(--painel);
+  border-top: 1px solid var(--linha);
+}
+.cel-teclado .cel-exportar-fixo {
+  display: none;
+}
+
+/* Oferta "Tire a marca d'água" (Oferta.tsx), no celular e no computador. */
+.oferta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--painel-2);
+  border: 1px solid var(--acento-fraco);
+  text-align: left;
+}
+.oferta h2 {
+  margin: 0;
+}
+.oferta-preco b {
+  font-size: 20px;
+}

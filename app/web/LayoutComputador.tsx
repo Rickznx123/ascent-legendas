@@ -9,6 +9,7 @@ import {Abas, PainelDaAba, abaGuardada, guardarAba} from "./Abas";
 import type {Aba} from "./Abas";
 import {AjustesDoBloco} from "./AjustesDoBloco";
 import {Avisos} from "./Avisos";
+import {JanelaDoLimite} from "./Oferta";
 import {BarraTopo} from "./BarraTopo";
 import {Controles} from "./Controles";
 import {GaleriaDoProjeto} from "./GaleriaDoProjeto";
@@ -300,6 +301,7 @@ export const LayoutComputador: React.FC<{e: Editor; onProjetos?: () => void}> = 
         onSelecionar={e.irParaBloco}
       />
 
+      <JanelaDoLimite limite={e.limiteDoGratis} onFechar={e.fecharLimiteDoGratis} />
       <Avisos avisos={e.avisos} erro={e.erro} onFecharAviso={e.fecharAviso} onFecharErro={() => e.setErro(undefined)} />
       {e.previaExportacao && !e.ocupado ? (
         <div className="janela-fundo" role="dialog" aria-modal="true" aria-label="Exportar">

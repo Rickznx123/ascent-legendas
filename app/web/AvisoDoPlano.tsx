@@ -7,6 +7,7 @@ import {JanelaAssinar, podeSubirDePlano} from "./Assinatura";
 import type {DecisaoDeExportacao} from "./api";
 import {avisoDaExportacao} from "./celular/plano";
 import {useConta} from "./conta";
+import {Oferta} from "./Oferta";
 
 export const AvisoDoPlano: React.FC<{
   decisao: DecisaoDeExportacao;
@@ -22,6 +23,19 @@ export const AvisoDoPlano: React.FC<{
   const podeAssinar = Boolean(conta?.assinatura?.disponivel && conta.assinatura.situacao === "nenhuma");
   // Assinante sem minutos: subir para um plano maior.
   const podeSubir = decisao.codigo === "sem-saldo" && podeSubirDePlano(conta?.assinatura);
+  // Grátis já usado: o motivo e a oferta com o cupom (Oferta.tsx), não só o bloqueio.
+  if (!decisao.permitido && decisao.codigo === "assine" && podeAssinar) {
+    return (
+      <div className="aviso-do-plano" role="alert">
+        <Oferta onde="limite_exportar" titulo="Seu vídeo grátis já foi usado" motivo={decisao.motivo} classeDoBotao={classeDoBotao} />
+        <div className="aviso-do-plano-botoes">
+          <button type="button" className={`bt ${classeDoBotao}`} onClick={onVoltar}>
+            Voltar a editar
+          </button>
+        </div>
+      </div>
+    );
+  }
   if (!decisao.permitido) {
     return (
       <div className="aviso-do-plano" role="alert">
