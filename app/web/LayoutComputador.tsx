@@ -48,6 +48,12 @@ export const LayoutComputador: React.FC<{e: Editor; onProjetos?: () => void}> = 
     guardarAba("abaDireita", aba);
   };
   useTempoNaEdicao(true, e.video);
+  // Vídeo grátis pronto (com a marca d'água): a oferta uma vez por vídeo exportado.
+  const [ofertaVista, setOfertaVista] = useState<string>();
+  const ofertaDoPronto =
+    e.exportado && e.marcaDagua && ofertaVista !== e.exportado.nome
+      ? {onde: "video_pronto", titulo: "Seu vídeo está pronto! Tire a marca d'água", motivo: "Ele saiu com a marca d'água do plano grátis. Assine e exporte de novo sem ela."}
+      : undefined;
   const [esqAberto, setEsqAberto] = useState(true);
   const [dirAberto, setDirAberto] = useState(true);
 
@@ -302,6 +308,7 @@ export const LayoutComputador: React.FC<{e: Editor; onProjetos?: () => void}> = 
       />
 
       <JanelaDoLimite limite={e.limiteDoGratis} onFechar={e.fecharLimiteDoGratis} />
+      <JanelaDoLimite limite={e.limiteDoGratis ? undefined : ofertaDoPronto} onFechar={() => setOfertaVista(e.exportado?.nome)} />
       <Avisos avisos={e.avisos} erro={e.erro} onFecharAviso={e.fecharAviso} onFecharErro={() => e.setErro(undefined)} />
       {e.previaExportacao && !e.ocupado ? (
         <div className="janela-fundo" role="dialog" aria-modal="true" aria-label="Exportar">

@@ -3,6 +3,7 @@
 // Voltar a editar.
 import {useEffect, useRef, useState} from "react";
 import {AvisoDoPlano} from "../AvisoDoPlano";
+import {Oferta} from "../Oferta";
 import {useConta} from "../conta";
 import {plataforma} from "../plataforma";
 import type {Editor} from "../useEditor";
@@ -88,6 +89,8 @@ export const TelaExportar: React.FC<{e: Editor; onVoltar: () => void}> = ({e, on
                 Voltar a editar
               </button>
             </div>
+            {/* Vídeo grátis pronto (com a marca d'água): a oferta com o cupom do 1º mês. */}
+            {e.marcaDagua ? <Oferta onde="video_pronto" motivo="Seu vídeo saiu com a marca d'água do plano grátis. Assine e exporte de novo sem ela." classeDoBotao="cel-cheio" /> : null}
           </>
         ) : exportando ? (
           <>

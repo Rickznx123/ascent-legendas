@@ -56,12 +56,13 @@ export const Oferta: React.FC<{onde: string; titulo?: string; motivo?: string; c
   );
 };
 
-// Envio ou transcrição que passou do limite do grátis: o motivo e a oferta, por cima da tela.
-export const JanelaDoLimite: React.FC<{limite?: {onde: string; motivo: string}; onFechar: () => void}> = ({limite, onFechar}) =>
+// A oferta por cima da tela: envio ou transcrição que passou do limite do grátis (com o
+// motivo) e, no computador, o vídeo grátis que acabou de ficar pronto.
+export const JanelaDoLimite: React.FC<{limite?: {onde: string; motivo: string; titulo?: string}; onFechar: () => void}> = ({limite, onFechar}) =>
   limite ? (
     <div className="login janela-fundo" role="dialog" aria-modal="true" aria-label="Limite do plano grátis">
       <div className="login-caixa">
-        <Oferta onde={limite.onde} titulo="Isso passa do plano grátis" motivo={limite.motivo} classeDoBotao="cheio" />
+        <Oferta onde={limite.onde} titulo={limite.titulo ?? "Isso passa do plano grátis"} motivo={limite.motivo} classeDoBotao="cheio" />
         <button type="button" className="bt cheio" onClick={onFechar}>
           Agora não
         </button>
