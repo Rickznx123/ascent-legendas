@@ -4,8 +4,9 @@
 //     disso, "Na fila, posição N", e a tarefa segue sozinha quando abre vaga;
 //   - o que pesa no próprio servidor (ffmpeg): 1 prévia leve e 2 sons tocados ao
 //     mesmo tempo, para caber em 1 CPU / 2 GB (medido com scripts/medir-carga.ts);
-//   - pedidos por minuto, por conta (sem login, por endereço): 60 no geral e 10 nas
-//     rotas que custam (transcrever, exportar e abrir um envio).
+//   - pedidos por minuto, por conta (sem login, por endereço): 300 no geral, 10 nas
+//     rotas que custam (transcrever, exportar e abrir um envio) e os eventos do funil
+//     num balde só deles.
 // A fila de renders fica na tabela renders (sobrevive a um reinício, veja renders.ts);
 // a de transcrições, na memória (uma transcrição leva segundos).
 // FILA_RENDERS, FILA_TRANSCRICOES, FILA_PREVIAS e FILA_SONS (ambiente) trocam as vagas.
@@ -24,8 +25,11 @@ export const LIMITES_DE_USO = {
   previasAoMesmoTempo: doAmbiente("FILA_PREVIAS", 1),
   // Sons tocados da prévia do editor (um ffmpeg curto por som).
   sonsAoMesmoTempo: doAmbiente("FILA_SONS", 2),
-  pedidosPorMinuto: 60,
+  // 300: ir e voltar entre Início, projeto e editor já faz ~20 leituras baratas
+  // (com 60, o uso normal recebia "Muitos pedidos seguidos"). Só barra script.
+  pedidosPorMinuto: 300,
   pedidosCarosPorMinuto: 10,
+  eventosPorMinuto: 120,
 };
 
 // O que a tela mostra enquanto espera a vez (começa com "Na fila": a tela reconhece).
@@ -73,6 +77,9 @@ export const filaComVagas = (vagas: number) => {
 // Rotas de consulta frequente (a tela pergunta o andamento a cada poucos segundos e
 // o envio assina as partes em lotes): não contam no limite geral.
 const FORA_DO_LIMITE = [/^\/api\/exportacao$/u, /^\/api\/transcricao$/u, /^\/api\/previa$/u, /^\/api\/envio\/(assinar|partes)$/u];
+// Eventos do funil (a tela manda e ignora a resposta): passando do limite, são
+// descartados em silêncio, sem gastar o limite geral.
+const EVENTOS = /^\/api\/eventos(\/visitante)?$/u;
 // Rotas que custam (WhisperX, Lambda, abrir um envio no S3).
 const CARAS = [
   {metodo: "POST", rota: /^\/api\/transcrever$/u},
@@ -107,6 +114,11 @@ export const limiteDePedidos = (contaDo: (request: Request, response: Response) 
   return (request: Request, response: Response, next: NextFunction) => {
     const rota = request.baseUrl + request.path;
     const conta = contaDo(request, response);
+    if (EVENTOS.test(rota)) {
+      if (contar(`eventos:${conta}`, LIMITES_DE_USO.eventosPorMinuto)) next();
+      else response.status(204).end();
+      return;
+    }
     const cara = CARAS.some((item) => item.metodo === request.method && item.rota.test(rota));
     if (cara && !contar(`caro:${conta}`, LIMITES_DE_USO.pedidosCarosPorMinuto)) {
       response.status(429).json({mensagem: "Muitos pedidos seguidos de transcrição, exportação ou envio. Espere um minuto e tente de novo."});

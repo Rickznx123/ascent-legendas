@@ -80,7 +80,7 @@ export const Cartao: React.FC<{nome: string; titulo: string; situacao: string; a
   }, []);
 
   useEffect(() => {
-    if (visivel) {
+    if (visivel && nome) {
       api
         .videoInfo(nome)
         .then((info) => setDuracaoMs((info.durationInFrames / info.fps) * 1000))

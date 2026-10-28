@@ -104,6 +104,8 @@ const lerJson = async <T>(response: Response): Promise<T> => {
   return data;
 };
 
+const infosDosVideos = new Map<string, Promise<VideoMetadata>>();
+
 export const api = {
   catalogo: () => pedir("/api/catalogo").then((r) => lerJson<Catalogo>(r)),
 
@@ -199,8 +201,16 @@ export const api = {
   // Trechos de voz do áudio (Sincronia precisa num projeto sem a voz salva).
   voz: (nome: string) => pedir(`/api/voz?nome=${encodeURIComponent(nome)}`).then((r) => lerJson<VozDoAudio>(r)),
 
-  videoInfo: (nome: string) =>
-    pedir(`/api/video-info?nome=${encodeURIComponent(nome)}`).then((r) => lerJson<VideoMetadata>(r)),
+  // Uma vez por vídeo (não muda): os cartões pedem de novo a cada volta ao Início.
+  videoInfo: (nome: string) => {
+    let info = infosDosVideos.get(nome);
+    if (!info) {
+      info = pedir(`/api/video-info?nome=${encodeURIComponent(nome)}`).then((r) => lerJson<VideoMetadata>(r));
+      infosDosVideos.set(nome, info);
+      info.catch(() => infosDosVideos.delete(nome));
+    }
+    return info;
+  },
 
   videoUrl: (nome: string) => `/media/${encodeURIComponent(nome)}`,
 
