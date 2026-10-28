@@ -1422,3 +1422,57 @@
 .oferta-preco b {
   font-size: 20px;
 }
+
+/* Cortes no celular (Timeline.tsx, PLANO-CORTES.md, Bloco 6): prévia em cima, a trilha
+   logo abaixo, os botões grandes embaixo dela e "Gerar legendas" fixo no rodapé. */
+.cel .tl-previa {
+  height: 38vh;
+}
+
+.cel .tl-trilha {
+  order: 1;
+  /* A pinça da página fica desligada aqui: dois dedos são o zoom da timeline. */
+  touch-action: pan-x pan-y;
+}
+
+.cel .tl-faixa {
+  height: 76px;
+}
+
+.cel .tl-borda {
+  width: 22px;
+}
+
+.cel .tl-trecho {
+  -webkit-touch-callout: none;
+}
+
+.cel .tl-botoes {
+  order: 2;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.cel .tl-botoes .bt {
+  min-height: 52px;
+}
+
+/* No celular o zoom é a pinça. */
+.cel .tl-zoom {
+  display: none;
+}
+
+.cel .tl-tempo {
+  grid-column: 1 / -1;
+  margin-left: 0;
+  text-align: center;
+}
+
+.cel .cortes-legendar {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  min-height: 56px;
+  box-shadow: var(--sombra);
+}

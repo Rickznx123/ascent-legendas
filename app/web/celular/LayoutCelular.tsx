@@ -38,7 +38,7 @@ const centralizarNaLista = (campo: HTMLElement) => {
 export const LayoutCelular: React.FC<{e: Editor}> = ({e}) => {
   const [tela, setTela] = useState<Tela>("inicio");
   const [folhaAberta, setFolhaAberta] = useState(false);
-  // O projeto aberto na tela de cortes.
+  // O projeto aberto na tela de cortes (e o das legendas abertas, para voltar aos cortes).
   const [cortes, setCortes] = useState<string>();
   const nivel = NIVEL[tela] + (tela === "editor" && folhaAberta ? 1 : 0);
   useTempoNaEdicao(tela === "editor", e.video);
@@ -145,7 +145,8 @@ export const LayoutCelular: React.FC<{e: Editor}> = ({e}) => {
     }
   }, [e.exportacaoRetomada]);
 
-  const abrirVideo = (nome: string) => {
+  const abrirVideo = (nome: string, projeto?: string) => {
+    setCortes(projeto);
     if (nome !== e.video) {
       e.setVideo(nome);
     }
@@ -171,11 +172,11 @@ export const LayoutCelular: React.FC<{e: Editor}> = ({e}) => {
             <button type="button" className="cel-ic" aria-label="Voltar para os projetos" onClick={voltar}>
               ‹
             </button>
-            <span className="cel-nome">Vídeos do projeto</span>
+            <span className="cel-nome">Cortes</span>
           </header>
           <Andamento tarefa={e.tarefa} />
           <div className="cel-rolagem">
-            <EditorDeCortes e={e} id={cortes} onLegendar={abrirVideo} onApagado={voltar} />
+            <EditorDeCortes e={e} id={cortes} onLegendar={(video) => abrirVideo(video, cortes)} onApagado={voltar} />
           </div>
         </div>
       ) : null}
@@ -186,6 +187,16 @@ export const LayoutCelular: React.FC<{e: Editor}> = ({e}) => {
           onAbrirFolha={() => setFolhaAberta(true)}
           onFecharFolha={() => folhaAberta && voltar()}
           onVoltar={voltar}
+          // Mesmo nível do editor: troca de tela sem mexer no histórico.
+          onCortes={
+            cortes
+              ? () => {
+                  e.playerRef.current?.pause();
+                  setFolhaAberta(false);
+                  setTela("cortes");
+                }
+              : undefined
+          }
           onExportar={() => {
             e.playerRef.current?.pause();
             setFolhaAberta(false);

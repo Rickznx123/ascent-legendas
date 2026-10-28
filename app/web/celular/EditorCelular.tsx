@@ -41,10 +41,12 @@ type Props = {
   onAbrirFolha: () => void;
   onFecharFolha: () => void;
   onVoltar: () => void;
+  // Legendas de um projeto de cortes: volta para a timeline dele.
+  onCortes?: () => void;
   onExportar: () => void;
 };
 
-export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, onFecharFolha, onVoltar, onExportar}) => {
+export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, onFecharFolha, onVoltar, onCortes, onExportar}) => {
   const [aba, setAba] = useState<AbaCelular>(() => abaGuardada("abaCelular", VALORES_DAS_ABAS, "legendas"));
   const trocarAba = (nova: AbaCelular) => {
     setAba(nova);
@@ -133,6 +135,11 @@ export const EditorCelular: React.FC<Props> = ({e, folhaAberta, onAbrirFolha, on
             </small>
           ) : null}
         </span>
+        {onCortes ? (
+          <button type="button" className="cel-ic" disabled={e.ocupado} aria-label="Voltar para os cortes" onClick={onCortes}>
+            ✂
+          </button>
+        ) : null}
         <button type="button" className="cel-ic" disabled={!e.podeDesfazer} aria-label="Desfazer" onClick={e.desfazer}>
           ↶
         </button>

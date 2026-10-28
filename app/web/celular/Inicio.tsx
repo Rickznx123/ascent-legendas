@@ -278,7 +278,8 @@ const PrimeiroVideo: React.FC<{e: Editor; onAbrir: (nome: string) => void; onPro
   );
 };
 
-export const Inicio: React.FC<{e: Editor; onAbrir: (nome: string) => void; onCortes: (id: string) => void}> = ({e, onAbrir, onCortes}) => {
+// onAbrir com projeto: as legendas de um projeto de cortes (o editor mostra "Cortes").
+export const Inicio: React.FC<{e: Editor; onAbrir: (nome: string, projeto?: string) => void; onCortes: (id: string) => void}> = ({e, onAbrir, onCortes}) => {
   const {conta} = useConta();
   // Catálogo já lido (os pacotes chegam junto) e nenhum vídeo na conta grátis.
   const [verProjetos, setVerProjetos] = useState(false);
@@ -308,7 +309,7 @@ export const Inicio: React.FC<{e: Editor; onAbrir: (nome: string) => void; onCor
         {primeiroUso ? (
           <PrimeiroVideo e={e} onAbrir={onAbrir} onProjetos={() => setVerProjetos(true)} />
         ) : conta ? (
-          <ListaDeProjetos e={e} onAbrir={(alvo) => ("video" in alvo ? onAbrir(alvo.video) : onCortes(alvo.id))} />
+          <ListaDeProjetos e={e} onAbrir={(alvo) => ("video" in alvo ? onAbrir(alvo.video, alvo.id) : onCortes(alvo.id))} />
         ) : (
           <>
             <button type="button" className="bt primario cel-cheio" disabled={e.ocupado} onClick={() => void importar()}>

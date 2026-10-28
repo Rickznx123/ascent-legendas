@@ -1,8 +1,9 @@
-// Timeline dos cortes (PLANO-CORTES.md, Bloco 2), a mesma no computador e no celular:
-// a prévia tocando só os trechos (nada é montado), a trilha e os botões. Eventos de
-// ponteiro: tocar põe o cursor e escolhe o trecho; as bordas aparam (mouse e dedo);
-// arrastar o trecho reordena (mouse; com o dedo, no Bloco 6).
-import {useCallback, useEffect, useMemo, useRef, useState} from "react";
+// Timeline dos cortes (PLANO-CORTES.md, Blocos 2 e 6), a mesma no computador e no
+// celular: a prévia tocando só os trechos (nada é montado), a trilha e os botões.
+// Eventos de ponteiro: tocar põe o cursor e escolhe o trecho; as bordas aparam;
+// arrastar o trecho reordena (com o dedo: segurar e arrastar, porque arrastar direto
+// rola a trilha); dois dedos fazem a pinça do zoom.
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {Player} from "@remotion/player";
 import type {PlayerRef} from "@remotion/player";
 import {AbsoluteFill, Html5Video, Series} from "remotion";
@@ -149,9 +150,13 @@ const Sequencia: React.FC<PropsDaSequencia> = ({trechos, duracoes, fontes}) => {
   );
 };
 
+// ponteiro: o dedo (ou mouse) do gesto; um segundo dedo não mexe nele.
 type Gesto =
-  | {tipo: "aparar"; id: string; lado: "inicio" | "fim"; x0: number; ms0: number; base: Trecho[]}
-  | {tipo: "trecho"; indice: number; x0: number; arrastar: boolean};
+  | {tipo: "aparar"; ponteiro: number; id: string; lado: "inicio" | "fim"; x0: number; ms0: number; base: Trecho[]}
+  | {tipo: "trecho"; ponteiro: number; indice: number; x0: number; y0: number; arrastar: boolean};
+
+// Com o dedo, segurar parado este tempo num trecho começa a reordenar.
+const SEGURAR_PARA_ARRASTAR_MS = 350;
 
 const segundos = (ms: number) => `${Math.floor(ms / 60_000)}:${String(Math.floor((ms % 60_000) / 1000)).padStart(2, "0")}`;
 
@@ -252,6 +257,17 @@ export const Timeline: React.FC<{t: TimelineDoProjeto; catalogo: Catalogo; trava
   }, [pronto]);
   const escala = ((largura - 4) / Math.max(total, 1000)) * zoom;
   const msNoPonto = (clientX: number) => (clientX - (faixa.current?.getBoundingClientRect().left ?? 0)) / escala;
+  // Zoom (botões ou pinça): o instante sob a âncora (x em px, dentro da trilha) fica no lugar.
+  const ancora = useRef<{ms: number; x: number} | undefined>(undefined);
+  const mudarZoom = (novo: number, x = (trilha.current?.clientWidth ?? 0) / 2) => {
+    if (trilha.current) ancora.current = {ms: (trilha.current.scrollLeft + x) / escala, x};
+    setZoom(Math.min(ZOOM_MAXIMO, Math.max(1, novo)));
+  };
+  useLayoutEffect(() => {
+    const a = ancora.current;
+    ancora.current = undefined;
+    if (a && trilha.current) trilha.current.scrollLeft = a.ms * escala - a.x;
+  }, [escala]);
 
   const comecos = lista.reduce<number[]>((soma, trecho, i) => [...soma, i === 0 ? 0 : soma[i - 1] + duracaoDe(lista[i - 1], duracoes)], []);
   const gesto = useRef<Gesto | undefined>(undefined);
@@ -259,33 +275,60 @@ export const Timeline: React.FC<{t: TimelineDoProjeto; catalogo: Catalogo; trava
   // Para onde vai um trecho arrastado: depois de todos os outros cujo meio ficou à esquerda.
   const destino = (indice: number, ms: number) => lista.filter((trecho, i) => i !== indice && comecos[i] + duracaoDe(trecho, duracoes) / 2 < ms).length;
 
+  const segurar = useRef<number | undefined>(undefined);
+  const pinca = useRef<{distancia: number; zoom: number} | undefined>(undefined);
+  const toques = useRef(new Map<number, {x: number; y: number}>());
+
   const aoApertarBorda = (event: React.PointerEvent, trecho: Trecho, lado: "inicio" | "fim") => {
     event.stopPropagation();
-    if (travado) return;
+    if (travado || pinca.current) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     t.inicioDoGesto();
-    gesto.current = {tipo: "aparar", id: trecho.id, lado, x0: event.clientX, ms0: lado === "inicio" ? trecho.inicioMs : fimDe(trecho, duracoes), base: lista};
+    gesto.current = {
+      tipo: "aparar",
+      ponteiro: event.pointerId,
+      id: trecho.id,
+      lado,
+      x0: event.clientX,
+      ms0: lado === "inicio" ? trecho.inicioMs : fimDe(trecho, duracoes),
+      base: lista,
+    };
     setSelecionado(trecho.id);
   };
   const aoApertarTrecho = (event: React.PointerEvent, indice: number) => {
-    if (travado) return;
-    // Com o dedo, arrastar rola a trilha (reordenar com o dedo vem no Bloco 6).
-    const arrastar = event.pointerType !== "touch";
-    if (arrastar) event.currentTarget.setPointerCapture(event.pointerId);
-    gesto.current = {tipo: "trecho", indice, x0: event.clientX, arrastar};
+    if (travado || pinca.current) return;
+    const mouse = event.pointerType !== "touch";
+    if (mouse) event.currentTarget.setPointerCapture(event.pointerId);
+    const g: Gesto = {tipo: "trecho", ponteiro: event.pointerId, indice, x0: event.clientX, y0: event.clientY, arrastar: mouse};
+    gesto.current = g;
+    // Dedo parado por um instante: agora arrastar reordena (e a trilha para de rolar).
+    if (!mouse) {
+      window.clearTimeout(segurar.current);
+      segurar.current = window.setTimeout(() => {
+        if (gesto.current !== g) return;
+        g.arrastar = true;
+        setArrasto({indice, dx: 0, para: indice});
+        navigator.vibrate?.(15);
+      }, SEGURAR_PARA_ARRASTAR_MS);
+    }
   };
   const aoMover = (event: React.PointerEvent) => {
     const g = gesto.current;
-    if (!g) return;
+    if (!g || g.ponteiro !== event.pointerId || pinca.current) return;
     const dx = event.clientX - g.x0;
     if (g.tipo === "aparar") {
       mudar(() => aparar(g.base, duracoes, g.id, g.lado, g.ms0 + dx / escala), false);
     } else if (g.arrastar && (arrasto || Math.abs(dx) > ARRASTO_MINIMO_PX)) {
       setArrasto({indice: g.indice, dx, para: destino(g.indice, msNoPonto(event.clientX))});
+    } else if (Math.hypot(dx, event.clientY - g.y0) > ARRASTO_MINIMO_PX) {
+      // O dedo andou antes de segurar: é rolagem, não arrasto.
+      window.clearTimeout(segurar.current);
     }
   };
   const aoSoltar = (event: React.PointerEvent) => {
     const g = gesto.current;
+    if (g && g.ponteiro !== event.pointerId) return;
+    window.clearTimeout(segurar.current);
     gesto.current = undefined;
     if (g?.tipo === "aparar") {
       t.fimDoGesto();
@@ -298,10 +341,47 @@ export const Timeline: React.FC<{t: TimelineDoProjeto; catalogo: Catalogo; trava
     }
   };
   const aoCancelar = () => {
+    window.clearTimeout(segurar.current);
     if (gesto.current?.tipo === "aparar") t.fimDoGesto();
     gesto.current = undefined;
     setArrasto(undefined);
   };
+
+  // Pinça: dois dedos na trilha mudam o zoom (o que estava entre eles fica no lugar).
+  const dedos = () => [...toques.current.values()];
+  const aoTocarNaTrilha = (event: React.PointerEvent) => {
+    if (event.pointerType !== "touch") return;
+    toques.current.set(event.pointerId, {x: event.clientX, y: event.clientY});
+    if (toques.current.size === 2) {
+      aoCancelar();
+      const [a, b] = dedos();
+      pinca.current = {distancia: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), zoom};
+    }
+  };
+  const aoMoverNaTrilha = (event: React.PointerEvent) => {
+    if (!toques.current.has(event.pointerId)) return;
+    toques.current.set(event.pointerId, {x: event.clientX, y: event.clientY});
+    const p = pinca.current;
+    if (!p || toques.current.size < 2 || !trilha.current) return;
+    const [a, b] = dedos();
+    mudarZoom((p.zoom * Math.hypot(a.x - b.x, a.y - b.y)) / p.distancia, (a.x + b.x) / 2 - trilha.current.getBoundingClientRect().left);
+  };
+  const aoSoltarDaTrilha = (event: React.PointerEvent) => {
+    toques.current.delete(event.pointerId);
+    if (toques.current.size < 2) pinca.current = undefined;
+  };
+  // Arrastando um trecho, aparando ou com dois dedos: a trilha (e a página) não rolam
+  // nem dão zoom. Só um toque que ainda não começou a rolar pode ser cancelado assim.
+  useEffect(() => {
+    const elemento = trilha.current;
+    if (!elemento) return;
+    const aoArrastarODedo = (event: TouchEvent) => {
+      const g = gesto.current;
+      if (event.touches.length > 1 || pinca.current || g?.tipo === "aparar" || (g?.tipo === "trecho" && g.arrastar)) event.preventDefault();
+    };
+    elemento.addEventListener("touchmove", aoArrastarODedo, {passive: false});
+    return () => elemento.removeEventListener("touchmove", aoArrastarODedo);
+  }, [pronto]);
 
   if (lista.length === 0) return null;
   if (!pronto) return <p className={erroDeLeitura ? "login-erro" : "suave"}>{erroDeLeitura ?? "Lendo os vídeos…"}{nomes.map((nome) => <LerVideo key={nome} nome={nome} onInfo={aoInfo} />)}</p>;
@@ -344,10 +424,10 @@ export const Timeline: React.FC<{t: TimelineDoProjeto; catalogo: Catalogo; trava
           {pausas.procurando ? "Procurando pausas…" : "Remover pausas"}
         </button>
         <span className="tl-zoom">
-          <button type="button" className="bt" aria-label="Afastar" disabled={zoom <= 1} onClick={() => setZoom((z) => Math.max(1, z / 2))}>
+          <button type="button" className="bt" aria-label="Afastar" disabled={zoom <= 1} onClick={() => mudarZoom(zoom / 2)}>
             −
           </button>
-          <button type="button" className="bt" aria-label="Aproximar" disabled={zoom >= ZOOM_MAXIMO} onClick={() => setZoom((z) => Math.min(ZOOM_MAXIMO, z * 2))}>
+          <button type="button" className="bt" aria-label="Aproximar" disabled={zoom >= ZOOM_MAXIMO} onClick={() => mudarZoom(zoom * 2)}>
             ＋
           </button>
         </span>
@@ -356,7 +436,14 @@ export const Timeline: React.FC<{t: TimelineDoProjeto; catalogo: Catalogo; trava
         </span>
       </div>
       {pausas.aviso ? <p className="suave">{pausas.aviso}</p> : null}
-      <div className="tl-trilha" ref={trilha}>
+      <div
+        className="tl-trilha"
+        ref={trilha}
+        onPointerDownCapture={aoTocarNaTrilha}
+        onPointerMoveCapture={aoMoverNaTrilha}
+        onPointerUpCapture={aoSoltarDaTrilha}
+        onPointerCancelCapture={aoSoltarDaTrilha}
+      >
         <div
           className="tl-faixa"
           ref={faixa}
@@ -381,6 +468,8 @@ export const Timeline: React.FC<{t: TimelineDoProjeto; catalogo: Catalogo; trava
                 onPointerMove={aoMover}
                 onPointerUp={aoSoltar}
                 onPointerCancel={aoCancelar}
+                // O toque longo do celular não abre o menu (ele começa o arrasto).
+                onContextMenu={(event) => event.preventDefault()}
               >
                 <span className="tl-borda tl-borda-inicio" aria-label="Aparar o começo" onPointerDown={(event) => aoApertarBorda(event, trecho, "inicio")} />
                 <span className="tl-nome">
