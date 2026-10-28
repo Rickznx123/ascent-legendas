@@ -31,3 +31,10 @@ test("rotas caras: 10 por minuto", () => {
   assert.equal(pedir(limite, "POST", "/api/transcrever").status, 429);
   assert.equal(pedir(limite, "GET", "/api/estilo").passou, true);
 });
+
+test("abrir envios tem limite próprio: vários vídeos de uma vez não gastam o das transcrições", () => {
+  const limite = limiteDePedidos(() => "conta");
+  for (let i = 0; i < 30; i++) assert.equal(pedir(limite, "POST", "/api/envio/iniciar").passou, true);
+  assert.equal(pedir(limite, "POST", "/api/envio/iniciar").status, 429);
+  assert.equal(pedir(limite, "POST", "/api/transcrever").passou, true);
+});

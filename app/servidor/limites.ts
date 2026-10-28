@@ -31,6 +31,9 @@ export const LIMITES_DE_USO = {
   // (com 60, o uso normal recebia "Muitos pedidos seguidos"). Só barra script.
   pedidosPorMinuto: 300,
   pedidosCarosPorMinuto: 10,
+  // Aberturas de envio: limite próprio, para vários vídeos de uma vez (a mídia de um
+  // projeto, com as tentativas de novo) não esbarrarem no das transcrições e exportações.
+  enviosPorMinuto: 30,
   eventosPorMinuto: 120,
 };
 
@@ -82,12 +85,13 @@ const FORA_DO_LIMITE = [/^\/api\/exportacao$/u, /^\/api\/transcricao$/u, /^\/api
 // Eventos do funil (a tela manda e ignora a resposta): passando do limite, são
 // descartados em silêncio, sem gastar o limite geral.
 const EVENTOS = /^\/api\/eventos(\/visitante)?$/u;
-// Rotas que custam (WhisperX, Lambda, abrir um envio no S3).
+// Rotas que custam (WhisperX, Lambda).
 const CARAS = [
   {metodo: "POST", rota: /^\/api\/transcrever$/u},
   {metodo: "POST", rota: /^\/api\/exportar$/u},
-  {metodo: "POST", rota: /^\/api\/envio\/iniciar$/u},
 ];
+// Abrir um envio no S3: conta à parte (enviosPorMinuto).
+const ABERTURA_DE_ENVIO = /^\/api\/envio\/iniciar$/u;
 
 // Limite de pedidos por minuto (janela deslizante), por conta. Vai depois da
 // autenticação (usa a conta do pedido; sem login, o endereço).
@@ -122,8 +126,12 @@ export const limiteDePedidos = (contaDo: (request: Request, response: Response) 
       return;
     }
     const cara = CARAS.some((item) => item.metodo === request.method && item.rota.test(rota));
+    if (request.method === "POST" && ABERTURA_DE_ENVIO.test(rota) && !contar(`envio:${conta}`, LIMITES_DE_USO.enviosPorMinuto)) {
+      response.status(429).json({mensagem: "Muitos vídeos enviados seguidos. Espere um minuto e tente de novo."});
+      return;
+    }
     if (cara && !contar(`caro:${conta}`, LIMITES_DE_USO.pedidosCarosPorMinuto)) {
-      response.status(429).json({mensagem: "Muitos pedidos seguidos de transcrição, exportação ou envio. Espere um minuto e tente de novo."});
+      response.status(429).json({mensagem: "Muitos pedidos seguidos de transcrição ou exportação. Espere um minuto e tente de novo."});
       return;
     }
     if (!FORA_DO_LIMITE.some((padrao) => padrao.test(rota)) && !contar(`geral:${conta}`, LIMITES_DE_USO.pedidosPorMinuto)) {

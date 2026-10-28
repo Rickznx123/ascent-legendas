@@ -642,7 +642,9 @@ export const useEditor = () => {
   };
 
   // Copia um vídeo para a pasta do projeto e já o seleciona. Devolve o nome final.
-  const importarVideo = async (escolhido: VideoEscolhido): Promise<string | undefined> => {
+  // lote (vários vídeos de um projeto, um por vez): mostra a posição ("2 de 5") e o erro
+  // volta para quem chamou (que tenta de novo e mostra só a falha daquele vídeo).
+  const importarVideo = async (escolhido: VideoEscolhido, lote?: {posicao: string}): Promise<string | undefined> => {
     setErro(undefined);
     let substituir = false;
     if (catalogo.videos.includes(escolhido.nome)) {
@@ -652,7 +654,7 @@ export const useEditor = () => {
       }
     }
     const progresso = (fracao?: number) =>
-      setTarefa({nome: "Importar", etapa: `Copiando ${escolhido.nome}...`, fracao});
+      setTarefa({nome: "Importar", etapa: `Copiando ${escolhido.nome}${lote ? ` (${lote.posicao})` : ""}...`, fracao});
     progresso(0);
     try {
       let nome: string;
@@ -674,6 +676,7 @@ export const useEditor = () => {
       if ((error as {status?: number}).status === 413 && conta?.plano === "gratis") {
         setLimiteDoGratis({onde: "limite_envio", motivo: error instanceof Error ? error.message.replace(/ \(parou na etapa: .*\)$/u, "") : String(error)});
       }
+      if (lote) throw error;
       mostrarErro(error);
       return undefined;
     } finally {

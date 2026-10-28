@@ -10,6 +10,7 @@ import {Cartao} from "./celular/Inicio";
 import {plataforma} from "./plataforma";
 import type {VideoEscolhido} from "./plataforma";
 import {Timeline, useTimeline} from "./Timeline";
+import {comTentativas} from "./tentativas";
 import {assinaturaDosTrechos, novoId} from "./trechos";
 import type {Editor} from "./useEditor";
 
@@ -136,13 +137,58 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
   const t = useTimeline(id, projeto.timeline.trechos);
   const trechos = t.lista;
 
-  // Vários vídeos (escolhidos ou arrastados): enviados um por vez, na ordem, e cada um
-  // entra no fim da timeline assim que chega (um envio que falha não perde os outros).
-  const adicionar = async (escolhidos: VideoEscolhido[]) => {
-    for (const escolhido of escolhidos) {
-      const video = await e.importarVideo(escolhido);
-      if (video) t.mudar((lista) => [...lista, {id: novoId(), video, inicioMs: 0}]);
+  // Vários vídeos (escolhidos ou arrastados): numa fila, enviados um por vez na ordem
+  // (mais vídeos escolhidos no meio entram no fim da fila). Cada um entra no fim da
+  // timeline assim que chega. Falha passageira: tenta mais 2 vezes sozinho (o envio
+  // continua de onde parou); se não der, só aquele vídeo mostra "Tentar de novo".
+  // Saiu da tela: a fila de envios para e a montagem deixa de ser acompanhada (e não
+  // abre as legendas sozinha).
+  const naTela = useRef(true);
+  useEffect(
+    () => () => {
+      naTela.current = false;
+    },
+    [],
+  );
+  const fila = useRef<VideoEscolhido[]>([]);
+  const enviandoAFila = useRef(false);
+  const [falhas, setFalhas] = useState<{escolhido: VideoEscolhido; mensagem: string}[]>([]);
+  const editor = useRef(e);
+  editor.current = e;
+  const esvaziarAFila = async () => {
+    if (enviandoAFila.current) return;
+    enviandoAFila.current = true;
+    let feitos = 0;
+    try {
+      while (fila.current.length > 0 && naTela.current) {
+        const escolhido = fila.current.shift()!;
+        feitos++;
+        const posicao = `${feitos} de ${feitos + fila.current.length}`;
+        try {
+          const video = await comTentativas(() => editor.current.importarVideo(escolhido, {posicao}));
+          if (!video) continue;
+          const trecho = {id: novoId(), video, inicioMs: 0};
+          if (naTela.current) {
+            t.mudar((lista) => [...lista, trecho]);
+          } else {
+            // Saiu da tela durante o envio: o vídeo entra no projeto direto no servidor.
+            const {timeline} = await api.projetoComTimeline(id);
+            await api.salvarProjetoComTimeline(id, {timeline: {trechos: [...timeline.trechos, trecho]}});
+          }
+        } catch (error) {
+          setFalhas((lista) => [...lista, {escolhido, mensagem: error instanceof Error ? error.message.replace(/ \(parou na etapa: .*\)$/u, "") : String(error)}]);
+        }
+      }
+    } finally {
+      // Saiu da tela: os que não começaram ficam de fora (o envio mexeria no editor de outra tela).
+      fila.current = [];
+      enviandoAFila.current = false;
     }
+  };
+  const adicionar = (escolhidos: VideoEscolhido[]) => {
+    setFalhas((lista) => lista.filter((falha) => !escolhidos.includes(falha.escolhido)));
+    fila.current.push(...escolhidos);
+    void esvaziarAFila();
   };
   const [arrastando, setArrastando] = useState(false);
   const soltar = (event: React.DragEvent) => {
@@ -152,7 +198,7 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
     const arquivos = [...event.dataTransfer.files];
     const escolhidos = arquivos.map(plataforma.videoArrastado).filter((video): video is VideoEscolhido => Boolean(video));
     if (escolhidos.length < arquivos.length) setErro("Só vídeos .mp4, .mov, .mkv ou .webm entram no projeto.");
-    void adicionar(escolhidos);
+    adicionar(escolhidos);
   };
   const inteiro = trechos.length === 1 && trechos[0].inicioMs === 0 && trechos[0].fimMs === undefined;
   const {montado} = projeto.timeline;
@@ -161,14 +207,6 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
   // Já há legendas de outros cortes: gerar de novo troca as legendas.
   const trocaAsLegendas = Boolean(projeto.video) && !pronto;
 
-  // Saiu da tela no meio da montagem: para de acompanhar (e não abre as legendas sozinho).
-  const naTela = useRef(true);
-  useEffect(
-    () => () => {
-      naTela.current = false;
-    },
-    [],
-  );
   const [etapa, setEtapa] = useState<string>();
   // Acompanha a montagem; pronta, abre as legendas do montado e pede a transcrição.
   const acompanhar = async (tarefa: Montagem | {estado: "nenhuma"}) => {
@@ -262,6 +300,16 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
         <p className="suave midia-dica">Dá para escolher vários de uma vez. No computador, também dá para arrastar os vídeos para cá.</p>
         {trechos.length === 0 ? <p className="vazio">Nenhum vídeo no projeto ainda.</p> : null}
       </section>
+      {falhas.map(({escolhido, mensagem}) => (
+        <div key={escolhido.nome} className="envio-falhou" role="alert">
+          <span>
+            Não deu para enviar <b>{escolhido.nome}</b>. {mensagem}
+          </span>
+          <button type="button" className="bt" onClick={() => adicionar([escolhido])}>
+            Tentar de novo
+          </button>
+        </div>
+      ))}
       <Timeline t={t} catalogo={e.catalogo} travado={travado} />
       {pronto ? (
         <button type="button" className="bt primario cel-cheio cortes-legendar" disabled={travado} onClick={() => onLegendar(projeto.video!)}>

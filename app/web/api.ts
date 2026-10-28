@@ -10,9 +10,14 @@ import type {EventoDaTela} from "../servidor/eventos";
 // Com login, todo pedido leva o token da sessão; um 401 (sessão expirada) avisa a
 // tela para voltar ao login. Sem login, é o fetch de sempre.
 export const EVENTO_SESSAO_EXPIRADA = "sessao-expirada";
+// Sem resposta (conexão caiu, servidor fora): a mensagem do navegador ("Failed to fetch",
+// "Load failed") vira uma em português; continua TypeError (o Pix e o cupom reconhecem).
+export const SEM_CONEXAO = "Sem conexão com o servidor. Confira a internet e tente de novo.";
 export const pedir = async (url: string, init: RequestInit = {}): Promise<Response> => {
   const token = tokenDaSessao();
-  const resposta = await fetch(url, token ? {...init, headers: {...(init.headers ?? {}), Authorization: `Bearer ${token}`}} : init);
+  const resposta = await fetch(url, token ? {...init, headers: {...(init.headers ?? {}), Authorization: `Bearer ${token}`}} : init).catch((erro: unknown) => {
+    throw erro instanceof TypeError ? new TypeError(SEM_CONEXAO) : erro;
+  });
   if (resposta.status === 401 && token) {
     window.dispatchEvent(new Event(EVENTO_SESSAO_EXPIRADA));
   }

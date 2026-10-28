@@ -2222,3 +2222,17 @@ h3 {
   z-index: 3;
   background: var(--agulha);
 }
+
+/* Um vídeo da fila que não foi enviado (Projetos.tsx): o motivo e "Tentar de novo". */
+.envio-falhou {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  margin-top: var(--esp-3);
+  color: var(--perigo);
+  background: var(--perigo-fraco);
+  border-radius: var(--raio-p);
+  padding: var(--esp-3) var(--esp-4);
+}
