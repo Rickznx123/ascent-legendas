@@ -7,19 +7,25 @@
 //   GET    /api/projetos/:id            → o projeto, com a timeline
 //   PUT    /api/projetos/:id  {nome?, timeline?}
 //   POST   /api/projetos/:id/legendar {video}  "Pular": legenda o único vídeo, sem montar
+//   POST   /api/projetos/:id/pausas     → {pausas} de cada vídeo da timeline (Bloco 3)
 //   DELETE /api/projetos/:id            apaga o projeto e os vídeos dele
 // soltos: vídeos enviados antes, sem projeto (a tela abre direto as legendas).
 import express from "express";
 import type {Request, Response} from "express";
 import type {Contas} from "./contas";
 import type {Espaco} from "./espaco";
+import {detectarPausas} from "./pausas";
+import type {Pausa} from "./pausas";
+import type {PreviasLeves} from "./previa-leve";
 import type {VideosDasContas} from "./videos";
 
 // inicioMs e fimMs: o pedaço do vídeo que entra (sem fimMs: até o fim do vídeo).
 export type Trecho = {id: string; video: string; inicioMs: number; fimMs?: number};
-// midia: todos os vídeos que já entraram no projeto (o servidor junta a cada PUT), para
-// um vídeo tirado da timeline continuar do projeto (não vira "solto" e é apagado com ele).
-export type Timeline = {trechos: Trecho[]; midia?: string[]};
+// Só os trechos vêm da tela; o resto o servidor guarda e mantém a cada PUT:
+// midia: todos os vídeos que já entraram no projeto, para um vídeo tirado da timeline
+//   continuar do projeto (não vira "solto" e é apagado com ele);
+// pausas: os silêncios já detectados de cada vídeo (o ffmpeg roda uma vez só).
+export type Timeline = {trechos: Trecho[]; midia?: string[]; pausas?: Record<string, Pausa[]>};
 
 export type ResumoDeProjeto = {
   id: string;
@@ -50,8 +56,9 @@ const videosDe = (linha: Pick<Linha, "video" | "timeline">): string[] => {
   return [...new Set([linha.video, ...(timeline.midia ?? []), ...timeline.trechos.map((t) => t.video)].filter((nome): nome is string => Boolean(nome)))];
 };
 
-// A timeline nova, com a mídia de antes somada à de agora.
-export const comMidia = (antes: Pick<Linha, "video" | "timeline">, nova: Timeline): Timeline => ({
+// A timeline nova: os trechos da tela, o que o servidor guarda e a mídia de antes somada à de agora.
+export const timelineNova = (antes: Pick<Linha, "video" | "timeline">, nova: Timeline): Timeline => ({
+  ...timelineDe(antes),
   trechos: nova.trechos,
   midia: [...new Set([...videosDe(antes), ...nova.trechos.map((t) => t.video)])],
 });
@@ -77,7 +84,16 @@ export const timelineValida = (corpo: unknown): Timeline => {
   };
 };
 
-export const rotasDeProjetos = ({contas, videos, espacoDe}: {contas: Contas; videos: VideosDasContas; espacoDe: (response: Response) => Espaco}) => {
+type Dependencias = {
+  contas: Contas;
+  videos: VideosDasContas;
+  previas?: PreviasLeves;
+  espacoDe: (response: Response) => Espaco;
+  // A fila das transcrições (as pausas também leem o áudio do vídeo inteiro).
+  entrarNaFila: () => Promise<() => void>;
+};
+
+export const rotasDeProjetos = ({contas, videos, previas, espacoDe, entrarNaFila}: Dependencias) => {
   const rotas = express.Router();
   const bancoDe = (response: Response) => contas.doUsuario(response.locals.token as string);
   const falha = (acao: string, erro: {message: string}) => new Error(`Não foi possível ${acao}: ${erro.message}`);
@@ -166,7 +182,7 @@ export const rotasDeProjetos = ({contas, videos, espacoDe}: {contas: Contas; vid
       if (corpo.timeline !== undefined) {
         const nova = timelineValida(corpo.timeline);
         await conferirVideos(espacoDe(response), nova.trechos.map((t) => t.video));
-        campos.timeline = comMidia(antes, nova);
+        campos.timeline = timelineNova(antes, nova);
       }
       const {error} = await bancoDe(response).from("projetos").update(campos).eq("id", request.params.id);
       if (error) throw falha("salvar o projeto", error);
@@ -185,6 +201,38 @@ export const rotasDeProjetos = ({contas, videos, espacoDe}: {contas: Contas; vid
       const {error} = await bancoDe(response).from("projetos").update({video}).eq("id", request.params.id);
       if (error) throw falha("salvar o projeto", error);
       return {video};
+    }),
+  );
+
+  // Pausas: lê a prévia leve (menos download que o original) de cada vídeo ainda não
+  // analisado, na fila das transcrições, e guarda. A tela aplica como cortes comuns.
+  rotas.post(
+    "/:id/pausas",
+    rota(async (request, response) => {
+      const espaco = espacoDe(response);
+      const {trechos, pausas: guardadas = {}} = timelineDe(await linha(response, request.params.id));
+      const nomes = [...new Set(trechos.map((t) => t.video))];
+      const novas: Record<string, Pausa[]> = {};
+      const faltam = nomes.filter((nome) => !guardadas[nome]);
+      if (faltam.length > 0) {
+        const liberar = await entrarNaFila();
+        try {
+          for (const nome of faltam) {
+            const previa = previas && espaco.usuario ? await previas.estado(espaco.usuario.id, nome) : undefined;
+            novas[nome] = await detectarPausas(previa?.estado === "pronta" ? previa.video : await videos.entrada(espaco, nome));
+          }
+        } finally {
+          liberar();
+        }
+        // Relida: a tela pode ter salvo outros trechos enquanto isso; só as pausas mudam.
+        const atual = timelineDe(await linha(response, request.params.id));
+        const {error} = await bancoDe(response)
+          .from("projetos")
+          .update({timeline: {...atual, pausas: {...atual.pausas, ...novas}}})
+          .eq("id", request.params.id);
+        if (error) throw falha("guardar as pausas", error);
+      }
+      return {pausas: Object.fromEntries(nomes.map((nome) => [nome, novas[nome] ?? guardadas[nome]]))};
     }),
   );
 

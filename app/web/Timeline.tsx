@@ -10,7 +10,7 @@ import {api, tituloDoVideo} from "./api";
 import type {Catalogo, Trecho} from "./api";
 import type {Salvamento} from "./BarraTopo";
 import {usePreviaLeve} from "./previa-leve";
-import {FPS, aparar, dividir, duracaoDe, duracaoTotal, excluir, fimDe, mover, msDoQuadro, noVideo, quadroDe, quadrosDe} from "./trechos";
+import {FPS, aparar, dividir, duracaoDe, duracaoTotal, excluir, fimDe, mover, msDoQuadro, noVideo, quadroDe, quadrosDe, removerPausas} from "./trechos";
 import type {Duracoes} from "./trechos";
 
 const ESPERA_PARA_SALVAR_MS = 800;
@@ -91,6 +91,7 @@ export const useTimeline = (id: string, inicial: Trecho[]) => {
   };
 
   return {
+    id,
     lista: h.lista,
     mudar,
     inicioDoGesto,
@@ -167,6 +168,21 @@ export const Timeline: React.FC<{t: TimelineDoProjeto; catalogo: Catalogo; trava
   const pronto = nomes.every((nome) => duracoes[nome]);
   const erroDeLeitura = nomes.map((nome) => infos[nome]?.erro).find(Boolean);
   const total = pronto ? duracaoTotal(lista, duracoes) : 0;
+
+  // "Remover pausas": vira cortes comuns, um passo só no desfazer.
+  const [pausas, setPausas] = useState<{procurando: boolean; aviso?: string}>({procurando: false});
+  const removerAsPausas = () => {
+    setPausas({procurando: true});
+    api
+      .pausas(t.id)
+      .then(({pausas: encontradas}) => {
+        const atual = conta.current.lista;
+        const nova = removerPausas(atual, conta.current.duracoes, encontradas);
+        if (nova !== atual) mudar(() => nova);
+        setPausas({procurando: false, aviso: nova === atual ? "Nenhuma pausa para remover." : undefined});
+      })
+      .catch((erro: unknown) => setPausas({procurando: false, aviso: erro instanceof Error ? erro.message : String(erro)}));
+  };
 
   const [cursorMs, setCursorMs] = useState(0);
   const [selecionado, setSelecionado] = useState<string>();
@@ -324,6 +340,9 @@ export const Timeline: React.FC<{t: TimelineDoProjeto; catalogo: Catalogo; trava
         <button type="button" className="bt" disabled={travado || !t.podeRefazer} onClick={t.refazer} title="Refazer (Ctrl+Shift+Z)">
           Refazer
         </button>
+        <button type="button" className="bt" disabled={travado || pausas.procurando} onClick={removerAsPausas}>
+          {pausas.procurando ? "Procurando pausas…" : "Remover pausas"}
+        </button>
         <span className="tl-zoom">
           <button type="button" className="bt" aria-label="Afastar" disabled={zoom <= 1} onClick={() => setZoom((z) => Math.max(1, z / 2))}>
             −
@@ -336,6 +355,7 @@ export const Timeline: React.FC<{t: TimelineDoProjeto; catalogo: Catalogo; trava
           {segundos(cursorMs)} / {segundos(total)} · {t.salvamento === "salvo" ? "Salvo" : t.salvamento === "erro" ? "Erro ao salvar" : "Salvando…"}
         </span>
       </div>
+      {pausas.aviso ? <p className="suave">{pausas.aviso}</p> : null}
       <div className="tl-trilha" ref={trilha}>
         <div
           className="tl-faixa"

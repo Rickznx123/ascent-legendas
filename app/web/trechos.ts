@@ -88,3 +88,26 @@ export const mover = (trechos: Trecho[], de: number, para: number): Trecho[] => 
   lista.splice(para, 0, t);
   return lista;
 };
+
+// "Remover pausas" (Bloco 3): cada trecho perde os pedaços que caem numa pausa do seu
+// vídeo e vira um trecho por pedaço de fala (o primeiro mantém o id). Pedaço menor que
+// MENOR_TRECHO_MS some. Nada mudou: devolve a mesma lista.
+export const removerPausas = (trechos: Trecho[], duracoes: Duracoes, pausas: Record<string, [number, number][]>, ids = novoId): Trecho[] => {
+  let mudou = false;
+  const lista = trechos.flatMap((t) => {
+    const fim = fimDe(t, duracoes);
+    const pedacos: [number, number][] = [];
+    let cursor = t.inicioMs;
+    for (const [inicio, final] of [...(pausas[t.video] ?? [])].sort((a, b) => a[0] - b[0])) {
+      if (final <= cursor || inicio >= fim) continue;
+      if (inicio > cursor) pedacos.push([cursor, inicio]);
+      cursor = Math.max(cursor, final);
+    }
+    if (cursor < fim) pedacos.push([cursor, fim]);
+    const validos = pedacos.filter(([inicio, final]) => final - inicio >= MENOR_TRECHO_MS);
+    if (validos.length === 1 && validos[0][0] === t.inicioMs && validos[0][1] === fim) return [t];
+    mudou = true;
+    return validos.map(([inicio, final], i) => comFim({...t, id: i === 0 ? t.id : ids(), inicioMs: inicio}, final, duracoes));
+  });
+  return mudou ? lista : trechos;
+};

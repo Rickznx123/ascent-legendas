@@ -1,7 +1,7 @@
 // npx tsx --test app/web/trechos.teste.ts
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {aparar, dividir, duracaoTotal, excluir, mover, msDoQuadro, noVideo, quadroDe} from "./trechos";
+import {aparar, dividir, duracaoTotal, excluir, mover, msDoQuadro, noVideo, quadroDe, removerPausas} from "./trechos";
 
 const duracoes = {"a.mp4": 10_000, "b.mp4": 4_000};
 const base = [
@@ -42,4 +42,17 @@ test("quadro e ms fazem a mesma conta nos dois sentidos", () => {
   const quadro = quadroDe(muitos, duracoes, 30 * 1_010);
   assert.equal(quadro, 30 * 30);
   assert.equal(msDoQuadro(muitos, duracoes, quadro), 30 * 1_010);
+});
+
+test("remover pausas divide cada trecho nos pedaços de fala", () => {
+  let n = 0;
+  const pausas = {"a.mp4": [[3_000, 4_000], [500, 900], [9_950, 10_000]] as [number, number][]};
+  assert.deepEqual(removerPausas(base, duracoes, pausas, () => `p${++n}`), [
+    {id: "a", video: "a.mp4", inicioMs: 1_000, fimMs: 3_000},
+    {id: "p1", video: "a.mp4", inicioMs: 4_000, fimMs: 9_950},
+    base[1],
+  ]);
+  assert.equal(removerPausas(base, duracoes, {"a.mp4": [[200, 900]]}), base);
+  // Trecho todo em silêncio some.
+  assert.deepEqual(removerPausas(base, duracoes, {"b.mp4": [[0, 4_000]]}), [base[0]]);
 });

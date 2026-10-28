@@ -238,6 +238,8 @@ export const api = {
       lerJson<{video: string}>(r),
     ),
   apagarProjeto: (id: string) => pedir(`/api/projetos/${id}`, {method: "DELETE"}).then((r) => lerJson<{ok: boolean}>(r)),
+  // As pausas de cada vídeo da timeline (a primeira vez de um vídeo leva alguns segundos).
+  pausas: (id: string) => pedir(`/api/projetos/${id}/pausas`, {method: "POST"}).then((r) => lerJson<{pausas: Record<string, [number, number][]>}>(r)),
 
   sons: () => pedir("/api/sons").then((r) => lerJson<ArquivoSom[]>(r)),
 
