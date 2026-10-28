@@ -1,7 +1,7 @@
 // npx tsx --test app/servidor/projetos.teste.ts
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {timelineDe, timelineValida} from "./projetos";
+import {comMidia, timelineDe, timelineValida} from "./projetos";
 
 test("projeto antigo vira 1 trecho com o vídeo inteiro", () => {
   assert.deepEqual(timelineDe({video: "a.mp4", timeline: null}), {trechos: [{id: "t1", video: "a.mp4", inicioMs: 0}]});
@@ -17,4 +17,10 @@ test("timeline inválida é recusada", () => {
   for (const ruim of [null, {}, {trechos: "x"}, {trechos: [{id: "a", video: "a.mp4", inicioMs: -1}]}, {trechos: [{id: "a", video: "a.mp4", inicioMs: 5, fimMs: 5}]}, {trechos: [{id: "a b", video: "a.mp4", inicioMs: 0}]}]) {
     assert.throws(() => timelineValida(ruim), /Timeline inválida/u);
   }
+});
+
+test("a mídia guarda os vídeos que já passaram pela timeline", () => {
+  const antes = {video: null, timeline: {trechos: [{id: "a", video: "a.mp4", inicioMs: 0}], midia: ["velho.mp4"]}};
+  assert.deepEqual(comMidia(antes, {trechos: [{id: "b", video: "b.mp4", inicioMs: 0}]}).midia, ["velho.mp4", "a.mp4", "b.mp4"]);
+  assert.deepEqual(comMidia({video: "x.mp4", timeline: null}, {trechos: []}).midia, ["x.mp4"]);
 });

@@ -118,7 +118,7 @@ Coluna nova `projetos.timeline` (JSON). Os arquivos originais nunca são alterad
   - aparar as bordas arrastando o começo ou o fim do trecho;
   - desfazer/refazer (Ctrl+Z / Ctrl+Shift+Z e botões), histórico só da timeline.
   - Miniaturas: a capa de cada vídeo (já existe) repetida ao longo do trecho.
-- Lógica pura da timeline em `app/web/timeline.ts` (dividir, aparar, excluir, mover,
+- Lógica pura da timeline em `app/web/trechos.ts` (no Windows, `timeline.ts` colide com `Timeline.tsx`) (dividir, aparar, excluir, mover,
   converter tempo da timeline ↔ tempo do vídeo), com um teste pequeno (`tsx --test`).
 - **Prévia tocando a sequência cortada:** o Remotion Player que já usamos, com uma
   `Series` de vídeos (um por trecho), lendo a prévia leve de cada vídeo (H.264 540p, que
@@ -147,7 +147,7 @@ só passa a haver mais vídeos por projeto).
 - Na tela, "Remover pausas" aplica as pausas como cortes comuns: cada trecho é dividido
   e os pedaços de silêncio somem. Fica tudo visível na timeline, editável, e um
   Ctrl+Z desfaz tudo de uma vez.
-- A conta (pausas → trechos) fica em `app/web/timeline.ts`, com teste.
+- A conta (pausas → trechos) fica em `app/web/trechos.ts`, com teste.
 
 **Testar:** um vídeo com pausas longas; conferir que nenhuma sílaba é cortada; mudar
 um corte à mão; desfazer.

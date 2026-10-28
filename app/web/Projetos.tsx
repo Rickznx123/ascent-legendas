@@ -1,6 +1,6 @@
-// Projetos (PLANO-CORTES.md, Bloco 1), no computador e no celular: a lista dos
-// projetos com "Novo projeto" e o editor de cortes, que por enquanto só junta os
-// vídeos do projeto e, com um vídeo só, abre as legendas dele ("Legendar este vídeo").
+// Projetos (PLANO-CORTES.md, Blocos 1 e 2), no computador e no celular: a lista dos
+// projetos com "Novo projeto" e o editor de cortes (os vídeos do projeto na timeline;
+// com um vídeo inteiro, sem cortes, "Legendar este vídeo" abre as legendas dele).
 // Só com login (os projetos ficam no Supabase); no modo local, o Início de sempre.
 import {useEffect, useState} from "react";
 import {api, tituloDoVideo} from "./api";
@@ -8,6 +8,8 @@ import type {ProjetoComTimeline, ResumoDeProjeto} from "./api";
 import {Cartao} from "./celular/Inicio";
 import {plataforma} from "./plataforma";
 import type {VideoEscolhido} from "./plataforma";
+import {Timeline, useTimeline} from "./Timeline";
+import {novoId} from "./trechos";
 import type {Editor} from "./useEditor";
 
 // Abrir: um projeto com o vídeo das legendas já escolhido (ou um vídeo antigo, sem
@@ -104,40 +106,36 @@ export const ListaDeProjetos: React.FC<{e: Editor; onAbrir: Abrir}> = ({e, onAbr
   );
 };
 
-// Os cortes de um projeto. Bloco 1: a mídia do projeto (vários vídeos de uma vez) e,
-// com um vídeo só, "Legendar este vídeo" (o fluxo de hoje, sem montar nada).
-export const EditorDeCortes: React.FC<{e: Editor; id: string; onLegendar: (video: string) => void; onApagado: () => void}> = ({
-  e,
-  id,
-  onLegendar,
-  onApagado,
-}) => {
+type PropsDosCortes = {e: Editor; id: string; onLegendar: (video: string) => void; onApagado: () => void};
+
+// Os cortes de um projeto: a mídia (vários vídeos de uma vez), a timeline e, com um
+// vídeo inteiro sem cortes, "Legendar este vídeo" (o fluxo de hoje, sem montar nada).
+export const EditorDeCortes: React.FC<PropsDosCortes> = (props) => {
   const [projeto, setProjeto] = useState<ProjetoComTimeline>();
+  const [erro, setErro] = useState<string>();
+  useEffect(() => {
+    api
+      .projetoComTimeline(props.id)
+      .then(setProjeto)
+      .catch((error: unknown) => setErro(error instanceof Error ? error.message : String(error)));
+  }, [props.id]);
+  if (erro) return <p className="login-erro" role="alert">{erro}</p>;
+  return projeto ? <CortesDoProjeto key={projeto.id} {...props} projeto={projeto} /> : <p className="suave">Abrindo o projeto…</p>;
+};
+
+const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> = ({e, id, projeto, onLegendar, onApagado}) => {
   const [erro, setErro] = useState<string>();
   const [ocupado, setOcupado] = useState(false);
   const mostrarErro = (error: unknown) => setErro(error instanceof Error ? error.message : String(error));
-  useEffect(() => {
-    api.projetoComTimeline(id).then(setProjeto).catch(mostrarErro);
-  }, [id]);
+  const t = useTimeline(id, projeto.timeline.trechos);
+  const trechos = t.lista;
 
-  const trechos = projeto?.timeline.trechos ?? [];
   // Vários vídeos (escolhidos ou arrastados): enviados um por vez, na ordem, e cada um
-  // entra no projeto assim que chega (um envio que falha não perde os outros).
+  // entra no fim da timeline assim que chega (um envio que falha não perde os outros).
   const adicionar = async (escolhidos: VideoEscolhido[]) => {
-    if (!projeto) return;
-    let lista = trechos;
     for (const escolhido of escolhidos) {
       const video = await e.importarVideo(escolhido);
-      if (!video) continue;
-      lista = [...lista, {id: Math.random().toString(36).slice(2, 10), video, inicioMs: 0}];
-      const timeline = {trechos: lista};
-      try {
-        await api.salvarProjetoComTimeline(id, {timeline});
-        setProjeto({...projeto, timeline});
-      } catch (error) {
-        mostrarErro(error);
-        return;
-      }
+      if (video) t.mudar((lista) => [...lista, {id: novoId(), video, inicioMs: 0}]);
     }
   };
   const [arrastando, setArrastando] = useState(false);
@@ -153,6 +151,7 @@ export const EditorDeCortes: React.FC<{e: Editor; id: string; onLegendar: (video
   const legendar = async () => {
     setOcupado(true);
     try {
+      await t.salvarAgora();
       onLegendar((await api.legendarSemMontar(id, trechos[0].video)).video);
     } catch (error) {
       mostrarErro(error);
@@ -161,7 +160,7 @@ export const EditorDeCortes: React.FC<{e: Editor; id: string; onLegendar: (video
     }
   };
   const apagar = async () => {
-    if (!projeto || !window.confirm(`Apagar o projeto "${projeto.nome}"?\n\nOs vídeos dele também são apagados.`)) return;
+    if (!window.confirm(`Apagar o projeto "${projeto.nome}"?\n\nOs vídeos dele também são apagados.`)) return;
     setOcupado(true);
     try {
       await api.apagarProjeto(id);
@@ -172,7 +171,8 @@ export const EditorDeCortes: React.FC<{e: Editor; id: string; onLegendar: (video
     }
   };
 
-  const travado = ocupado || e.ocupado || !projeto;
+  const travado = ocupado || e.ocupado;
+  const inteiro = trechos.length === 1 && trechos[0].inicioMs === 0 && trechos[0].fimMs === undefined;
   return (
     <>
       {erro ? <p className="login-erro" role="alert">{erro}</p> : null}
@@ -200,19 +200,15 @@ export const EditorDeCortes: React.FC<{e: Editor; id: string; onLegendar: (video
           ＋ Adicionar vídeos
         </button>
         <p className="suave midia-dica">Dá para escolher vários de uma vez. No computador, também dá para arrastar os vídeos para cá.</p>
-        {projeto && trechos.length === 0 ? <p className="vazio">Nenhum vídeo no projeto ainda.</p> : null}
-        <div className="cel-videos">
-          {trechos.map((t, i) => (
-            <Cartao key={t.id} nome={t.video} titulo={`${i + 1}. ${tituloDoVideo(e.catalogo, t.video)}`} situacao="" atual={false} ocupado={false} onAbrir={() => undefined} />
-          ))}
-        </div>
+        {trechos.length === 0 ? <p className="vazio">Nenhum vídeo no projeto ainda.</p> : null}
       </section>
-      {trechos.length === 1 ? (
+      <Timeline t={t} catalogo={e.catalogo} travado={travado} />
+      {inteiro ? (
         <button type="button" className="bt primario cel-cheio cortes-legendar" disabled={travado} onClick={() => void legendar()}>
           Legendar este vídeo
         </button>
-      ) : trechos.length > 1 ? (
-        <p className="suave">Por enquanto, dá para legendar um vídeo por projeto. Juntar vários vídeos vem na próxima versão.</p>
+      ) : trechos.length > 0 ? (
+        <p className="suave">Por enquanto, dá para legendar um vídeo inteiro, sem cortes. Gerar as legendas do vídeo cortado vem na próxima versão.</p>
       ) : null}
       <button type="button" className="bt cel-cheio cortes-apagar" disabled={travado} onClick={() => void apagar()}>
         Apagar projeto

@@ -17,7 +17,9 @@ import type {VideosDasContas} from "./videos";
 
 // inicioMs e fimMs: o pedaço do vídeo que entra (sem fimMs: até o fim do vídeo).
 export type Trecho = {id: string; video: string; inicioMs: number; fimMs?: number};
-export type Timeline = {trechos: Trecho[]};
+// midia: todos os vídeos que já entraram no projeto (o servidor junta a cada PUT), para
+// um vídeo tirado da timeline continuar do projeto (não vira "solto" e é apagado com ele).
+export type Timeline = {trechos: Trecho[]; midia?: string[]};
 
 export type ResumoDeProjeto = {
   id: string;
@@ -41,6 +43,18 @@ type Linha = {id: string; nome: string; video: string | null; timeline: Timeline
 // Projeto antigo (sem timeline): 1 trecho com o vídeo inteiro.
 export const timelineDe = (linha: Pick<Linha, "video" | "timeline">): Timeline =>
   linha.timeline ?? {trechos: linha.video ? [{id: "t1", video: linha.video, inicioMs: 0}] : []};
+
+// Os vídeos do projeto: o das legendas, os da timeline e os que já passaram por ela.
+const videosDe = (linha: Pick<Linha, "video" | "timeline">): string[] => {
+  const timeline = timelineDe(linha);
+  return [...new Set([linha.video, ...(timeline.midia ?? []), ...timeline.trechos.map((t) => t.video)].filter((nome): nome is string => Boolean(nome)))];
+};
+
+// A timeline nova, com a mídia de antes somada à de agora.
+export const comMidia = (antes: Pick<Linha, "video" | "timeline">, nova: Timeline): Timeline => ({
+  trechos: nova.trechos,
+  midia: [...new Set([...videosDe(antes), ...nova.trechos.map((t) => t.video)])],
+});
 
 const nomeValido = (nome: unknown): string => {
   const limpo = typeof nome === "string" ? nome.trim() : "";
@@ -103,7 +117,7 @@ export const rotasDeProjetos = ({contas, videos, espacoDe}: {contas: Contas; vid
       ]);
       if (error) throw falha("listar os projetos (a migração 012 já rodou no Supabase?)", error);
       const linhas = data as Linha[];
-      const usados = new Set(linhas.flatMap((l) => [l.video, ...timelineDe(l).trechos.map((t) => t.video)]));
+      const usados = new Set(linhas.flatMap(videosDe));
       const projetos: ResumoDeProjeto[] = linhas.map((l) => {
         const {trechos} = timelineDe(l);
         return {
@@ -146,12 +160,13 @@ export const rotasDeProjetos = ({contas, videos, espacoDe}: {contas: Contas; vid
     "/:id",
     rota(async (request, response) => {
       const corpo = (request.body ?? {}) as {nome?: unknown; timeline?: unknown};
-      await linha(response, request.params.id);
+      const antes = await linha(response, request.params.id);
       const campos: {nome?: string; timeline?: Timeline} = {};
       if (corpo.nome !== undefined) campos.nome = nomeValido(corpo.nome);
       if (corpo.timeline !== undefined) {
-        campos.timeline = timelineValida(corpo.timeline);
-        await conferirVideos(espacoDe(response), campos.timeline.trechos.map((t) => t.video));
+        const nova = timelineValida(corpo.timeline);
+        await conferirVideos(espacoDe(response), nova.trechos.map((t) => t.video));
+        campos.timeline = comMidia(antes, nova);
       }
       const {error} = await bancoDe(response).from("projetos").update(campos).eq("id", request.params.id);
       if (error) throw falha("salvar o projeto", error);
@@ -178,9 +193,8 @@ export const rotasDeProjetos = ({contas, videos, espacoDe}: {contas: Contas; vid
     rota(async (request, response) => {
       const espaco = espacoDe(response);
       const l = await linha(response, request.params.id);
-      const nomes = new Set([l.video, ...timelineDe(l).trechos.map((t) => t.video)].filter((nome): nome is string => Boolean(nome)));
       // Um vídeo que já não existe não impede apagar o projeto.
-      for (const nome of nomes) await videos.remover(espaco, nome).catch(() => undefined);
+      for (const nome of videosDe(l)) await videos.remover(espaco, nome).catch(() => undefined);
       const {error} = await bancoDe(response).from("projetos").delete().eq("id", l.id);
       if (error) throw falha("apagar o projeto", error);
       return {ok: true};

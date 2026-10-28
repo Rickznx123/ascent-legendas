@@ -2099,3 +2099,126 @@ h3 {
   font-size: var(--fonte-pequena);
   margin: var(--esp-2) 0 var(--esp-3);
 }
+
+/* Timeline dos cortes (Timeline.tsx): prévia em cima, botões, trilha com os trechos. */
+.tl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-3);
+  margin-top: var(--esp-4);
+}
+
+.tl-previa {
+  height: min(52vh, 480px);
+  background: var(--tela);
+  border-radius: var(--raio-p);
+  overflow: hidden;
+}
+
+.tl-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-2);
+}
+
+.tl-zoom {
+  display: flex;
+  gap: var(--esp-1);
+}
+
+.tl-tempo {
+  margin-left: auto;
+  font-size: var(--fonte-pequena);
+  font-variant-numeric: tabular-nums;
+}
+
+.tl-trilha {
+  overflow-x: auto;
+  padding: var(--esp-2) 2px;
+  background: var(--painel-2);
+  border-radius: var(--raio-p);
+}
+
+.tl-faixa {
+  position: relative;
+  height: 64px;
+  min-width: 100%;
+  cursor: pointer;
+}
+
+.tl-trecho {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  background-color: var(--clipe);
+  background-size: auto 100%;
+  background-repeat: repeat-x;
+  border: 2px solid var(--clipe-borda);
+  border-radius: var(--raio-p);
+  user-select: none;
+  cursor: grab;
+}
+
+.tl-alvo {
+  border-color: var(--acento);
+}
+
+.tl-arrastado {
+  z-index: 2;
+  opacity: 0.8;
+  cursor: grabbing;
+}
+
+.tl-nome {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
+  font-size: var(--fonte-mini);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--veu);
+  pointer-events: none;
+}
+
+/* Bordas de aparar: largas o bastante para o dedo; o arrasto nelas não rola a trilha. */
+.tl-borda {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  z-index: 1;
+  background: var(--clipe-borda);
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.tl-borda-inicio {
+  left: 0;
+}
+
+.tl-borda-fim {
+  right: 0;
+}
+
+.tl-marca,
+.tl-cursor {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  pointer-events: none;
+}
+
+.tl-marca {
+  background: var(--acento);
+}
+
+.tl-cursor {
+  z-index: 3;
+  background: var(--agulha);
+}
