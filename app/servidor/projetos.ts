@@ -8,15 +8,29 @@
 //   PUT    /api/projetos/:id  {nome?, timeline?}
 //   POST   /api/projetos/:id/legendar {video}  "Pular": legenda o único vídeo, sem montar
 //   POST   /api/projetos/:id/pausas     → {pausas} de cada vídeo da timeline (Bloco 3)
+//   POST   /api/projetos/:id/montar     monta o vídeo dos cortes (Bloco 4; tarefa solta)
+//   GET    /api/projetos/:id/montagem   andamento ou resultado ({montado}) da montagem
 //   DELETE /api/projetos/:id            apaga o projeto e os vídeos dele
 // soltos: vídeos enviados antes, sem projeto (a tela abre direto as legendas).
+import {copyFile, mkdtemp, rm, stat} from "node:fs/promises";
+import {createReadStream} from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import {PutObjectCommand} from "@aws-sdk/client-s3";
 import express from "express";
 import type {Request, Response} from "express";
+import {assinaturaDosTrechos} from "../web/trechos";
+import {PASTAS_NO_BUCKET} from "./configuracao";
 import type {Contas} from "./contas";
 import type {Espaco} from "./espaco";
+import {LIMITES_DE_USO, filaComVagas} from "./limites";
+import {lerFonte, montarVideo, nomeDoMontado} from "./montagem";
+import type {FonteDaMontagem} from "./montagem";
 import {detectarPausas} from "./pausas";
 import type {Pausa} from "./pausas";
 import type {PreviasLeves} from "./previa-leve";
+import type {ArmazenamentoS3} from "./s3";
+import {tarefasSoltas} from "./tarefas-soltas";
 import type {VideosDasContas} from "./videos";
 
 // inicioMs e fimMs: o pedaço do vídeo que entra (sem fimMs: até o fim do vídeo).
@@ -24,8 +38,10 @@ export type Trecho = {id: string; video: string; inicioMs: number; fimMs?: numbe
 // Só os trechos vêm da tela; o resto o servidor guarda e mantém a cada PUT:
 // midia: todos os vídeos que já entraram no projeto, para um vídeo tirado da timeline
 //   continuar do projeto (não vira "solto" e é apagado com ele);
-// pausas: os silêncios já detectados de cada vídeo (o ffmpeg roda uma vez só).
-export type Timeline = {trechos: Trecho[]; midia?: string[]; pausas?: Record<string, Pausa[]>};
+// pausas: os silêncios já detectados de cada vídeo (o ffmpeg roda uma vez só);
+// montado: o vídeo da última montagem e a assinatura dos trechos dela (a tela compara
+//   com a timeline atual para saber se os cortes mudaram).
+export type Timeline = {trechos: Trecho[]; midia?: string[]; pausas?: Record<string, Pausa[]>; montado?: {video: string; dosTrechos: string}};
 
 export type ResumoDeProjeto = {
   id: string;
@@ -88,12 +104,14 @@ type Dependencias = {
   contas: Contas;
   videos: VideosDasContas;
   previas?: PreviasLeves;
+  // Sem S3, o montado fica no disco da conta (como os vídeos antigos).
+  armazenamento?: ArmazenamentoS3;
   espacoDe: (response: Response) => Espaco;
   // A fila das transcrições (as pausas também leem o áudio do vídeo inteiro).
   entrarNaFila: () => Promise<() => void>;
 };
 
-export const rotasDeProjetos = ({contas, videos, previas, espacoDe, entrarNaFila}: Dependencias) => {
+export const rotasDeProjetos = ({contas, videos, previas, armazenamento, espacoDe, entrarNaFila}: Dependencias) => {
   const rotas = express.Router();
   const bancoDe = (response: Response) => contas.doUsuario(response.locals.token as string);
   const falha = (acao: string, erro: {message: string}) => new Error(`Não foi possível ${acao}: ${erro.message}`);
@@ -198,7 +216,12 @@ export const rotasDeProjetos = ({contas, videos, previas, espacoDe, entrarNaFila
       const inteiro = trechos.length === 1 && trechos[0].video === video && trechos[0].inicioMs === 0 && trechos[0].fimMs === undefined;
       if (!inteiro) throw new Error("Para legendar sem montar, a timeline precisa ter um vídeo só, sem cortes.");
       await videos.fonte(espacoDe(response), video);
-      const {error} = await bancoDe(response).from("projetos").update({video}).eq("id", request.params.id);
+      // Legendas de outro vídeo (um montado antes) não servem para este.
+      const anterior = (await linha(response, request.params.id)).video;
+      const {error} = await bancoDe(response)
+        .from("projetos")
+        .update(anterior === video ? {video} : {video, dados: null})
+        .eq("id", request.params.id);
       if (error) throw falha("salvar o projeto", error);
       return {video};
     }),
@@ -234,6 +257,84 @@ export const rotasDeProjetos = ({contas, videos, previas, espacoDe, entrarNaFila
       }
       return {pausas: Object.fromEntries(nomes.map((nome) => [nome, novas[nome] ?? guardadas[nome]]))};
     }),
+  );
+
+  // O montado (e a prévia leve e a capa dele, já prontas) no S3, com o nome do projeto
+  // como título; sem S3, na pasta da conta.
+  const guardarMontado = async (espaco: Espaco, nome: string, arquivos: {video: string; previa: string; capa: string}, titulo: string) => {
+    const conta = espaco.usuario!.id;
+    if (!armazenamento) {
+      await copyFile(arquivos.video, path.join(espaco.pasta, nome));
+      return;
+    }
+    const enviar = async (arquivo: string, Key: string, ContentType: string, Metadata?: Record<string, string>) =>
+      armazenamento.s3.send(
+        new PutObjectCommand({Bucket: armazenamento.bucket, Key, Body: createReadStream(arquivo), ContentLength: (await stat(arquivo)).size, ContentType, Metadata}),
+      );
+    // O vídeo antes: a prévia e a capa só valem se forem mais novas que ele (previa-leve.ts).
+    await enviar(arquivos.video, `${PASTAS_NO_BUCKET.videos.prefixo}${conta}/${nome}`, "video/mp4", {titulo: encodeURIComponent(titulo)});
+    await enviar(arquivos.previa, `${PASTAS_NO_BUCKET.previas.prefixo}${conta}/${nome}.mp4`, "video/mp4");
+    await enviar(arquivos.capa, `${PASTAS_NO_BUCKET.previas.prefixo}${conta}/${nome}.jpg`, "image/jpeg");
+  };
+
+  // "Gerar legendas": monta o vídeo dos trechos, solto do pedido (a tela acompanha
+  // pelo GET /montagem e pode fechar). O montado vira projetos.video e as legendas
+  // antigas (de outros cortes) saem; a tela pede a transcrição de sempre em seguida.
+  const montagens = tarefasSoltas();
+  const filaDeMontagens = filaComVagas(LIMITES_DE_USO.montagensAoMesmoTempo);
+  const chaveDaMontagem = (response: Response, id: string) => `${espacoDe(response).usuario!.id}:projeto:${id}`;
+
+  rotas.post(
+    "/:id/montar",
+    rota(async (request, response) => {
+      const espaco = espacoDe(response);
+      const id = request.params.id;
+      const chave = chaveDaMontagem(response, id);
+      const atual = montagens.emAndamento(chave);
+      if (atual) return atual;
+      const l = await linha(response, id);
+      const {trechos, montado} = timelineDe(l);
+      if (trechos.length === 0) throw new Error("Adicione um vídeo antes de gerar as legendas.");
+      const nomes = [...new Set(trechos.map((t) => t.video))];
+      await conferirVideos(espaco, nomes);
+      return montagens.iniciar(
+        chave,
+        id,
+        async (progresso) => {
+          const liberar = await filaDeMontagens.entrar((posicao) => progresso(posicao === 1 ? "Na fila, você é o próximo..." : `Na fila (${posicao}º)...`));
+          const pasta = await mkdtemp(path.join(os.tmpdir(), "montagem-"));
+          try {
+            progresso("Lendo os vídeos...", 0);
+            const fontes: Record<string, FonteDaMontagem> = {};
+            // 6 h: o endereço assinado precisa durar a montagem inteira.
+            for (const nome of nomes) fontes[nome] = await lerFonte(await videos.entrada(espaco, nome, 6 * 3600));
+            const arquivos = await montarVideo(fontes, trechos, pasta, progresso);
+            progresso("Guardando o vídeo montado...", 0.9);
+            const nome = nomeDoMontado(id, montado?.video);
+            await guardarMontado(espaco, nome, arquivos, l.nome);
+            // Relida: a tela pode ter salvo outros cortes enquanto isso (a assinatura diz quais foram montados).
+            const agora = await linha(response, id);
+            const {error} = await bancoDe(response)
+              .from("projetos")
+              .update({video: nome, dados: null, timeline: {...timelineDe(agora), montado: {video: nome, dosTrechos: assinaturaDosTrechos(trechos)}}})
+              .eq("id", id);
+            if (error) throw falha("salvar o vídeo montado no projeto", error);
+            // O montado anterior não serve mais (os originais nunca são apagados aqui).
+            if (montado?.video && montado.video !== nome) await videos.remover(espaco, montado.video).catch(() => undefined);
+            return {montado: nome};
+          } finally {
+            liberar();
+            await rm(pasta, {recursive: true, force: true});
+          }
+        },
+        () => undefined,
+      );
+    }),
+  );
+
+  rotas.get(
+    "/:id/montagem",
+    rota(async (request, response) => montagens.ler(chaveDaMontagem(response, request.params.id)) ?? {estado: "nenhuma"}),
   );
 
   rotas.delete(

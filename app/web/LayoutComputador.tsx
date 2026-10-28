@@ -33,7 +33,7 @@ const ABAS_DO_PAINEL_DIREITO: Aba<AbaDireita>[] = [
   {valor: "geral", nome: "Geral"},
 ];
 
-export const LayoutComputador: React.FC<{e: Editor; onProjetos?: () => void}> = ({e, onProjetos}) => {
+export const LayoutComputador: React.FC<{e: Editor; onProjetos?: () => void; onCortes?: () => void}> = ({e, onProjetos, onCortes}) => {
   const [arrastando, setArrastando] = useState(false);
   // Abas dos painéis (lembradas neste navegador) e, em janela estreita, painéis
   // laterais recolhidos.
@@ -117,6 +117,7 @@ export const LayoutComputador: React.FC<{e: Editor; onProjetos?: () => void}> = 
         onAlternarEsq={() => setEsqAberto(!esqAberto)}
         onAlternarDir={() => setDirAberto(!dirAberto)}
         onProjetos={onProjetos}
+        onCortes={onCortes}
       />
 
       <PainelEsquerdo

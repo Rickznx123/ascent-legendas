@@ -529,7 +529,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // Projetos com timeline (veja projetos.ts). Só com login; no modo local, o de sempre.
   if (contas) {
     // A fila das transcrições é criada mais abaixo; só é usada depois, nos pedidos.
-    app.use("/api/projetos", rotasDeProjetos({contas, videos, previas, espacoDe, entrarNaFila: () => filaDeTranscricoes.entrar()}));
+    app.use("/api/projetos", rotasDeProjetos({contas, videos, previas, armazenamento, espacoDe, entrarNaFila: () => filaDeTranscricoes.entrar()}));
   }
 
   // Prévia leve e capa do vídeo (veja previa-leve.ts). Sem S3, ou vídeo só no disco:

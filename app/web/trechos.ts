@@ -111,3 +111,12 @@ export const removerPausas = (trechos: Trecho[], duracoes: Duracoes, pausas: Rec
   });
   return mudou ? lista : trechos;
 };
+
+// Resumo dos trechos de uma montagem (Bloco 4): igual ao da timeline atual, os cortes
+// não mudaram desde a última montagem (só a ordem, os vídeos e os tempos contam).
+export const assinaturaDosTrechos = (trechos: Trecho[]): string => {
+  const texto = JSON.stringify(trechos.map((t) => [t.video, t.inicioMs, t.fimMs ?? null]));
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < texto.length; i++) hash = Math.imul(hash ^ texto.charCodeAt(i), 0x01000193);
+  return `${trechos.length}-${(hash >>> 0).toString(16)}`;
+};

@@ -1,20 +1,26 @@
-// Projetos (PLANO-CORTES.md, Blocos 1 e 2), no computador e no celular: a lista dos
+// Projetos (PLANO-CORTES.md, Blocos 1 a 4), no computador e no celular: a lista dos
 // projetos com "Novo projeto" e o editor de cortes (os vídeos do projeto na timeline;
-// com um vídeo inteiro, sem cortes, "Legendar este vídeo" abre as legendas dele).
+// "Gerar legendas" monta o vídeo dos cortes e transcreve só ele; com um vídeo inteiro,
+// "Pular" legenda o próprio vídeo, sem montar).
 // Só com login (os projetos ficam no Supabase); no modo local, o Início de sempre.
-import {useEffect, useState} from "react";
+import {useEffect, useRef, useState} from "react";
 import {api, tituloDoVideo} from "./api";
-import type {ProjetoComTimeline, ResumoDeProjeto} from "./api";
+import type {Montagem, ProjetoComTimeline, ResumoDeProjeto} from "./api";
 import {Cartao} from "./celular/Inicio";
 import {plataforma} from "./plataforma";
 import type {VideoEscolhido} from "./plataforma";
 import {Timeline, useTimeline} from "./Timeline";
-import {novoId} from "./trechos";
+import {assinaturaDosTrechos, novoId} from "./trechos";
 import type {Editor} from "./useEditor";
 
 // Abrir: um projeto com o vídeo das legendas já escolhido (ou um vídeo antigo, sem
 // projeto) vai para as legendas; um projeto ainda na timeline, para os cortes.
-export type Abrir = (alvo: {video: string} | {id: string}) => void;
+// id junto do vídeo: as legendas mostram "Cortes" para voltar a este projeto.
+export type Abrir = (alvo: {video: string; id?: string} | {id: string}) => void;
+
+const PERGUNTAR_DE_NOVO_MS = 2000;
+const AVISO_DE_NOVOS_CORTES =
+  "Se mudar os cortes, as legendas serão geradas de novo (conta 1 transcrição do dia) e as edições de legenda deste projeto serão perdidas.";
 
 const dataCurta = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", {day: "2-digit", month: "2-digit", year: "numeric"});
 const quantosVideos = (n: number) => (n === 1 ? "1 vídeo" : `${n} vídeos`);
@@ -86,7 +92,7 @@ export const ListaDeProjetos: React.FC<{e: Editor; onAbrir: Abrir}> = ({e, onAbr
             situacao={`${p.etapa === "legendado" ? "Legendado" : "Em edição"} · ${quantosVideos(p.videos)} · ${dataCurta(p.atualizadoEm)}`}
             atual={false}
             ocupado={e.ocupado}
-            onAbrir={() => onAbrir(p.video ? {video: p.video} : {id: p.id})}
+            onAbrir={() => onAbrir(p.video ? {video: p.video, id: p.id} : {id: p.id})}
           />
         ))}
         {/* Vídeos enviados antes dos projetos: abrem as legendas, como antes. */}
@@ -148,11 +154,66 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
     if (escolhidos.length < arquivos.length) setErro("Só vídeos .mp4, .mov, .mkv ou .webm entram no projeto.");
     void adicionar(escolhidos);
   };
-  const legendar = async () => {
+  const inteiro = trechos.length === 1 && trechos[0].inicioMs === 0 && trechos[0].fimMs === undefined;
+  const {montado} = projeto.timeline;
+  // Os cortes de agora são os do vídeo das legendas: só abrir.
+  const pronto = Boolean(projeto.video) && (inteiro ? trechos[0].video === projeto.video : montado?.video === projeto.video && montado.dosTrechos === assinaturaDosTrechos(trechos));
+  // Já há legendas de outros cortes: gerar de novo troca as legendas.
+  const trocaAsLegendas = Boolean(projeto.video) && !pronto;
+
+  // Saiu da tela no meio da montagem: para de acompanhar (e não abre as legendas sozinho).
+  const naTela = useRef(true);
+  useEffect(
+    () => () => {
+      naTela.current = false;
+    },
+    [],
+  );
+  const [etapa, setEtapa] = useState<string>();
+  // Acompanha a montagem; pronta, abre as legendas do montado e pede a transcrição.
+  const acompanhar = async (tarefa: Montagem | {estado: "nenhuma"}) => {
+    let atual = tarefa;
+    while (atual.estado === "andamento" && naTela.current) {
+      setEtapa(atual.etapa ?? "Montando o vídeo...");
+      await new Promise((resolve) => window.setTimeout(resolve, PERGUNTAR_DE_NOVO_MS));
+      atual = await api.montagem(id);
+    }
+    setEtapa(undefined);
+    if (!naTela.current) return;
+    if (atual.estado === "falhou") throw new Error(atual.mensagem ?? "Não foi possível montar o vídeo.");
+    if (atual.estado === "pronta" && atual.montado) {
+      onLegendar(atual.montado);
+      void e.transcreverNovo(atual.montado);
+    }
+  };
+  // Voltou para a tela com uma montagem em curso: retoma o acompanhamento.
+  useEffect(() => {
+    void api
+      .montagem(id)
+      .then((tarefa) => {
+        if (tarefa.estado !== "andamento") return;
+        setOcupado(true);
+        return acompanhar(tarefa).finally(() => setOcupado(false));
+      })
+      .catch(mostrarErro);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // "Gerar legendas": monta o vídeo dos trechos. "Pular" (um vídeo inteiro): legenda o próprio vídeo.
+  const gerar = async () => {
+    if (trocaAsLegendas && !window.confirm(`${AVISO_DE_NOVOS_CORTES}\n\nGerar as legendas de novo?`)) return;
     setOcupado(true);
+    setErro(undefined);
     try {
       await t.salvarAgora();
-      onLegendar((await api.legendarSemMontar(id, trechos[0].video)).video);
+      if (inteiro) {
+        const {video} = await api.legendarSemMontar(id, trechos[0].video);
+        const jaTemLegendas = Boolean(await api.projeto(video));
+        onLegendar(video);
+        if (!jaTemLegendas) void e.transcreverNovo(video);
+      } else {
+        await acompanhar(await api.montar(id));
+      }
     } catch (error) {
       mostrarErro(error);
     } finally {
@@ -172,7 +233,6 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
   };
 
   const travado = ocupado || e.ocupado;
-  const inteiro = trechos.length === 1 && trechos[0].inicioMs === 0 && trechos[0].fimMs === undefined;
   return (
     <>
       {erro ? <p className="login-erro" role="alert">{erro}</p> : null}
@@ -203,13 +263,16 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
         {trechos.length === 0 ? <p className="vazio">Nenhum vídeo no projeto ainda.</p> : null}
       </section>
       <Timeline t={t} catalogo={e.catalogo} travado={travado} />
-      {inteiro ? (
-        <button type="button" className="bt primario cel-cheio cortes-legendar" disabled={travado} onClick={() => void legendar()}>
-          Legendar este vídeo
+      {pronto ? (
+        <button type="button" className="bt primario cel-cheio cortes-legendar" disabled={travado} onClick={() => onLegendar(projeto.video!)}>
+          Abrir as legendas
         </button>
       ) : trechos.length > 0 ? (
-        <p className="suave">Por enquanto, dá para legendar um vídeo inteiro, sem cortes. Gerar as legendas do vídeo cortado vem na próxima versão.</p>
+        <button type="button" className="bt primario cel-cheio cortes-legendar" disabled={travado} onClick={() => void gerar()}>
+          {etapa ?? (inteiro ? "Pular os cortes e legendar" : "Gerar legendas")}
+        </button>
       ) : null}
+      {trocaAsLegendas ? <p className="suave">{AVISO_DE_NOVOS_CORTES}</p> : null}
       <button type="button" className="bt cel-cheio cortes-apagar" disabled={travado} onClick={() => void apagar()}>
         Apagar projeto
       </button>

@@ -27,19 +27,27 @@ const useEhCelular = (): boolean => {
 
 // Computador com login: a tela de projetos, os cortes de um projeto e as legendas
 // (o editor de sempre). Sem login (modo local), direto o editor, como antes.
-type Tela = {tela: "projetos"} | {tela: "cortes"; id: string} | {tela: "legendas"};
+// legendas.cortes: o projeto de onde as legendas vieram ("Cortes" volta para ele).
+type Tela = {tela: "projetos"} | {tela: "cortes"; id: string} | {tela: "legendas"; cortes?: string};
 
 const Computador: React.FC<{e: Editor}> = ({e}) => {
   const {conta} = useConta();
   const [tela, setTela] = useState<Tela>({tela: "projetos"});
   if (!conta || tela.tela === "legendas") {
-    return <LayoutComputador e={e} onProjetos={conta ? () => setTela({tela: "projetos"}) : undefined} />;
+    const cortes = tela.tela === "legendas" ? tela.cortes : undefined;
+    return (
+      <LayoutComputador
+        e={e}
+        onProjetos={conta ? () => setTela({tela: "projetos"}) : undefined}
+        onCortes={conta && cortes ? () => setTela({tela: "cortes", id: cortes}) : undefined}
+      />
+    );
   }
-  const legendar = (video: string) => {
+  const legendar = (video: string, cortes?: string) => {
     if (video !== e.video) e.setVideo(video);
-    setTela({tela: "legendas"});
+    setTela({tela: "legendas", cortes});
   };
-  const abrir: Abrir = (alvo) => ("video" in alvo ? legendar(alvo.video) : setTela({tela: "cortes", id: alvo.id}));
+  const abrir: Abrir = (alvo) => ("video" in alvo ? legendar(alvo.video, alvo.id) : setTela({tela: "cortes", id: alvo.id}));
   return (
     <div className="projetos-pc">
       <header className="projetos-pc-barra">
@@ -54,7 +62,7 @@ const Computador: React.FC<{e: Editor}> = ({e}) => {
       </header>
       <main className="projetos-pc-conteudo">
         {tela.tela === "cortes" ? (
-          <EditorDeCortes e={e} id={tela.id} onLegendar={legendar} onApagado={() => setTela({tela: "projetos"})} />
+          <EditorDeCortes e={e} id={tela.id} onLegendar={(video) => legendar(video, tela.id)} onApagado={() => setTela({tela: "projetos"})} />
         ) : (
           <ListaDeProjetos e={e} onAbrir={abrir} />
         )}

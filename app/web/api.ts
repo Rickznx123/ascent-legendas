@@ -94,6 +94,8 @@ export type Andamento = {etapa: string; fracao?: number};
 // url e download: endereços assinados do vídeo pronto no S3 (exportação no Lambda).
 export type Exportacao = TarefaSolta & {caminho?: string; descontoS?: number; url?: string; download?: string};
 export type TranscricaoNoServidor = TarefaSolta & {projeto?: Projeto; avisos?: string[]};
+// montado: o vídeo dos cortes, pronto (veja app/servidor/projetos.ts).
+export type Montagem = TarefaSolta & {montado?: string};
 
 const lerJson = async <T>(response: Response): Promise<T> => {
   const data = (await response.json()) as T & {mensagem?: string; codigo?: string};
@@ -240,6 +242,9 @@ export const api = {
   apagarProjeto: (id: string) => pedir(`/api/projetos/${id}`, {method: "DELETE"}).then((r) => lerJson<{ok: boolean}>(r)),
   // As pausas de cada vídeo da timeline (a primeira vez de um vídeo leva alguns segundos).
   pausas: (id: string) => pedir(`/api/projetos/${id}/pausas`, {method: "POST"}).then((r) => lerJson<{pausas: Record<string, [number, number][]>}>(r)),
+  // "Gerar legendas": a montagem do vídeo dos cortes começa (ou devolve a em curso); depois, o andamento.
+  montar: (id: string) => pedir(`/api/projetos/${id}/montar`, {method: "POST"}).then((r) => lerJson<Montagem>(r)),
+  montagem: (id: string) => pedir(`/api/projetos/${id}/montagem`).then((r) => lerJson<Montagem | {estado: "nenhuma"}>(r)),
 
   sons: () => pedir("/api/sons").then((r) => lerJson<ArquivoSom[]>(r)),
 

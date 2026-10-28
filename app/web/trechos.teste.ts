@@ -1,7 +1,7 @@
 // npx tsx --test app/web/trechos.teste.ts
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {aparar, dividir, duracaoTotal, excluir, mover, msDoQuadro, noVideo, quadroDe, removerPausas} from "./trechos";
+import {aparar, assinaturaDosTrechos, dividir, duracaoTotal, excluir, mover, msDoQuadro, noVideo, quadroDe, removerPausas} from "./trechos";
 
 const duracoes = {"a.mp4": 10_000, "b.mp4": 4_000};
 const base = [
@@ -55,4 +55,11 @@ test("remover pausas divide cada trecho nos pedaços de fala", () => {
   assert.equal(removerPausas(base, duracoes, {"a.mp4": [[200, 900]]}), base);
   // Trecho todo em silêncio some.
   assert.deepEqual(removerPausas(base, duracoes, {"b.mp4": [[0, 4_000]]}), [base[0]]);
+});
+
+test("a assinatura muda com os cortes e não com o id", () => {
+  const outroId = base.map((t, i) => ({...t, id: `x${i}`}));
+  assert.equal(assinaturaDosTrechos(outroId), assinaturaDosTrechos(base));
+  assert.notEqual(assinaturaDosTrechos(mover(base, 0, 1)), assinaturaDosTrechos(base));
+  assert.notEqual(assinaturaDosTrechos(aparar(base, duracoes, "a", "inicio", 1_001)), assinaturaDosTrechos(base));
 });

@@ -9,7 +9,7 @@
 //     num balde só deles.
 // A fila de renders fica na tabela renders (sobrevive a um reinício, veja renders.ts);
 // a de transcrições, na memória (uma transcrição leva segundos).
-// FILA_RENDERS, FILA_TRANSCRICOES, FILA_PREVIAS e FILA_SONS (ambiente) trocam as vagas.
+// FILA_RENDERS, FILA_TRANSCRICOES, FILA_PREVIAS, FILA_SONS e FILA_MONTAGENS (ambiente) trocam as vagas.
 import type {NextFunction, Request, Response} from "express";
 
 const doAmbiente = (nome: string, padrao: number) => {
@@ -25,6 +25,8 @@ export const LIMITES_DE_USO = {
   previasAoMesmoTempo: doAmbiente("FILA_PREVIAS", 1),
   // Sons tocados da prévia do editor (um ffmpeg curto por som).
   sonsAoMesmoTempo: doAmbiente("FILA_SONS", 2),
+  // Montagem do vídeo dos cortes (projetos.ts): converte o vídeo inteiro, como a prévia leve.
+  montagensAoMesmoTempo: doAmbiente("FILA_MONTAGENS", 1),
   // 300: ir e voltar entre Início, projeto e editor já faz ~20 leituras baratas
   // (com 60, o uso normal recebia "Muitos pedidos seguidos"). Só barra script.
   pedidosPorMinuto: 300,

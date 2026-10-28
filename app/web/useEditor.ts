@@ -691,6 +691,13 @@ export const useEditor = () => {
     setTocarSozinho(true);
     await transcrever(false, nome, "a");
   };
+  // Vídeo que acabou de virar o das legendas de um projeto (o montado dos cortes ou o
+  // "Pular", PLANO-CORTES.md, Bloco 4): entra na lista e é transcrito.
+  const transcreverNovo = async (nome: string) => {
+    setCatalogo(await api.catalogo());
+    setVideo(nome);
+    await transcrever(false, nome);
+  };
   const usarExemplo = async () => {
     setErro(undefined);
     setTarefa({nome: "Importar", etapa: "Preparando o vídeo de exemplo..."});
@@ -1075,6 +1082,7 @@ export const useEditor = () => {
     recarregarTemplates,
     transcrever,
     primeiroVideo,
+    transcreverNovo,
     usarExemplo,
     semSom,
     ligarSom,

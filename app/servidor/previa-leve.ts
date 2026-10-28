@@ -43,7 +43,7 @@ const LADO_MENOR = 540;
 const VALIDADE_S = 3 * 3600;
 
 // Lado menor em LADO_MENOR (sem aumentar vídeo menor), o outro proporcional e par.
-const ESCALA =
+export const ESCALA =
   `scale=w='if(gt(iw,ih),-2,trunc(min(${LADO_MENOR},iw)/2)*2)'` + `:h='if(gt(iw,ih),trunc(min(${LADO_MENOR},ih)/2)*2,-2)'`;
 
 // Capa: um quadro perto do começo (vídeo curtinho: o primeiro), já em pé, com o
