@@ -106,7 +106,9 @@ export const loadPalette = async (palettesDirectory: string, paletteName: string
   const fillIsValid =
     fill?.type === "solida"
       ? typeof fill.color === "string"
-      : fill?.type === "degrade" && Number.isFinite(fill.angle) && fill.stops?.length >= 2;
+      : fill?.type === "radial"
+        ? fill.stops?.length >= 2
+        : fill?.type === "degrade" && Number.isFinite(fill.angle) && fill.stops?.length >= 2;
   if (
     typeof palette.supportColor !== "string" ||
     !fillIsValid ||
@@ -117,7 +119,7 @@ export const loadPalette = async (palettesDirectory: string, paletteName: string
     (palette.caixa !== undefined && (typeof palette.caixa.fundo !== "string" || typeof palette.caixa.texto !== "string"))
   ) {
     throw new Error(
-      `A paleta '${paletteName}' está incompleta. Ela precisa de supportColor, keywordFill (solida ou degrade com ao menos 2 paradas), glow {inner, outer, intensity} e shadow {color} (e, se tiver caixa, caixa {fundo, texto}).`,
+      `A paleta '${paletteName}' está incompleta. Ela precisa de supportColor, keywordFill (solida, ou degrade ou radial com ao menos 2 paradas), glow {inner, outer, intensity} e shadow {color} (e, se tiver caixa, caixa {fundo, texto}).`,
     );
   }
   return palette;

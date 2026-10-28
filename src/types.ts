@@ -140,6 +140,11 @@ export type PaletteFill =
       angle: number;
       // Paradas do degradê; position vai de 0 a 100 (%).
       stops: {color: string; position: number}[];
+    }
+  | {
+      // Do centro da palavra para fora (position 0 = centro, 100 = borda).
+      type: "radial";
+      stops: {color: string; position: number}[];
     };
 
 export type Palette = {

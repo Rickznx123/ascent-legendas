@@ -54,7 +54,8 @@ export const keywordBackground = (palette: Palette): string => {
     return `linear-gradient(${fill.color}, ${fill.color})`;
   }
   const stops = fill.stops.map((stop) => `${stop.color} ${stop.position}%`).join(", ");
-  return `linear-gradient(${fill.angle}deg, ${stops})`;
+  // Radial: a borda (100%) encosta nos lados da palavra, para a cor da borda aparecer.
+  return fill.type === "radial" ? `radial-gradient(ellipse closest-side, ${stops})` : `linear-gradient(${fill.angle}deg, ${stops})`;
 };
 
 // Variáveis CSS que os layouts usam:
