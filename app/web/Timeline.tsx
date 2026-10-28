@@ -383,16 +383,25 @@ export const Timeline: React.FC<{t: TimelineDoProjeto; catalogo: Catalogo; trava
     return () => elemento.removeEventListener("touchmove", aoArrastarODedo);
   }, [pronto]);
 
+  // Os leitores ficam na mesma posição (o primeiro filho do mesmo div), com "Lendo…" ou
+  // com a timeline: recriados a cada troca, recomeçariam sem a duração e a tela
+  // alternaria sem parar, pedindo a prévia de novo a cada volta.
+  const leitores = nomes.map((nome) => <LerVideo key={nome} nome={nome} onInfo={aoInfo} />);
   if (lista.length === 0) return null;
-  if (!pronto) return <p className={erroDeLeitura ? "login-erro" : "suave"}>{erroDeLeitura ?? "Lendo os vídeos…"}{nomes.map((nome) => <LerVideo key={nome} nome={nome} onInfo={aoInfo} />)}</p>;
+  if (!pronto) {
+    return (
+      <div className="tl">
+        {leitores}
+        <p className={erroDeLeitura ? "login-erro" : "suave"}>{erroDeLeitura ?? "Lendo os vídeos…"}</p>
+      </div>
+    );
+  }
 
   const primeiro = infos[lista[0].video];
   const marcaDoArrasto = arrasto ? lista.filter((_, i) => i !== arrasto.indice).slice(0, arrasto.para).reduce((soma, trecho) => soma + duracaoDe(trecho, duracoes), 0) : 0;
   return (
     <div className="tl">
-      {nomes.map((nome) => (
-        <LerVideo key={nome} nome={nome} onInfo={aoInfo} />
-      ))}
+      {leitores}
       <div className="tl-previa">
         <Player
           ref={player}

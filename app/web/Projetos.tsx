@@ -113,7 +113,38 @@ export const ListaDeProjetos: React.FC<{e: Editor; onAbrir: Abrir}> = ({e, onAbr
   );
 };
 
-type PropsDosCortes = {e: Editor; id: string; onLegendar: (video: string) => void; onApagado: () => void};
+// Um vídeo escolhido para o projeto, do momento em que é escolhido até chegar (ou falhar).
+type Envio = {chave: string; escolhido: VideoEscolhido; estado: "fila" | "enviando" | "enviado" | "falhou"; fracao?: number; mensagem?: string};
+
+// O estado de cada vídeo da fila: "Na fila", a barra de progresso, "Enviado" ou a falha.
+const ListaDeEnvios: React.FC<{envios: Envio[]; onTentarDeNovo: (envio: Envio) => void}> = ({envios, onTentarDeNovo}) =>
+  envios.length === 0 ? null : (
+    <ul className="envios" aria-label="Vídeos sendo enviados">
+      {envios.map((envio) => (
+        <li key={envio.chave} className={`envio envio-${envio.estado}`} role={envio.estado === "falhou" ? "alert" : undefined}>
+          <span className="envio-nome">{envio.escolhido.nome}</span>
+          {envio.estado === "fila" ? <span className="suave">Na fila</span> : null}
+          {envio.estado === "enviando" ? (
+            <span className="envio-andamento">
+              <progress max={1} value={envio.fracao ?? 0} />
+              <span className="suave">{Math.round((envio.fracao ?? 0) * 100)}%</span>
+            </span>
+          ) : null}
+          {envio.estado === "enviado" ? <span className="envio-ok">Enviado</span> : null}
+          {envio.estado === "falhou" ? (
+            <>
+              <span className="envio-erro">Falhou: {envio.mensagem}</span>
+              <button type="button" className="bt" onClick={() => onTentarDeNovo(envio)}>
+                Tentar de novo
+              </button>
+            </>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+
+type PropsDosCortes ={e: Editor; id: string; onLegendar: (video: string) => void; onApagado: () => void};
 
 // Os cortes de um projeto: a mídia (vários vídeos de uma vez), a timeline e, com um
 // vídeo inteiro sem cortes, "Legendar este vídeo" (o fluxo de hoje, sem montar nada).
@@ -137,22 +168,27 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
   const t = useTimeline(id, projeto.timeline.trechos);
   const trechos = t.lista;
 
-  // Vários vídeos (escolhidos ou arrastados): numa fila, enviados um por vez na ordem
-  // (mais vídeos escolhidos no meio entram no fim da fila). Cada um entra no fim da
-  // timeline assim que chega. Falha passageira: tenta mais 2 vezes sozinho (o envio
-  // continua de onde parou); se não der, só aquele vídeo mostra "Tentar de novo".
   // Saiu da tela: a fila de envios para e a montagem deixa de ser acompanhada (e não
-  // abre as legendas sozinha).
+  // abre as legendas sozinha). Volta a true ao montar: no desenvolvimento o React
+  // monta, desmonta e monta de novo (StrictMode).
   const naTela = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    naTela.current = true;
+    return () => {
       naTela.current = false;
-    },
-    [],
-  );
-  const fila = useRef<VideoEscolhido[]>([]);
+    };
+  }, []);
+
+  // Vários vídeos (escolhidos ou arrastados): numa fila, enviados um por vez na ordem
+  // (mais vídeos escolhidos no meio entram no fim da fila), cada um com o seu estado na
+  // tela desde que é escolhido. Cada um entra no fim da timeline assim que chega. Falha
+  // passageira: tenta mais 2 vezes sozinho (o envio continua de onde parou); se não
+  // der, só aquele vídeo mostra "Tentar de novo".
+  const fila = useRef<Envio[]>([]);
   const enviandoAFila = useRef(false);
-  const [falhas, setFalhas] = useState<{escolhido: VideoEscolhido; mensagem: string}[]>([]);
+  const [envios, setEnvios] = useState<Envio[]>([]);
+  const mudarEnvio = (chave: string, mudanca: Partial<Envio>) =>
+    setEnvios((lista) => lista.map((envio) => (envio.chave === chave ? {...envio, ...mudanca} : envio)));
   const editor = useRef(e);
   editor.current = e;
   const esvaziarAFila = async () => {
@@ -161,12 +197,19 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
     let feitos = 0;
     try {
       while (fila.current.length > 0 && naTela.current) {
-        const escolhido = fila.current.shift()!;
+        const {chave, escolhido} = fila.current.shift()!;
         feitos++;
         const posicao = `${feitos} de ${feitos + fila.current.length}`;
+        mudarEnvio(chave, {estado: "enviando", fracao: 0});
         try {
-          const video = await comTentativas(() => editor.current.importarVideo(escolhido, {posicao}));
-          if (!video) continue;
+          const video = await comTentativas(() =>
+            editor.current.importarVideo(escolhido, {posicao, onProgresso: (fracao) => mudarEnvio(chave, {fracao})}),
+          );
+          if (!video) {
+            // Não quis substituir um vídeo com o mesmo nome.
+            setEnvios((lista) => lista.filter((envio) => envio.chave !== chave));
+            continue;
+          }
           const trecho = {id: novoId(), video, inicioMs: 0};
           if (naTela.current) {
             t.mudar((lista) => [...lista, trecho]);
@@ -175,8 +218,9 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
             const {timeline} = await api.projetoComTimeline(id);
             await api.salvarProjetoComTimeline(id, {timeline: {trechos: [...timeline.trechos, trecho]}});
           }
+          mudarEnvio(chave, {estado: "enviado", fracao: 1});
         } catch (error) {
-          setFalhas((lista) => [...lista, {escolhido, mensagem: error instanceof Error ? error.message.replace(/ \(parou na etapa: .*\)$/u, "") : String(error)}]);
+          mudarEnvio(chave, {estado: "falhou", mensagem: error instanceof Error ? error.message.replace(/ \(parou na etapa: .*\)$/u, "") : String(error)});
         }
       }
     } finally {
@@ -185,10 +229,20 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
       enviandoAFila.current = false;
     }
   };
-  const adicionar = (escolhidos: VideoEscolhido[]) => {
-    setFalhas((lista) => lista.filter((falha) => !escolhidos.includes(falha.escolhido)));
-    fila.current.push(...escolhidos);
+  const enfileirar = (novos: Envio[]) => {
+    fila.current.push(...novos);
     void esvaziarAFila();
+  };
+  const adicionar = (escolhidos: VideoEscolhido[]) => {
+    const novos = escolhidos.map((escolhido): Envio => ({chave: novoId(), escolhido, estado: "fila"}));
+    // Os já enviados saem da lista; os que falharam ficam até tentar de novo.
+    setEnvios((lista) => [...lista.filter((envio) => envio.estado !== "enviado"), ...novos]);
+    enfileirar(novos);
+  };
+  const tentarDeNovo = (envio: Envio) => {
+    const deNovo: Envio = {...envio, estado: "fila", fracao: undefined, mensagem: undefined};
+    mudarEnvio(envio.chave, deNovo);
+    enfileirar([deNovo]);
   };
   const [arrastando, setArrastando] = useState(false);
   const soltar = (event: React.DragEvent) => {
@@ -298,18 +352,9 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
           ＋ Adicionar vídeos
         </button>
         <p className="suave midia-dica">Dá para escolher vários de uma vez. No computador, também dá para arrastar os vídeos para cá.</p>
-        {trechos.length === 0 ? <p className="vazio">Nenhum vídeo no projeto ainda.</p> : null}
+        <ListaDeEnvios envios={envios} onTentarDeNovo={tentarDeNovo} />
+        {trechos.length === 0 && envios.length === 0 ? <p className="vazio">Nenhum vídeo no projeto ainda.</p> : null}
       </section>
-      {falhas.map(({escolhido, mensagem}) => (
-        <div key={escolhido.nome} className="envio-falhou" role="alert">
-          <span>
-            Não deu para enviar <b>{escolhido.nome}</b>. {mensagem}
-          </span>
-          <button type="button" className="bt" onClick={() => adicionar([escolhido])}>
-            Tentar de novo
-          </button>
-        </div>
-      ))}
       <Timeline t={t} catalogo={e.catalogo} travado={travado} />
       {pronto ? (
         <button type="button" className="bt primario cel-cheio cortes-legendar" disabled={travado} onClick={() => onLegendar(projeto.video!)}>
