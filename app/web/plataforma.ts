@@ -18,6 +18,8 @@ export type Plataforma = {
   // Abre o seletor de arquivos de vídeo. galeria: no celular, oferece também a
   // galeria de fotos e vídeos do aparelho.
   escolherVideo: (opcoes?: {galeria?: boolean}) => Promise<VideoEscolhido | undefined>;
+  // O mesmo seletor, com vários vídeos de uma vez (a mídia de um projeto). Lista vazia: cancelou.
+  escolherVideos: (opcoes?: {galeria?: boolean}) => Promise<VideoEscolhido[]>;
   // Transforma um arquivo arrastado para a janela num vídeo escolhido.
   videoArrastado: (arquivo: File) => VideoEscolhido | undefined;
   // Salva o vídeo exportado no computador do usuário.
@@ -82,17 +84,26 @@ const videoDoArquivo = (arquivo: File): VideoEscolhido | undefined =>
       }
     : undefined;
 
+// Seletor de arquivos do navegador; varios: deixa marcar vários (no celular, na galeria também).
+const escolherArquivos = (galeria: boolean | undefined, varios: boolean): Promise<File[]> =>
+  new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.multiple = varios;
+    input.accept = [...(galeria ? ["video/*"] : []), ...EXTENSOES_DE_VIDEO].join(",");
+    input.onchange = () => resolve([...(input.files ?? [])]);
+    input.oncancel = () => resolve([]);
+    input.click();
+  });
+
 const navegador: Plataforma = {
   nome: "navegador",
-  escolherVideo: (opcoes) =>
-    new Promise((resolve) => {
-      const input = document.createElement("input");
-      input.type = "file";
-      input.accept = [...(opcoes?.galeria ? ["video/*"] : []), ...EXTENSOES_DE_VIDEO].join(",");
-      input.onchange = () => resolve(input.files?.[0] ? videoDoArquivo(input.files[0]) : undefined);
-      input.oncancel = () => resolve(undefined);
-      input.click();
-    }),
+  escolherVideo: async (opcoes) => {
+    const [arquivo] = await escolherArquivos(opcoes?.galeria, false);
+    return arquivo ? videoDoArquivo(arquivo) : undefined;
+  },
+  escolherVideos: async (opcoes) =>
+    (await escolherArquivos(opcoes?.galeria, true)).map(videoDoArquivo).filter((video): video is VideoEscolhido => Boolean(video)),
   videoArrastado: videoDoArquivo,
   baixarExportado: (nomeDoArquivo, endereco) => {
     const link = document.createElement("a");

@@ -2081,3 +2081,21 @@ h3 {
 .cortes-apagar {
   margin-top: var(--esp-4);
 }
+
+/* Mídia do projeto: no computador, solte os vídeos em qualquer ponto da área. */
+.midia {
+  border: 2px dashed transparent;
+  border-radius: var(--raio-p);
+  padding: var(--esp-2);
+  margin: calc(-1 * var(--esp-2));
+}
+
+.midia-arrastando {
+  border-color: var(--acento);
+  background: var(--painel-2);
+}
+
+.midia-dica {
+  font-size: var(--fonte-pequena);
+  margin: var(--esp-2) 0 var(--esp-3);
+}

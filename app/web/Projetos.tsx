@@ -6,6 +6,8 @@ import {useEffect, useState} from "react";
 import {api, tituloDoVideo} from "./api";
 import type {ProjetoComTimeline, ResumoDeProjeto} from "./api";
 import {Cartao} from "./celular/Inicio";
+import {plataforma} from "./plataforma";
+import type {VideoEscolhido} from "./plataforma";
 import type {Editor} from "./useEditor";
 
 // Abrir: um projeto com o vídeo das legendas já escolhido (ou um vídeo antigo, sem
@@ -102,7 +104,7 @@ export const ListaDeProjetos: React.FC<{e: Editor; onAbrir: Abrir}> = ({e, onAbr
   );
 };
 
-// Os cortes de um projeto. Bloco 1: os vídeos do projeto, "＋ Adicionar vídeo" e,
+// Os cortes de um projeto. Bloco 1: a mídia do projeto (vários vídeos de uma vez) e,
 // com um vídeo só, "Legendar este vídeo" (o fluxo de hoje, sem montar nada).
 export const EditorDeCortes: React.FC<{e: Editor; id: string; onLegendar: (video: string) => void; onApagado: () => void}> = ({
   e,
@@ -119,17 +121,34 @@ export const EditorDeCortes: React.FC<{e: Editor; id: string; onLegendar: (video
   }, [id]);
 
   const trechos = projeto?.timeline.trechos ?? [];
-  const adicionar = async () => {
+  // Vários vídeos (escolhidos ou arrastados): enviados um por vez, na ordem, e cada um
+  // entra no projeto assim que chega (um envio que falha não perde os outros).
+  const adicionar = async (escolhidos: VideoEscolhido[]) => {
     if (!projeto) return;
-    const video = await e.escolherEImportar({galeria: true});
-    if (!video) return;
-    const timeline = {trechos: [...trechos, {id: Math.random().toString(36).slice(2, 10), video, inicioMs: 0}]};
-    try {
-      await api.salvarProjetoComTimeline(id, {timeline});
-      setProjeto({...projeto, timeline});
-    } catch (error) {
-      mostrarErro(error);
+    let lista = trechos;
+    for (const escolhido of escolhidos) {
+      const video = await e.importarVideo(escolhido);
+      if (!video) continue;
+      lista = [...lista, {id: Math.random().toString(36).slice(2, 10), video, inicioMs: 0}];
+      const timeline = {trechos: lista};
+      try {
+        await api.salvarProjetoComTimeline(id, {timeline});
+        setProjeto({...projeto, timeline});
+      } catch (error) {
+        mostrarErro(error);
+        return;
+      }
     }
+  };
+  const [arrastando, setArrastando] = useState(false);
+  const soltar = (event: React.DragEvent) => {
+    event.preventDefault();
+    setArrastando(false);
+    if (travado) return;
+    const arquivos = [...event.dataTransfer.files];
+    const escolhidos = arquivos.map(plataforma.videoArrastado).filter((video): video is VideoEscolhido => Boolean(video));
+    if (escolhidos.length < arquivos.length) setErro("Só vídeos .mp4, .mov, .mkv ou .webm entram no projeto.");
+    void adicionar(escolhidos);
   };
   const legendar = async () => {
     setOcupado(true);
@@ -157,16 +176,37 @@ export const EditorDeCortes: React.FC<{e: Editor; id: string; onLegendar: (video
   return (
     <>
       {erro ? <p className="login-erro" role="alert">{erro}</p> : null}
-      <button type="button" className="bt primario cel-cheio" disabled={travado} onClick={() => void adicionar()}>
-        ＋ Adicionar vídeo
-      </button>
-      <div className="titulo">Vídeos do projeto</div>
-      {projeto && trechos.length === 0 ? <p className="vazio">Adicione o primeiro vídeo.</p> : null}
-      <div className="cel-videos">
-        {trechos.map((t, i) => (
-          <Cartao key={t.id} nome={t.video} titulo={`${i + 1}. ${tituloDoVideo(e.catalogo, t.video)}`} situacao="" atual={false} ocupado onAbrir={() => undefined} />
-        ))}
-      </div>
+      {/* Mídia: escolher vários vídeos de uma vez ou, no computador, arrastar para cá. */}
+      <section
+        className={`midia${arrastando ? " midia-arrastando" : ""}`}
+        onDragOver={(event) => {
+          if (event.dataTransfer.types.includes("Files")) {
+            event.preventDefault();
+            setArrastando(true);
+          }
+        }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setArrastando(false);
+        }}
+        onDrop={soltar}
+      >
+        <div className="titulo">Mídia</div>
+        <button
+          type="button"
+          className="bt primario cel-cheio"
+          disabled={travado}
+          onClick={() => void plataforma.escolherVideos({galeria: true}).then(adicionar)}
+        >
+          ＋ Adicionar vídeos
+        </button>
+        <p className="suave midia-dica">Dá para escolher vários de uma vez. No computador, também dá para arrastar os vídeos para cá.</p>
+        {projeto && trechos.length === 0 ? <p className="vazio">Nenhum vídeo no projeto ainda.</p> : null}
+        <div className="cel-videos">
+          {trechos.map((t, i) => (
+            <Cartao key={t.id} nome={t.video} titulo={`${i + 1}. ${tituloDoVideo(e.catalogo, t.video)}`} situacao="" atual={false} ocupado={false} onAbrir={() => undefined} />
+          ))}
+        </div>
+      </section>
       {trechos.length === 1 ? (
         <button type="button" className="bt primario cel-cheio cortes-legendar" disabled={travado} onClick={() => void legendar()}>
           Legendar este vídeo
