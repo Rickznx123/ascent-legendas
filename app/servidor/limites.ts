@@ -38,7 +38,38 @@ export const LIMITES_DE_USO = {
 };
 
 // O que a tela mostra enquanto espera a vez (começa com "Na fila": a tela reconhece).
-export const textoDaFila = (posicao: number): string => (posicao <= 1 ? "Na fila, você é o próximo" : `Na fila, posição ${posicao}`);
+// Sem dados de outra conta: só que há outro vídeo na frente e, se der para estimar, o tempo.
+export const textoDaFila = (posicao: number, esperaMs?: number): string =>
+  `Na fila (posição ${Math.max(1, posicao)}): aguardando outro vídeo terminar` +
+  (esperaMs === undefined ? "" : ` · cerca de ${Math.max(1, Math.ceil(esperaMs / 60_000))} min`);
+
+// Espera a vez avisando a posição e a estimativa (refeita a cada 10 s: a posição
+// pode não mudar por minutos). Cancelada (sinal), a vaga é devolvida na hora, mesmo
+// que o trabalho travado não pare: a fila não fica presa.
+export const entrarComAviso = async (
+  fila: {entrar: (aoMudar?: (posicao: number) => void) => Promise<() => void>},
+  progress: (etapa: string, fracao?: number) => void,
+  estimativa: () => {proximaMs: number; inteiraMs: number} | undefined,
+  sinal?: AbortSignal,
+): Promise<() => void> => {
+  let posicao = 0;
+  const avisar = () => {
+    if (posicao === 0) return;
+    const e = estimativa();
+    progress(textoDaFila(posicao, e && e.proximaMs + (posicao - 1) * e.inteiraMs), 0);
+  };
+  const relogio = setInterval(avisar, 10_000);
+  try {
+    const liberar = await fila.entrar((nova) => {
+      posicao = nova;
+      avisar();
+    });
+    sinal?.addEventListener("abort", liberar, {once: true});
+    return liberar;
+  } finally {
+    clearInterval(relogio);
+  }
+};
 
 // Fila com vagas (a primeira a chegar é a primeira a sair). entrar() espera a vez e
 // devolve a função que libera a vaga; aoMudar recebe a posição na fila (1 = a

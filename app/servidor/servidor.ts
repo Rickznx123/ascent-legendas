@@ -43,7 +43,7 @@ import {LIMITES} from "./cota";
 import {nivelValido, planoPago, planosPagos, videosNoSelo} from "./planos";
 import type {Nivel} from "./planos";
 import type {PlanoPago} from "./planos";
-import {LIMITES_DE_USO, filaComVagas, limiteDePedidos, textoDaFila} from "./limites";
+import {LIMITES_DE_USO, entrarComAviso, filaComVagas, limiteDePedidos} from "./limites";
 import {idDoEnvio, memoriaMB, registrarEnvio, segundos, semEnderecos} from "./registro";
 
 // Números dos planos para a página de apresentação (quem chega sem login), lidos da
@@ -1086,7 +1086,8 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // manterAjustes ("Recomeçar do zero"): as edições somem, mas os ajustes do vídeo
   // (efeitos sonoros e sincronia) continuam. A transcrição antiga só é trocada
   // quando a nova fica pronta: se o whisper falhar, ela continua como estava.
-  const transcricoes = tarefasSoltas();
+  // Parada 5 min sem progresso (fora da fila): cancelada, e a vaga volta para a fila.
+  const transcricoes = tarefasSoltas({paradaMaximaMs: 5 * 60_000});
   const filaDeTranscricoes = filaComVagas(LIMITES_DE_USO.transcricoesAoMesmoTempo);
 
   app.post(
@@ -1122,10 +1123,10 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       return transcricoes.iniciar(
         chave,
         video,
-        async (progress) => {
-          // Fila geral: com todas as vagas ocupadas, espera a vez ("Na fila, você é o próximo").
+        async (progress, sinal) => {
+          // Fila geral: com todas as vagas ocupadas, espera a vez ("Na fila (posição 1)…", com a estimativa).
           const pedido = Date.now();
-          const liberar = await filaDeTranscricoes.entrar((posicao) => progress(textoDaFila(posicao)));
+          const liberar = await entrarComAviso(filaDeTranscricoes, progress, () => transcricoes.estimativa(), sinal);
           const esperaNaFila = segundos(pedido);
           const inicio = Date.now();
           registrarEvento(contas?.admin, espaco.usuario?.id, "transcricao_iniciada", {video});

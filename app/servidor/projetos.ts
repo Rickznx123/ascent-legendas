@@ -23,7 +23,7 @@ import {assinaturaDosTrechos} from "../web/trechos";
 import {PASTAS_NO_BUCKET} from "./configuracao";
 import type {Contas} from "./contas";
 import type {Espaco} from "./espaco";
-import {LIMITES_DE_USO, filaComVagas} from "./limites";
+import {LIMITES_DE_USO, entrarComAviso, filaComVagas} from "./limites";
 import {lerFonte, montarVideo, nomeDoMontado} from "./montagem";
 import type {FonteDaMontagem} from "./montagem";
 import {analisarAudio} from "./pausas";
@@ -292,7 +292,8 @@ export const rotasDeProjetos = ({contas, videos, previas, armazenamento, espacoD
   // "Gerar legendas": monta o vídeo dos trechos, solto do pedido (a tela acompanha
   // pelo GET /montagem e pode fechar). O montado vira projetos.video e as legendas
   // antigas (de outros cortes) saem; a tela pede a transcrição de sempre em seguida.
-  const montagens = tarefasSoltas();
+  // Parada 5 min sem progresso (fora da fila): cancelada, e a vaga volta para a fila.
+  const montagens = tarefasSoltas({paradaMaximaMs: 5 * 60_000});
   const filaDeMontagens = filaComVagas(LIMITES_DE_USO.montagensAoMesmoTempo);
   const chaveDaMontagem = (response: Response, id: string) => `${espacoDe(response).usuario!.id}:projeto:${id}`;
 
@@ -312,18 +313,21 @@ export const rotasDeProjetos = ({contas, videos, previas, armazenamento, espacoD
       return montagens.iniciar(
         chave,
         id,
-        async (progresso) => {
-          const liberar = await filaDeMontagens.entrar((posicao) => progresso(posicao === 1 ? "Na fila, você é o próximo..." : `Na fila (${posicao}º)...`));
+        async (progresso, sinal) => {
+          const liberar = await entrarComAviso(filaDeMontagens, progresso, () => montagens.estimativa(), sinal);
           const pasta = await mkdtemp(path.join(os.tmpdir(), "montagem-"));
           try {
             progresso("Lendo os vídeos...", 0);
             const fontes: Record<string, FonteDaMontagem> = {};
             // 6 h: o endereço assinado precisa durar a montagem inteira.
             for (const nome of nomes) fontes[nome] = await lerFonte(await videos.entrada(espaco, nome, 6 * 3600));
-            const arquivos = await montarVideo(fontes, trechos, pasta, progresso);
-            progresso("Guardando o vídeo montado...", 0.9);
+            const arquivos = await montarVideo(fontes, trechos, pasta, progresso, sinal);
+            sinal.throwIfAborted();
+            progresso("Guardando o vídeo montado...", 0.95);
             const nome = nomeDoMontado(id, montado?.video);
             await guardarMontado(espaco, nome, arquivos, l.nome);
+            // Cancelada enquanto guardava: não troca o vídeo do projeto.
+            sinal.throwIfAborted();
             // Relida: a tela pode ter salvo outros cortes enquanto isso (a assinatura diz quais foram montados).
             const agora = await linha(response, id);
             const {error} = await bancoDe(response)

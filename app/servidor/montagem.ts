@@ -100,8 +100,17 @@ export const argumentosDoTrecho = (fonte: FonteDaMontagem, trecho: Trecho, quadr
   ];
 };
 
-const ffmpeg = async (args: string[], timeout: number) => {
-  const execucao = execFileAsync(ffmpegPath(), args, {maxBuffer: 16 * 1024 * 1024, timeout});
+// aoAndar: os segundos já processados da saída (o -progress do ffmpeg, a cada ~0,5 s);
+// a barra anda dentro de cada passo e o vigia das tarefas (tarefas-soltas.ts) vê progresso.
+// sinal: cancelada a montagem, o ffmpeg é encerrado.
+const ffmpeg = async (args: string[], timeout: number, aoAndar?: (segundos: number) => void, sinal?: AbortSignal) => {
+  const execucao = execFileAsync(ffmpegPath(), aoAndar ? ["-progress", "pipe:1", "-nostats", ...args] : args, {maxBuffer: 64 * 1024 * 1024, timeout, signal: sinal});
+  if (aoAndar) {
+    execucao.child.stdout?.on("data", (pedaco: Buffer) => {
+      const us = /out_time_us=(\d+)\s*$/mu.exec(pedaco.toString())?.[1];
+      if (us) aoAndar(Number(us) / 1e6);
+    });
+  }
   // Prioridade baixa, como a prévia leve: o servidor segue respondendo.
   try {
     if (execucao.child.pid) (await import("node:os")).setPriority(execucao.child.pid, 15);
@@ -117,27 +126,40 @@ export const montarVideo = async (
   trechos: Trecho[],
   pasta: string,
   progresso: (etapa: string, fracao?: number) => void,
+  sinal?: AbortSignal,
 ) => {
   const duracoes: Duracoes = Object.fromEntries(Object.entries(fontes).map(([nome, fonte]) => [nome, fonte.duracaoMs]));
   const quadros = quadrosDe(trechos, duracoes);
   const primeira = fontes[trechos[0].video];
   const tamanho = tamanhoDoMontado(primeira.largura, primeira.altura);
+  const totalS = quadros.reduce((soma, q) => soma + q, 0) / FPS;
+  // A barra: os trechos de 0 a 75% (pela duração de cada um), juntar até 80%, a prévia até 95%.
+  const FIM_DOS_TRECHOS = 0.75;
   const partes: string[] = [];
+  let feitosS = 0;
   for (const [i, trecho] of trechos.entries()) {
-    progresso(`Cortando o trecho ${i + 1} de ${trechos.length}...`, (0.8 * i) / trechos.length);
+    const etapa = `Montando o vídeo — trecho ${i + 1} de ${trechos.length}`;
+    const desteS = quadros[i] / FPS;
+    const andar = (s: number) => progresso(etapa, (FIM_DOS_TRECHOS * (feitosS + Math.min(s, desteS))) / totalS);
+    andar(0);
     const parte = path.join(pasta, `parte-${String(i).padStart(4, "0")}.mkv`);
-    await ffmpeg(argumentosDoTrecho(fontes[trecho.video], trecho, quadros[i], tamanho, parte), PRAZO_POR_TRECHO_MS);
+    const inicio = Date.now();
+    await ffmpeg(argumentosDoTrecho(fontes[trecho.video], trecho, quadros[i], tamanho, parte), PRAZO_POR_TRECHO_MS, andar, sinal);
+    console.log(`Montagem: trecho ${i + 1}/${trechos.length} (${desteS.toFixed(1)} s de vídeo) em ${((Date.now() - inicio) / 1000).toFixed(1)} s.`);
+    feitosS += desteS;
     partes.push(parte);
   }
-  progresso("Juntando os trechos...", 0.8);
+  progresso("Montando o vídeo — juntando os trechos", FIM_DOS_TRECHOS);
   const lista = path.join(pasta, "lista.txt");
   await writeFile(lista, partes.map((parte) => `file '${parte.replace(/\\/gu, "/").replace(/'/gu, "'\\''")}'`).join("\n"));
   const video = path.join(pasta, "video.mp4");
   await ffmpeg(
     ["-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", lista, "-map", "0:v", "-map", "0:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", video],
     PRAZO_DO_TODO_MS,
+    (s) => progresso("Montando o vídeo — juntando os trechos", FIM_DOS_TRECHOS + 0.05 * Math.min(1, s / totalS)),
+    sinal,
   );
-  progresso("Preparando a prévia...", 0.85);
+  progresso("Preparando a prévia do vídeo montado", 0.8);
   const previa = path.join(pasta, "previa.mp4");
   await ffmpeg(
     [
@@ -172,6 +194,8 @@ export const montarVideo = async (
       previa,
     ],
     PRAZO_DO_TODO_MS,
+    (s) => progresso("Preparando a prévia do vídeo montado", 0.8 + 0.15 * Math.min(1, s / totalS)),
+    sinal,
   );
   const capa = path.join(pasta, "capa.jpg");
   await tirarCapa(video, capa);
