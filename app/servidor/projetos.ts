@@ -354,8 +354,13 @@ export const rotasDeProjetos = ({contas, videos, previas, armazenamento, espacoD
     rota(async (request, response) => {
       const espaco = espacoDe(response);
       const l = await linha(response, request.params.id);
+      // Vídeo que outro projeto da conta também usa fica (o mesmo arquivo enviado em
+      // dois projetos tem um nome só no S3: apagar levava a mídia do outro junto).
+      const {data: outros, error: erroDosOutros} = await bancoDe(response).from("projetos").select("video, timeline").neq("id", l.id);
+      if (erroDosOutros) throw falha("apagar o projeto", erroDosOutros);
+      const emUso = new Set((outros as Pick<Linha, "video" | "timeline">[]).flatMap(videosDe));
       // Um vídeo que já não existe não impede apagar o projeto.
-      for (const nome of videosDe(l)) await videos.remover(espaco, nome).catch(() => undefined);
+      for (const nome of videosDe(l).filter((nome) => !emUso.has(nome))) await videos.remover(espaco, nome).catch(() => undefined);
       const {error} = await bancoDe(response).from("projetos").delete().eq("id", l.id);
       if (error) throw falha("apagar o projeto", error);
       return {ok: true};

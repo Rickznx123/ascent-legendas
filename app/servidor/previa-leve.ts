@@ -1,7 +1,7 @@
 // Prévia leve e capa de cada vídeo enviado ao S3 (Etapa 3, bloco 4). Logo depois
 // do envio, o servidor gera:
-//   previas/<conta>/<nome>.jpg  capa (um quadro do começo), feita primeiro, para a
-//                               tela já ter o que mostrar enquanto a prévia sai;
+//   previas/<conta>/<nome>.jpg  capa (um quadro do começo), feita primeiro e fora da
+//                               fila, para a tela já ter o que mostrar enquanto a prévia sai;
 //   previas/<conta>/<nome>.mp4  cópia em H.264 com o lado menor em 540 px, que
 //                               toca em qualquer navegador (o original pode ser
 //                               HEVC) e pesa menos no celular.
@@ -35,6 +35,8 @@ export type EstadoDaPrevia =
 // Prazo do ffmpeg: travado, ele é encerrado (e não prende a fila para sempre).
 const PRAZO_DA_CAPA_MS = 60_000;
 const PRAZO_DA_PREVIA_MS = 15 * 60_000;
+// Até este tamanho, o vídeo usa a fila dos pequenos (um vídeo de celular de ~1 min).
+const PEQUENO_BYTES = 150 * 1024 * 1024;
 
 // Lado menor da prévia leve, em px.
 const LADO_MENOR = 540;
@@ -70,7 +72,17 @@ export const previasLeves = (armazenamento: ArmazenamentoS3) => {
   const emAndamento = new Set<string>();
   const falhas = new Map<string, string>();
   const fila = filaComVagas(LIMITES_DE_USO.previasAoMesmoTempo);
+  // Vídeo pequeno (converte em segundos) tem uma vaga só dele: não espera atrás do 4K
+  // de vários minutos de outra conta.
+  const filaDosPequenos = filaComVagas(1);
   const posicoes = new Map<string, number>();
+
+  // Tamanho do original (desconhecido: conta como grande).
+  const tamanhoDoOriginal = async (usuarioId: string, nome: string, origemLocal: string | undefined): Promise<number> => {
+    if (origemLocal && existsSync(origemLocal)) return (await stat(origemLocal)).size;
+    const {ContentLength} = await s3.send(new HeadObjectCommand({Bucket, Key: chaves(usuarioId, nome).original})).catch(() => ({ContentLength: undefined}));
+    return ContentLength ?? Number.POSITIVE_INFINITY;
+  };
 
   const quandoMudou = async (Key: string): Promise<Date | undefined> => {
     try {
@@ -95,23 +107,34 @@ export const previasLeves = (armazenamento: ArmazenamentoS3) => {
     await s3.send(new PutObjectCommand({Bucket, Key, Body: createReadStream(arquivo), ContentLength: size, ContentType}));
   };
 
-  const converter = async (usuarioId: string, nome: string, origemLocal: string | undefined, esperaNaFila: string) => {
-    const {original, video, capa} = chaves(usuarioId, nome);
-    const log = (texto: string) => registrarEnvio(idDoEnvio(usuarioId, nome), `prévia: ${texto}`);
-    // A cópia no disco (até o Bloco 6) é lida mais rápido; sem ela, o S3.
-    const doDisco = Boolean(origemLocal && existsSync(origemLocal));
-    const entrada = origemLocal && existsSync(origemLocal) ? origemLocal : await armazenamento.enderecoDeLeitura(original, 3600);
-    const pasta = await mkdtemp(path.join(os.tmpdir(), "previa-"));
+  // A cópia no disco (até o Bloco 6) é lida mais rápido; sem ela, o S3.
+  const entradaDe = async (usuarioId: string, nome: string, origemLocal: string | undefined) =>
+    origemLocal && existsSync(origemLocal) ? origemLocal : await armazenamento.enderecoDeLeitura(chaves(usuarioId, nome).original, 3600);
+
+  // A capa sai antes da fila (um quadro só, rápido): a mídia não fica preta enquanto
+  // um vídeo grande de outra conta converte.
+  const fazerCapa = async (usuarioId: string, nome: string, origemLocal: string | undefined) => {
+    const pasta = await mkdtemp(path.join(os.tmpdir(), "capa-"));
     const inicio = Date.now();
-    log(`conversão começou (lendo ${doDisco ? "do disco" : "do S3"}); capa começou`);
     try {
       const arquivoDaCapa = path.join(pasta, "capa.jpg");
-      await tirarCapa(entrada, arquivoDaCapa);
-      log(`capa: ffmpeg terminou em ${segundos(inicio)}; envio da capa ao S3 começou`);
-      const inicioDoEnvioDaCapa = Date.now();
-      await enviar(arquivoDaCapa, capa, "image/jpeg");
-      const msCapa = Date.now() - inicio;
-      log(`capa: envio ao S3 terminou em ${segundos(inicioDoEnvioDaCapa)} (capa inteira ${(msCapa / 1000).toFixed(1)} s); prévia leve (ffmpeg H.264) começou`);
+      await tirarCapa(await entradaDe(usuarioId, nome, origemLocal), arquivoDaCapa);
+      await enviar(arquivoDaCapa, chaves(usuarioId, nome).capa, "image/jpeg");
+      registrarEnvio(idDoEnvio(usuarioId, nome), `prévia: capa pronta em ${segundos(inicio)}`);
+    } finally {
+      await rm(pasta, {recursive: true, force: true});
+    }
+  };
+
+  const converter = async (usuarioId: string, nome: string, origemLocal: string | undefined, esperaNaFila: string) => {
+    const {video} = chaves(usuarioId, nome);
+    const log = (texto: string) => registrarEnvio(idDoEnvio(usuarioId, nome), `prévia: ${texto}`);
+    const doDisco = Boolean(origemLocal && existsSync(origemLocal));
+    const entrada = await entradaDe(usuarioId, nome, origemLocal);
+    const pasta = await mkdtemp(path.join(os.tmpdir(), "previa-"));
+    const inicio = Date.now();
+    log(`prévia leve (ffmpeg H.264) começou (lendo ${doDisco ? "do disco" : "do S3"})`);
+    try {
       const inicioDoFfmpeg = Date.now();
 
       const arquivoDaPrevia = path.join(pasta, "previa.mp4");
@@ -172,7 +195,7 @@ export const previasLeves = (armazenamento: ArmazenamentoS3) => {
       log(`prévia leve: envio ao S3 terminou em ${segundos(inicioDoEnvio)}`);
       registrarEnvio(
         idDoEnvio(usuarioId, nome),
-        `prévia: fila ${esperaNaFila}, capa ${(msCapa / 1000).toFixed(1)} s, prévia leve ${segundos(inicio)} (${(size / 1024 / 1024).toFixed(1)} MB) | fila de prévias ${fila.ocupadas()} rodando, ${fila.esperando()} esperando`,
+        `prévia: fila ${esperaNaFila}, prévia leve ${segundos(inicio)} (${(size / 1024 / 1024).toFixed(1)} MB) | fila de prévias ${fila.ocupadas()} rodando, ${fila.esperando()} esperando`,
       );
     } finally {
       await rm(pasta, {recursive: true, force: true});
@@ -188,9 +211,14 @@ export const previasLeves = (armazenamento: ArmazenamentoS3) => {
     emAndamento.add(id);
     falhas.delete(id);
     const entrou = Date.now();
-    registrarEnvio(idDoEnvio(usuarioId, nome), `prévia: entrou na fila (${fila.ocupadas()} rodando, ${fila.esperando()} esperando)`);
-    void fila
-      .entrar((posicao) => posicoes.set(id, posicao))
+    void fazerCapa(usuarioId, nome, origemLocal)
+      .catch((erro: unknown) => registrarEnvio(idDoEnvio(usuarioId, nome), `prévia: capa falhou: ${semEnderecos(String(erro)).split("\n")[0].slice(0, 200)}`))
+      .then(() => tamanhoDoOriginal(usuarioId, nome, origemLocal))
+      .then((tamanho) => {
+        const filaDaVez = tamanho < PEQUENO_BYTES ? filaDosPequenos : fila;
+        registrarEnvio(idDoEnvio(usuarioId, nome), `prévia: entrou na fila ${filaDaVez === fila ? "geral" : "dos pequenos"} (${filaDaVez.ocupadas()} rodando, ${filaDaVez.esperando()} esperando)`);
+        return filaDaVez.entrar((posicao) => posicoes.set(id, posicao));
+      })
       .then((liberar) => {
         posicoes.delete(id);
         registrarEnvio(idDoEnvio(usuarioId, nome), `prévia: saiu da fila depois de ${segundos(entrou)}`);
