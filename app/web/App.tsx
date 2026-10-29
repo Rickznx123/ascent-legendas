@@ -1,5 +1,6 @@
 import {useEffect, useState} from "react";
 import {Avisos} from "./Avisos";
+import {BannerDoGrupo} from "./BannerDoGrupo";
 import {Andamento} from "./celular/Andamento";
 import {LayoutCelular} from "./celular/LayoutCelular";
 import {useConta} from "./conta";
@@ -71,6 +72,7 @@ const Computador: React.FC<{e: Editor}> = ({e}) => {
         <b>Ascent Legendas</b>
         <MenuDaConta ocupado={e.ocupado} />
       </header>
+      <BannerDoGrupo />
       <main className="projetos-pc-conteudo">
         <ListaDeProjetos e={e} onAbrir={abrir} />
       </main>

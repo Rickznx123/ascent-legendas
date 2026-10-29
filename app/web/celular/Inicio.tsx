@@ -12,6 +12,7 @@ import type {AcaoDaAssinatura} from "../Assinatura";
 import type {ResumoDaAssinatura, UsoDoPlano} from "../api";
 import {CONFIG_CELULAR, linkDoSuporte, nomeDoPlano, resumoDasTranscricoes, resumoDoUso} from "./plano";
 import {ListaDeProjetos} from "../Projetos";
+import {BannerDoGrupo} from "../BannerDoGrupo";
 import {LIMITES} from "../../servidor/cota";
 
 // Quadro do plano: usados e restantes (o servidor manda o uso; aqui só se mostra).
@@ -302,6 +303,7 @@ export const Inicio: React.FC<{e: Editor; onAbrir: (nome: string, projeto?: stri
         <span className="cel-nome cel-marca">Ascent Legendas</span>
         <Menu ocupado={e.ocupado} onImportar={() => void importar()} />
       </header>
+      <BannerDoGrupo />
       <Andamento tarefa={e.tarefa} />
       <div className="cel-rolagem">
         {CONFIG_CELULAR.mostrarPlano && conta?.uso && !primeiroUso ? <QuadroDoPlano uso={conta.uso} assinatura={conta.assinatura} /> : null}

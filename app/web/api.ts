@@ -81,7 +81,7 @@ export type {Nivel, PlanoPago, ResumoDaAssinatura, VistaDoCupom, VistaDoPix};
 import type {ProjetoComTimeline, ResumoDeProjeto, Timeline, Trecho} from "../servidor/projetos";
 export type {ProjetoComTimeline, ResumoDeProjeto, Timeline, Trecho};
 // oferta: o cupom já aplicado na oferta do grátis (veja Oferta.tsx); sem ele, preço cheio.
-export type Conta = {email: string; nome: string | null; plano: Plano; uso?: UsoDoPlano; assinatura?: ResumoDaAssinatura; oferta?: VistaDoCupom};
+export type Conta = {email: string; nome: string | null; plano: Plano; uso?: UsoDoPlano; assinatura?: ResumoDaAssinatura; oferta?: VistaDoCupom; grupo?: string};
 
 // Erro de uma tarefa com um código do servidor (ex.: "assine", "sem-saldo").
 export class ErroDaTarefa extends Error {
@@ -134,6 +134,12 @@ export const api = {
     pedir("/api/conta")
       .then((r) => lerJson<{conta: Conta | null}>(r))
       .then((data) => data.conta),
+
+  // Banner do grupo do WhatsApp (veja app/servidor/grupo.ts).
+  respostaAoGrupo: (acao: "entrou" | "fechou") =>
+    pedir("/api/grupo", {method: "POST", keepalive: true, headers: {"Content-Type": "application/json"}, body: JSON.stringify({acao})}).then((r) =>
+      lerJson<{ok: true}>(r),
+    ),
 
   // Painel do dono (/admin); outra conta recebe 404.
   painelDoDono: () => pedir("/api/admin/assinantes").then((r) => lerJson<{assinantes: Assinante[]; leads: Lead[]}>(r)),

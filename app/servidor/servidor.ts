@@ -74,6 +74,7 @@ import type {AwsRegion} from "@remotion/lambda/client";
 import {tituloDoVideo} from "./titulo";
 import {tarefasSoltas} from "./tarefas-soltas";
 import {eventoDaTela, registrarEvento, registrarEventoDoVisitante} from "./eventos";
+import {linkDoBanner, respostaAoBanner} from "./grupo";
 import {emailsDeRecuperacao} from "./recuperacao";
 import {s3DoAmbiente} from "./s3";
 import type {ConfigDoLogin} from "./contas";
@@ -594,7 +595,20 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       const codigoDaOferta = process.env.CUPOM_DA_OFERTA?.trim();
       const oferta =
         perfil.plano === "gratis" && codigoDaOferta && cupons ? await cupons.validar(codigoDaOferta).then(vistaDoCupom, () => undefined) : undefined;
-      return {conta: {email: espaco.usuario.email, nome: perfil.nome, plano: perfil.plano, uso, assinatura, oferta}};
+      // Banner do grupo do WhatsApp (veja grupo.ts): o link, se deve aparecer agora.
+      const grupo = await linkDoBanner(contas.admin, espaco.usuario, perfil.plano).catch(() => undefined);
+      return {conta: {email: espaco.usuario.email, nome: perfil.nome, plano: perfil.plano, uso, assinatura, oferta, grupo}};
+    }),
+  );
+
+  // Banner do grupo: {acao: "entrou" | "fechou"} (veja grupo.ts).
+  app.post(
+    "/api/grupo",
+    handle(async (request, response) => {
+      const usuario = espacoDe(response).usuario;
+      if (!contas || !usuario) throw new Error("Só com login.");
+      await respostaAoBanner(contas.admin, usuario.id, (request.body as {acao?: unknown} | undefined)?.acao);
+      return {ok: true};
     }),
   );
 

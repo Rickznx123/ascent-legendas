@@ -2686,3 +2686,73 @@ h3 {
   color: var(--perigo);
   border-color: var(--perigo);
 }
+
+/* Banner do grupo do WhatsApp no topo da tela inicial (BannerDoGrupo.tsx). */
+.banner-grupo {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-4);
+  margin: var(--esp-3) var(--esp-4) 0;
+  padding: var(--esp-4);
+  border-radius: var(--raio);
+  background:
+    linear-gradient(var(--painel), var(--painel)) padding-box,
+    linear-gradient(90deg, var(--acento), var(--acento-2)) border-box;
+  border: 1px solid transparent;
+}
+
+.projetos-pc .banner-grupo {
+  max-width: 960px;
+  margin: var(--esp-4) auto 0;
+  box-sizing: border-box;
+}
+
+.banner-grupo-icone {
+  flex: none;
+  fill: #25d366; /* verde do WhatsApp */
+}
+
+.banner-grupo p {
+  flex: 1;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--texto);
+}
+
+.banner-grupo .bt {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  text-decoration: none;
+}
+
+.banner-grupo-fechar {
+  flex: none;
+  background: none;
+  border: 0;
+  color: var(--suave);
+  font-size: 16px;
+  padding: var(--esp-1);
+  cursor: pointer;
+}
+
+.banner-grupo-fechar:hover {
+  color: var(--texto);
+}
+
+@media (max-width: 520px) {
+  .banner-grupo {
+    flex-wrap: wrap;
+  }
+
+  .banner-grupo p {
+    flex-basis: calc(100% - 70px);
+  }
+
+  .banner-grupo .bt {
+    order: 4;
+    flex: 1;
+    justify-content: center;
+  }
+}

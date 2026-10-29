@@ -16,6 +16,7 @@ export const EVENTOS_DA_TELA = [
   "viu_oferta",
   "clicou_assinar",
   "usou_exemplo",
+  "viu_banner_grupo",
 ] as const;
 
 export type EventoDaTela = (typeof EVENTOS_DA_TELA)[number];
@@ -31,7 +32,9 @@ export type NomeDoEvento =
   | "export_concluido"
   | "export_falhou"
   | "email_enviado"
-  | "clicou_testar_gratis";
+  | "clicou_testar_gratis"
+  | "clicou_grupo"
+  | "fechou_banner_grupo";
 
 export type Dados = Record<string, string | number | boolean | null>;
 
