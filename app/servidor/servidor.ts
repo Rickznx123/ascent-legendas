@@ -163,6 +163,10 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // passa pelo servidor e vai para o disco, como sempre.
   const armazenamento = contas ? s3DoAmbiente(configuracaoDoAmbiente()) : undefined;
   const previas = armazenamento ? previasLeves(armazenamento) : undefined;
+  // Deploy ou reinício: as conversões perdidas voltam para a fila (veja previa-leve.ts).
+  if (previas && publico) {
+    previas.retomarPendentes().catch((erro: unknown) => console.log(`Prévias: retomar depois do reinício falhou: ${erro instanceof Error ? erro.message : String(erro)}`));
+  }
   // Exportação no Lambda (com login e S3; veja renders.ts). O site do Lambda é
   // publicado por script (npm run nuvem:site): montar o site não cabe na memória do
   // servidor na nuvem. Sem o site desta versão, a exportação avisa.

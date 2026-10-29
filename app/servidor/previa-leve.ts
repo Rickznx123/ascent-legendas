@@ -15,7 +15,7 @@ import {createReadStream, existsSync} from "node:fs";
 import {mkdtemp, rm, stat} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import {GetObjectCommand, HeadObjectCommand, PutObjectCommand} from "@aws-sdk/client-s3";
+import {GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand} from "@aws-sdk/client-s3";
 import {getSignedUrl} from "@aws-sdk/s3-request-presigner";
 import {execFileAsync, ffmpegPath} from "../../src/motor/ferramentas";
 import {PASTAS_NO_BUCKET} from "./configuracao";
@@ -60,6 +60,26 @@ export const tirarCapa = async (entrada: string, saida: string) => {
   throw new Error("o ffmpeg não tirou a capa");
 };
 
+
+const RETOMAR_DESDE_MS = 24 * 3600_000;
+
+// Originais enviados nas últimas 24 h sem prévia mais nova que eles, do menor ao maior.
+export const pendentesDeRetomar = (
+  originais: {Key?: string; LastModified?: Date; Size?: number}[],
+  dataDaPrevia: Map<string | undefined, Date | undefined>,
+  agora: Date,
+): {usuarioId: string; nome: string}[] =>
+  originais
+    .filter(({Key, LastModified}) => {
+      if (!Key || !LastModified || agora.getTime() - LastModified.getTime() > RETOMAR_DESDE_MS) return false;
+      const previa = dataDaPrevia.get(`${PASTAS_NO_BUCKET.previas.prefixo}${Key.slice(PASTAS_NO_BUCKET.videos.prefixo.length)}.mp4`);
+      return !previa || previa < LastModified;
+    })
+    .sort((a, b) => (a.Size ?? 0) - (b.Size ?? 0))
+    .flatMap(({Key}) => {
+      const [usuarioId, ...resto] = Key!.slice(PASTAS_NO_BUCKET.videos.prefixo.length).split("/");
+      return usuarioId && resto.length ? [{usuarioId, nome: resto.join("/")}] : [];
+    });
 
 export const previasLeves = (armazenamento: ArmazenamentoS3) => {
   const {s3, bucket: Bucket} = armazenamento;
@@ -262,8 +282,31 @@ export const previasLeves = (armazenamento: ArmazenamentoS3) => {
     return {estado: "preparando", capa: capaAtual, fila: posicoes.get(id)};
   };
 
+  // Depois de um reinício (deploy), as conversões que estavam na fila ou rodando se
+  // perdem. O original já está no S3: os vídeos das últimas 24 h ainda sem prévia
+  // voltam para a fila sozinhos (os menores primeiro), sem esperar alguém abrir o
+  // vídeo nem pedir para enviar de novo. A conversão em si recomeça (o ffmpeg não
+  // continua de onde parou).
+  const retomarPendentes = async (agora = new Date()) => {
+    const listar = async (Prefix: string) => {
+      const objetos: {Key?: string; LastModified?: Date; Size?: number}[] = [];
+      let ContinuationToken: string | undefined;
+      do {
+        const pagina = await s3.send(new ListObjectsV2Command({Bucket, Prefix, ContinuationToken}));
+        objetos.push(...(pagina.Contents ?? []));
+        ContinuationToken = pagina.NextContinuationToken;
+      } while (ContinuationToken);
+      return objetos;
+    };
+    const [originais, previas] = await Promise.all([listar(PASTAS_NO_BUCKET.videos.prefixo), listar(PASTAS_NO_BUCKET.previas.prefixo)]);
+    const dataDaPrevia = new Map(previas.map((o) => [o.Key, o.LastModified]));
+    const pendentes = pendentesDeRetomar(originais, dataDaPrevia, agora);
+    for (const {usuarioId, nome} of pendentes) gerar(usuarioId, nome);
+    if (pendentes.length) console.log(`Prévias: ${pendentes.length} conversões retomadas depois do reinício.`);
+  };
+
   // Para a saúde e o log: conversões rodando e esperando.
-  return {gerar, estado, fila: () => ({rodando: fila.ocupadas(), esperando: fila.esperando()})};
+  return {gerar, estado, retomarPendentes, fila: () => ({rodando: fila.ocupadas(), esperando: fila.esperando()})};
 };
 
 export type PreviasLeves = ReturnType<typeof previasLeves>;

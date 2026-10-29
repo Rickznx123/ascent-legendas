@@ -136,9 +136,13 @@ export const LayoutCelular: React.FC<{e: Editor}> = ({e}) => {
   }, []);
 
   // Exportação retomada (voltou para o app, recarregou ou abriu o projeto com uma
-  // em curso ou pronta e ainda não vista): vai para a tela de exportar.
+  // em curso ou pronta e ainda não vista): vai para a tela de exportar, só de dentro
+  // do editor. No Início, não cobre a lista: o último vídeo aberto é retomado ao abrir
+  // o app, e a exportação dele aparecia por cima dos projetos.
+  const telaAtual = useRef(tela);
+  telaAtual.current = tela;
   useEffect(() => {
-    if (e.exportacaoRetomada > 0) {
+    if (e.exportacaoRetomada > 0 && telaAtual.current === "editor") {
       setFolhaAberta(false);
       setTela("exportar");
     }
