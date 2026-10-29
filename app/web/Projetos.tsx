@@ -451,6 +451,8 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
     setMontagem(undefined);
     if (!naTela.current) return;
     if (atual.estado === "falhou") throw new Error(atual.mensagem ?? "Não foi possível montar o vídeo.");
+    // Estava montando e o servidor não sabe mais dela: reiniciou no meio (deploy).
+    if (atual.estado === "nenhuma" && tarefa.estado === "andamento") throw new Error("A montagem foi interrompida. Deu erro, tente de novo.");
     if (atual.estado === "pronta" && atual.montado) {
       onLegendar(atual.montado);
       void e.transcreverNovo(atual.montado);
