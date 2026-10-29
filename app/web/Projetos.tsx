@@ -8,6 +8,7 @@ import {api, tituloDoVideo} from "./api";
 import type {Catalogo, Montagem, ProjetoComTimeline, ResumoDeProjeto} from "./api";
 import {Cartao} from "./celular/Inicio";
 import {plataforma} from "./plataforma";
+import {editorDeCortes} from "./sessao";
 import type {VideoEscolhido} from "./plataforma";
 import {EditorDaTimeline, LerVideo, TIPO_DO_ARRASTO, useTimeline} from "./Timeline";
 import type {InfoDoVideo} from "./Timeline";
@@ -80,14 +81,30 @@ export const ListaDeProjetos: React.FC<{e: Editor; onAbrir: Abrir}> = ({e, onAbr
       .then(setLista)
       .catch((error: unknown) => setErro(error instanceof Error ? error.message : String(error)));
   }, [e.catalogo]);
+  // Editor de cortes desligado (EDITOR_CORTES=off): o fluxo antigo, enviar o vídeo e
+  // legendar direto. Os projetos continuam na lista e abrem nas legendas do seu vídeo.
+  const cortes = editorDeCortes();
+  const importar = async () => {
+    const nome = await e.escolherEImportar({galeria: true});
+    if (nome) onAbrir({video: nome});
+  };
   return (
     <>
-      <NovoProjeto ocupado={e.ocupado} onCriado={(id) => onAbrir({id})} />
+      {cortes ? (
+        <NovoProjeto ocupado={e.ocupado} onCriado={(id) => onAbrir({id})} />
+      ) : (
+        <button type="button" className="bt primario cel-cheio" disabled={e.ocupado} onClick={() => void importar()}>
+          ＋ Importar vídeo
+        </button>
+      )}
       <div className="titulo">Seus projetos</div>
       {erro ? <p className="login-erro" role="alert">{erro}</p> : null}
       {lista && lista.projetos.length + lista.soltos.length === 0 ? <p className="vazio">Nenhum projeto ainda. Toque em Novo projeto.</p> : null}
       <div className="cel-videos">
-        {lista?.projetos.map((p) => (
+        {lista?.projetos.map((p) => {
+          const video = p.video ?? p.capa;
+          if (!cortes && !video) return null;
+          return (
           <Cartao
             key={p.id}
             nome={p.capa ?? ""}
@@ -95,9 +112,10 @@ export const ListaDeProjetos: React.FC<{e: Editor; onAbrir: Abrir}> = ({e, onAbr
             situacao={`${p.etapa === "legendado" ? "Legendado" : "Em edição"} · ${quantosVideos(p.videos)} · ${dataCurta(p.atualizadoEm)}`}
             atual={false}
             ocupado={e.ocupado}
-            onAbrir={() => onAbrir(p.video ? {video: p.video, id: p.id} : {id: p.id})}
+            onAbrir={() => onAbrir(!cortes && video ? {video} : p.video ? {video: p.video, id: p.id} : {id: p.id})}
           />
-        ))}
+          );
+        })}
         {/* Vídeos enviados antes dos projetos: abrem as legendas, como antes. */}
         {lista?.soltos.map((nome) => (
           <Cartao

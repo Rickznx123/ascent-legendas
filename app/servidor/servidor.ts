@@ -418,7 +418,9 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     return exportados.total;
   };
   app.get("/api/config", async (_request, response) => {
-    const config: ConfigDoLogin = contas ? {...contas.config, envioDireto: Boolean(armazenamento)} : {login: false};
+    const config: ConfigDoLogin = contas
+      ? {...contas.config, envioDireto: Boolean(armazenamento), cortes: process.env.EDITOR_CORTES?.trim().toLowerCase() !== "off"}
+      : {login: false};
     const planos: PlanosDaApresentacao = {
       precoBRL: mercadoPago?.valor,
       pagos: mercadoPago ? planosPagos() : undefined,

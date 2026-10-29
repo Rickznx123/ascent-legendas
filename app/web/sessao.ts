@@ -13,6 +13,7 @@ export type ConfigDoLogin = {
   chavePublica?: string;
   google?: boolean;
   envioDireto?: boolean;
+  cortes?: boolean;
   planos?: PlanosDaApresentacao;
 };
 
@@ -42,6 +43,10 @@ export const usuarioDaSessao = (): string | undefined => usuarioAtual;
 // O vídeo vai do navegador direto para o S3 (o servidor diz em /api/config).
 export const envioDireto = (): boolean => envioDiretoLigado;
 
+// Editor de cortes ligado (EDITOR_CORTES=off no servidor desliga; veja Projetos.tsx).
+let cortesLigados = true;
+export const editorDeCortes = (): boolean => cortesLigados;
+
 export const lerConfig = async (): Promise<ConfigDoLogin> => {
   const resposta = await fetch("/api/config");
   if (!resposta.ok) {
@@ -49,6 +54,7 @@ export const lerConfig = async (): Promise<ConfigDoLogin> => {
   }
   const config = (await resposta.json()) as ConfigDoLogin;
   envioDiretoLigado = Boolean(config.envioDireto);
+  cortesLigados = config.cortes !== false;
   return config;
 };
 

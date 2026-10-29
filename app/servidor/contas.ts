@@ -25,6 +25,8 @@ export type ConfigDoLogin = {
   google?: boolean;
   // O vídeo vai do navegador direto para o S3, em partes (Etapa 3).
   envioDireto?: boolean;
+  // Editor de cortes (EDITOR_CORTES=off no ambiente desliga: volta o enviar e legendar direto).
+  cortes?: boolean;
 };
 
 export type Contas = {
