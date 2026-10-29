@@ -6,7 +6,6 @@ import {JanelaDoLimite} from "../Oferta";
 import type {Editor} from "../useEditor";
 import {useTempoNaEdicao} from "../tempo-na-edicao";
 import {EditorDeCortes} from "../Projetos";
-import {Andamento} from "./Andamento";
 import {EditorCelular} from "./EditorCelular";
 import {Inicio} from "./Inicio";
 import {TelaExportar} from "./TelaExportar";
@@ -167,18 +166,8 @@ export const LayoutCelular: React.FC<{e: Editor}> = ({e}) => {
         />
       ) : null}
       {tela === "cortes" && cortes ? (
-        <div className="cel-tela">
-          <header className="cel-barra">
-            <button type="button" className="cel-ic" aria-label="Voltar para os projetos" onClick={voltar}>
-              ‹
-            </button>
-            <span className="cel-nome">Cortes</span>
-          </header>
-          <Andamento tarefa={e.tarefa} />
-          <div className="cel-rolagem">
-            <EditorDeCortes e={e} id={cortes} onLegendar={(video) => abrirVideo(video, cortes)} onApagado={voltar} />
-          </div>
-        </div>
+        // Na tela inteira, com o próprio topo (o andamento de cada envio fica na mídia).
+        <EditorDeCortes e={e} id={cortes} celular onVoltar={voltar} onLegendar={(video) => abrirVideo(video, cortes)} onApagado={voltar} />
       ) : null}
       {tela === "editor" ? (
         <EditorCelular

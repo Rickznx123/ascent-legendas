@@ -245,8 +245,9 @@ export const api = {
       lerJson<{video: string}>(r),
     ),
   apagarProjeto: (id: string) => pedir(`/api/projetos/${id}`, {method: "DELETE"}).then((r) => lerJson<{ok: boolean}>(r)),
-  // As pausas de cada vídeo da timeline (a primeira vez de um vídeo leva alguns segundos).
-  pausas: (id: string) => pedir(`/api/projetos/${id}/pausas`, {method: "POST"}).then((r) => lerJson<{pausas: Record<string, [number, number][]>}>(r)),
+  // Pausas e forma de onda de cada vídeo da timeline (a primeira vez de um vídeo leva alguns segundos).
+  audio: (id: string) =>
+    pedir(`/api/projetos/${id}/audio`, {method: "POST"}).then((r) => lerJson<{pausas: Record<string, [number, number][]>; ondas: Record<string, string>}>(r)),
   // "Gerar legendas": a montagem do vídeo dos cortes começa (ou devolve a em curso); depois, o andamento.
   montar: (id: string) => pedir(`/api/projetos/${id}/montar`, {method: "POST"}).then((r) => lerJson<Montagem>(r)),
   montagem: (id: string) => pedir(`/api/projetos/${id}/montagem`).then((r) => lerJson<Montagem | {estado: "nenhuma"}>(r)),

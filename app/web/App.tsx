@@ -48,27 +48,34 @@ const Computador: React.FC<{e: Editor}> = ({e}) => {
     setTela({tela: "legendas", cortes});
   };
   const abrir: Abrir = (alvo) => ("video" in alvo ? legendar(alvo.video, alvo.id) : setTela({tela: "cortes", id: alvo.id}));
+  const avisos = <Avisos avisos={e.avisos} erro={e.erro} onFecharAviso={e.fecharAviso} onFecharErro={() => e.setErro(undefined)} />;
+  // Os cortes ocupam a tela inteira, com o próprio topo (editor-cortes-referencia.html).
+  if (tela.tela === "cortes") {
+    return (
+      <>
+        <EditorDeCortes
+          e={e}
+          id={tela.id}
+          celular={false}
+          onVoltar={() => setTela({tela: "projetos"})}
+          onLegendar={(video) => legendar(video, tela.id)}
+          onApagado={() => setTela({tela: "projetos"})}
+        />
+        {avisos}
+      </>
+    );
+  }
   return (
     <div className="projetos-pc">
       <header className="projetos-pc-barra">
-        {tela.tela === "cortes" ? (
-          <button type="button" className="bt" onClick={() => setTela({tela: "projetos"})}>
-            ‹ Projetos
-          </button>
-        ) : (
-          <b>Ascent Legendas</b>
-        )}
+        <b>Ascent Legendas</b>
         <MenuDaConta ocupado={e.ocupado} />
       </header>
       <main className="projetos-pc-conteudo">
-        {tela.tela === "cortes" ? (
-          <EditorDeCortes e={e} id={tela.id} onLegendar={(video) => legendar(video, tela.id)} onApagado={() => setTela({tela: "projetos"})} />
-        ) : (
-          <ListaDeProjetos e={e} onAbrir={abrir} />
-        )}
+        <ListaDeProjetos e={e} onAbrir={abrir} />
       </main>
       <Andamento tarefa={e.tarefa} />
-      <Avisos avisos={e.avisos} erro={e.erro} onFecharAviso={e.fecharAviso} onFecharErro={() => e.setErro(undefined)} />
+      {avisos}
     </div>
   );
 };

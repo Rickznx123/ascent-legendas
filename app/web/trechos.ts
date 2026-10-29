@@ -10,6 +10,8 @@ export type Duracoes = Record<string, number>;
 export const MENOR_TRECHO_MS = 100;
 // Quadros por segundo da prévia (e do vídeo montado no Bloco 4).
 export const FPS = 30;
+// Forma de onda: um pico a cada ONDA_MS (calculado no servidor, desenhado na timeline).
+export const ONDA_MS = 50;
 
 export const novoId = () => Math.random().toString(36).slice(2, 10);
 

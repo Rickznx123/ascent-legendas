@@ -2077,202 +2077,612 @@ h3 {
   gap: var(--esp-3);
 }
 
-.cortes-legendar,
-.cortes-apagar {
-  margin-top: var(--esp-4);
-}
-
-/* Mídia do projeto: no computador, solte os vídeos em qualquer ponto da área. */
-.midia {
-  border: 2px dashed transparent;
-  border-radius: var(--raio-p);
-  padding: var(--esp-2);
-  margin: calc(-1 * var(--esp-2));
-}
-
-.midia-arrastando {
-  border-color: var(--acento);
-  background: var(--painel-2);
-}
-
-.midia-dica {
-  font-size: var(--fonte-pequena);
-  margin: var(--esp-2) 0 var(--esp-3);
-}
-
-/* Timeline dos cortes (Timeline.tsx): prévia em cima, botões, trilha com os trechos. */
-.tl {
-  display: flex;
-  flex-direction: column;
-  gap: var(--esp-3);
-  margin-top: var(--esp-4);
-}
-
-.tl-previa {
-  height: min(52vh, 480px);
-  background: var(--tela);
-  border-radius: var(--raio-p);
-  overflow: hidden;
-}
-
-.tl-botoes {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--esp-2);
-}
-
-.tl-zoom {
-  display: flex;
-  gap: var(--esp-1);
-}
-
-.tl-tempo {
-  margin-left: auto;
-  font-size: var(--fonte-pequena);
-  font-variant-numeric: tabular-nums;
-}
-
-.tl-trilha {
-  overflow-x: auto;
-  padding: var(--esp-2) 2px;
-  background: var(--painel-2);
-  border-radius: var(--raio-p);
-}
-
-.tl-faixa {
-  position: relative;
-  height: 64px;
-  min-width: 100%;
-  cursor: pointer;
-}
-
-.tl-trecho {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  display: flex;
-  align-items: flex-end;
-  overflow: hidden;
-  background-color: var(--clipe);
-  background-size: auto 100%;
-  background-repeat: repeat-x;
-  border: 2px solid var(--clipe-borda);
-  border-radius: var(--raio-p);
+/* Editor de cortes (Projetos.tsx e Timeline.tsx; desenho em editor-cortes-referencia.html),
+   na tela inteira. Computador: mídia à esquerda, prévia e controles à direita, timeline
+   embaixo. Celular (.ec-celular): prévia em cima, agulha fixa no centro da timeline,
+   barra de ferramentas embaixo e a mídia numa folha. */
+.ec {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  grid-template-rows: 52px minmax(0, 1fr) 52px 230px;
+  background: var(--fundo);
+  color: var(--texto);
   user-select: none;
-  cursor: grab;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
-.tl-alvo {
-  border-color: var(--acento);
+.ec-celular {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 52px minmax(0, 1fr) 52px 190px auto;
 }
 
-.tl-arrastado {
-  z-index: 2;
-  opacity: 0.8;
-  cursor: grabbing;
+.ec-carregando {
+  grid-template-rows: 52px 1fr;
 }
 
-.tl-nome {
+.ec-carregando > p {
+  padding: var(--esp-5);
+}
+
+.ec-topo {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--esp-4);
+  min-width: 0;
+  padding: 0 var(--esp-5);
+  background: var(--painel);
+  border-bottom: 1px solid var(--linha);
+}
+
+.ec-voltar {
+  padding: var(--esp-1) var(--esp-3);
+  font-size: 22px;
+  color: var(--suave);
+}
+
+.ec-topo h1 {
   flex: 1;
   min-width: 0;
-  padding: 2px 6px;
-  font-size: var(--fonte-mini);
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.ec-salvo {
+  font-size: var(--fonte-pequena);
+  color: var(--suave);
+  white-space: nowrap;
+}
+
+.bt.primario.ec-gerar {
+  max-width: 45vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--acento), var(--acento-2));
+  border: 0;
+}
+
+/* Mídia */
+.ec-midia {
+  grid-row: 2 / 4;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--esp-5);
+  background: var(--painel);
+  border-right: 1px solid var(--linha);
+}
+
+.ec-midia-alvo {
+  outline: 2px dashed var(--acento);
+  outline-offset: -6px;
+}
+
+.ec-titulo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 0 10px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--suave);
+}
+
+.ec-titulo span {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.ec-importar {
+  display: block;
+  width: 100%;
+  margin-bottom: var(--esp-4);
+  padding: var(--esp-5);
+  text-align: center;
+  color: var(--suave);
+  background: var(--painel-2);
+  border: 1px dashed var(--linha);
+  border-radius: 12px;
+}
+
+.ec-importar b {
+  color: var(--texto);
+}
+
+.ec-importar small {
+  display: block;
+  margin-top: 2px;
+}
+
+.ec-grade {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.ec-folha .ec-grade {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.ec-arq {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--painel-2);
+  border: 1px solid var(--linha);
+  border-radius: 10px;
+  cursor: grab;
+}
+
+.ec-celular .ec-arq {
+  cursor: pointer;
+}
+
+.ec-arq-capa {
+  display: block;
+  aspect-ratio: 9 / 12;
+  background: var(--tela) center / cover no-repeat;
+}
+
+.ec-arq-info {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--esp-2);
+  padding: var(--esp-2) var(--esp-3) 0;
+  font-size: 12px;
+}
+
+.ec-arq-info span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ec-arq-estado {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-1);
+  padding: 2px var(--esp-3) var(--esp-3);
+  font-size: var(--fonte-pequena);
+  color: var(--onda);
+}
+
+.ec-arq-fila .ec-arq-estado,
+.ec-arq-enviando .ec-arq-estado {
+  color: var(--suave);
+}
+
+.ec-arq-estado progress {
+  width: 100%;
+  accent-color: var(--acento);
+}
+
+.ec-arq-falhou {
+  border-color: var(--perigo);
+}
+
+.ec-arq-falhou .ec-arq-estado {
+  color: var(--perigo);
+}
+
+.ec-add {
+  position: absolute;
+  top: var(--esp-2);
+  right: var(--esp-2);
+  width: 26px;
+  height: 26px;
+  font-weight: 800;
   background: var(--veu);
+  border-radius: 8px;
+}
+
+.ec-selo {
+  position: absolute;
+  top: var(--esp-2);
+  left: var(--esp-2);
+  padding: 2px var(--esp-2);
+  font-size: var(--fonte-mini);
+  color: var(--acento-texto);
+  background: var(--acento);
+  border-radius: var(--raio-p);
+}
+
+.ec-aviso {
+  margin: var(--esp-4) 0 0;
+  font-size: var(--fonte-pequena);
+}
+
+.ec-apagar {
+  width: 100%;
+  margin-top: var(--esp-5);
+}
+
+/* Prévia e controles */
+.ec-previa {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--esp-4);
+  background: var(--tela);
+}
+
+.ec-controles {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-3);
+  min-width: 0;
+  padding: 0 var(--esp-4);
+  background: var(--painel);
+  border-top: 1px solid var(--linha);
+}
+
+.ec:not(.ec-celular) .ec-previa,
+.ec:not(.ec-celular) .ec-controles {
+  grid-column: 2;
+}
+
+.ec-play {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  font-size: 14px;
+  color: var(--fundo);
+  background: var(--texto);
+  border-radius: 50%;
+}
+
+.ec-tempo {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--suave);
+}
+
+.ec-tempo b {
+  color: var(--texto);
+}
+
+.ec-ferramentas {
+  display: flex;
+  gap: var(--esp-2);
+  margin-left: auto;
+  overflow-x: auto;
+}
+
+/* Timeline: régua, V1 (miniaturas) e A1 (forma de onda) */
+.ec-tl {
+  position: relative;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  min-height: 0;
+  background: var(--painel);
+  border-top: 1px solid var(--linha);
+}
+
+.ec-cabecas {
+  display: grid;
+  grid-template-rows: 28px 1fr 1fr;
+  font-size: var(--fonte-pequena);
+  font-weight: 800;
+  color: var(--suave);
+  background: var(--painel-2);
+  border-right: 1px solid var(--linha);
+}
+
+.ec-cabecas div {
+  display: grid;
+  place-items: center;
+  border-bottom: 1px solid var(--linha);
+}
+
+.ec-rolar {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  touch-action: pan-x;
+  scrollbar-width: thin;
+}
+
+.ec-trilhas {
+  position: relative;
+  display: grid;
+  grid-template-rows: 28px 1fr 1fr;
+  min-width: 100%;
+  height: 100%;
+}
+
+.ec-regua {
+  position: relative;
+  border-bottom: 1px solid var(--linha);
+  cursor: pointer;
+}
+
+.ec-celular .ec-regua {
+  cursor: default;
+}
+
+.ec-regua i {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  height: 6px;
+  background: var(--linha);
+}
+
+.ec-regua i.ec-marca-grande {
+  height: 12px;
+  background: var(--suave);
+}
+
+.ec-regua span {
+  position: absolute;
+  bottom: 12px;
+  left: 3px;
+  font-size: var(--fonte-mini);
+  font-style: normal;
+  white-space: nowrap;
+  color: var(--suave);
+}
+
+.ec-trilha {
+  position: relative;
+  border-bottom: 1px solid var(--linha);
+}
+
+.ec-trilha[data-vazio]::before {
+  content: attr(data-vazio);
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: var(--suave);
+}
+
+.ec-trilha-alvo {
+  background: var(--acento-fraco);
+  outline: 2px dashed var(--acento);
+  outline-offset: -4px;
+}
+
+.ec-clipe {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.ec-clipe-v {
+  background-color: var(--clipe);
+  background-size: auto 100%;
+  background-repeat: repeat-x;
+}
+
+.ec-clipe-a {
+  color: var(--onda);
+  background: var(--onda-fundo);
+}
+
+.ec-clipe-a canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.ec-sel {
+  border-color: var(--texto);
+}
+
+.ec-arrastado {
+  z-index: 3;
+  opacity: 0.7;
+}
+
+.ec-clipe-nome {
+  position: absolute;
+  left: var(--esp-2);
+  bottom: var(--esp-1);
+  padding: 1px 5px;
+  font-size: var(--fonte-mini);
+  font-weight: 800;
+  white-space: nowrap;
+  background: var(--veu);
+  border-radius: 4px;
   pointer-events: none;
 }
 
-/* Bordas de aparar: largas o bastante para o dedo; o arrasto nelas não rola a trilha. */
-.tl-borda {
+/* Bordas de aparar (só no trecho escolhido): o arrasto nelas não rola a trilha. */
+.ec-borda {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 14px;
   z-index: 1;
-  background: var(--clipe-borda);
+  width: 14px;
+  background: var(--texto);
   cursor: ew-resize;
   touch-action: none;
 }
 
-.tl-borda-inicio {
+.ec-celular .ec-borda {
+  width: 22px;
+}
+
+.ec-borda::after {
+  content: "";
+  position: absolute;
+  top: 35%;
+  bottom: 35%;
+  left: calc(50% - 1px);
+  width: 2px;
+  background: var(--fundo);
+  border-radius: 2px;
+}
+
+.ec-borda-inicio {
   left: 0;
 }
 
-.tl-borda-fim {
+.ec-borda-fim {
   right: 0;
 }
 
-.tl-marca,
-.tl-cursor {
+.ec-marca-do-arrasto {
   position: absolute;
-  top: -4px;
-  bottom: -4px;
+  top: 28px;
+  bottom: 0;
+  z-index: 4;
   width: 2px;
+  background: var(--acento);
   pointer-events: none;
 }
 
-.tl-marca {
-  background: var(--acento);
+.ec-agulha {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 5;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--agulha-cortes);
+  pointer-events: none;
 }
 
-.tl-cursor {
-  z-index: 3;
-  background: var(--agulha);
+.ec-agulha-cabeca {
+  position: absolute;
+  top: 0;
+  left: -7px;
+  width: 16px;
+  height: 16px;
+  background: var(--agulha-cortes);
+  clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%);
+  cursor: ew-resize;
+  pointer-events: auto;
+  touch-action: none;
 }
 
-/* Fila de envios da mídia (Projetos.tsx): cada vídeo com "Na fila", a barra, "Enviado" ou a falha. */
-.envios {
-  list-style: none;
-  margin: 0 0 var(--esp-3);
-  padding: 0;
+/* Celular: a agulha é o centro da área que rola. */
+.ec-agulha-fixa {
+  left: calc(44px + (100% - 44px) / 2);
+}
+
+.ec-mais {
+  position: absolute;
+  left: 52px;
+  bottom: 14px;
+  z-index: 6;
+  width: 40px;
+  height: 40px;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--fundo);
+  background: var(--texto);
+  border-radius: 10px;
+}
+
+.ec-barra-cel {
+  grid-column: 1 / -1;
   display: flex;
-  flex-direction: column;
-  gap: var(--esp-2);
+  justify-content: space-around;
+  padding: var(--esp-3) var(--esp-2) calc(var(--esp-3) + env(safe-area-inset-bottom));
+  background: var(--painel);
+  border-top: 1px solid var(--linha);
 }
 
-.envio {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--esp-2) var(--esp-3);
-  padding: var(--esp-2) var(--esp-3);
-  background: var(--painel-2);
-  border-radius: var(--raio-p);
-}
-
-.envio-nome {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.envio-andamento {
-  display: flex;
-  align-items: center;
-  gap: var(--esp-2);
-  font-variant-numeric: tabular-nums;
-}
-
-.envio-andamento progress {
-  width: 120px;
-  accent-color: var(--acento);
-}
-
-.envio-ok {
-  color: var(--sucesso);
-}
-
-.envio-falhou {
-  background: var(--perigo-fraco);
-}
-
-.envio-erro {
-  flex-basis: 100%;
-  color: var(--perigo);
+.ec-barra-cel button {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  min-width: 56px;
+  padding: var(--esp-1);
   font-size: var(--fonte-pequena);
+  color: var(--suave);
+}
+
+.ec-barra-cel b {
+  font-size: 20px;
+  line-height: 1;
+  color: var(--texto);
+}
+
+.ec-barra-cel button:disabled {
+  opacity: 0.35;
+}
+
+/* Folha de mídia do celular e avisos curtos */
+.ec-fundo {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--veu);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.ec-folha {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  max-height: 75dvh;
+  overflow: auto;
+  padding: var(--esp-5) var(--esp-5) calc(var(--esp-5) + env(safe-area-inset-bottom));
+  background: var(--painel);
+  border-radius: 18px 18px 0 0;
+  transform: translateY(100%);
+  transition: transform 0.25s;
+}
+
+.ec-fundo.ec-aberta {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ec-folha.ec-aberta {
+  transform: none;
+}
+
+.ec-fechar {
+  padding: 2px var(--esp-2);
+  font-size: 18px;
+  color: var(--suave);
+}
+
+.ec-nota {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: var(--esp-3);
+  max-width: calc(100vw - 32px);
+  padding: var(--esp-3) var(--esp-5);
+  font-size: 12px;
+  background: var(--painel-2);
+  border: 1px solid var(--linha);
+  border-radius: 10px;
+  transform: translateX(-50%);
+}
+
+.ec-nota-erro {
+  color: var(--perigo);
+  border-color: var(--perigo);
 }

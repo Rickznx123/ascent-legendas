@@ -1,17 +1,19 @@
-// Projetos (PLANO-CORTES.md, Blocos 1 a 4), no computador e no celular: a lista dos
-// projetos com "Novo projeto" e o editor de cortes (os vídeos do projeto na timeline;
-// "Gerar legendas" monta o vídeo dos cortes e transcreve só ele; com um vídeo inteiro,
-// "Pular" legenda o próprio vídeo, sem montar).
+// Projetos (PLANO-CORTES.md, Blocos 1 a 6), no computador e no celular: a lista dos
+// projetos com "Novo projeto" e o editor de cortes na tela inteira (a mídia do projeto,
+// a prévia e a timeline; "Gerar legendas" monta o vídeo dos cortes e transcreve só ele;
+// com um vídeo inteiro, "Pular" legenda o próprio vídeo, sem montar).
 // Só com login (os projetos ficam no Supabase); no modo local, o Início de sempre.
-import {useEffect, useRef, useState} from "react";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {api, tituloDoVideo} from "./api";
-import type {Montagem, ProjetoComTimeline, ResumoDeProjeto} from "./api";
+import type {Catalogo, Montagem, ProjetoComTimeline, ResumoDeProjeto} from "./api";
 import {Cartao} from "./celular/Inicio";
 import {plataforma} from "./plataforma";
 import type {VideoEscolhido} from "./plataforma";
-import {Timeline, useTimeline} from "./Timeline";
+import {EditorDaTimeline, LerVideo, TIPO_DO_ARRASTO, useTimeline} from "./Timeline";
+import type {InfoDoVideo} from "./Timeline";
 import {comTentativas} from "./tentativas";
-import {assinaturaDosTrechos, novoId} from "./trechos";
+import {assinaturaDosTrechos, novoId, removerPausas} from "./trechos";
+import type {Duracoes} from "./trechos";
 import type {Editor} from "./useEditor";
 
 // Abrir: um projeto com o vídeo das legendas já escolhido (ou um vídeo antigo, sem
@@ -116,38 +118,105 @@ export const ListaDeProjetos: React.FC<{e: Editor; onAbrir: Abrir}> = ({e, onAbr
 // Um vídeo escolhido para o projeto, do momento em que é escolhido até chegar (ou falhar).
 type Envio = {chave: string; escolhido: VideoEscolhido; estado: "fila" | "enviando" | "enviado" | "falhou"; fracao?: number; mensagem?: string};
 
-// O estado de cada vídeo da fila: "Na fila", a barra de progresso, "Enviado" ou a falha.
-const ListaDeEnvios: React.FC<{envios: Envio[]; onTentarDeNovo: (envio: Envio) => void}> = ({envios, onTentarDeNovo}) =>
-  envios.length === 0 ? null : (
-    <ul className="envios" aria-label="Vídeos sendo enviados">
-      {envios.map((envio) => (
-        <li key={envio.chave} className={`envio envio-${envio.estado}`} role={envio.estado === "falhou" ? "alert" : undefined}>
-          <span className="envio-nome">{envio.escolhido.nome}</span>
-          {envio.estado === "fila" ? <span className="suave">Na fila</span> : null}
-          {envio.estado === "enviando" ? (
-            <span className="envio-andamento">
-              <progress max={1} value={envio.fracao ?? 0} />
-              <span className="suave">{Math.round((envio.fracao ?? 0) * 100)}%</span>
-            </span>
-          ) : null}
-          {envio.estado === "enviado" ? <span className="envio-ok">Enviado</span> : null}
-          {envio.estado === "falhou" ? (
-            <>
-              <span className="envio-erro">Falhou: {envio.mensagem}</span>
-              <button type="button" className="bt" onClick={() => onTentarDeNovo(envio)}>
-                Tentar de novo
-              </button>
-            </>
-          ) : null}
-        </li>
-      ))}
-    </ul>
+// O vídeo montado (Bloco 4) é do projeto, mas não é mídia para pôr na timeline.
+const MONTADO = /^projeto-[0-9a-f]{8}-v\d+\.mp4$/u;
+const duracaoCurta = (ms?: number) => (ms ? `${Math.floor(ms / 60_000)}:${String(Math.round((ms % 60_000) / 1000)).padStart(2, "0")}` : "");
+// A forma de onda vem do servidor em base64 (1 byte por pico).
+const picosDe = (base64: string) => Uint8Array.from(atob(base64), (letra) => letra.charCodeAt(0));
+const picosDeTodos = (ondas: Record<string, string> = {}) => Object.fromEntries(Object.entries(ondas).map(([nome, onda]) => [nome, picosDe(onda)]));
+
+type PropsDaMidia = {
+  arquivos: string[];
+  envios: Envio[];
+  usados: Set<string>;
+  infos: Record<string, InfoDoVideo>;
+  catalogo: Catalogo;
+  celular: boolean;
+  travado: boolean;
+  aviso?: string;
+  onImportar: () => void;
+  onAdicionar: (nome: string) => void;
+  onTentarDeNovo: (envio: Envio) => void;
+  onApagar: () => void;
+};
+
+// A mídia do projeto: importar, os vídeos sendo enviados (com o estado) e os arquivos.
+// ＋ põe um arquivo no fim da timeline; no computador, arrastá-lo para a timeline o põe
+// onde cair; no celular (na folha), tocar nele o põe no fim.
+const Midia: React.FC<PropsDaMidia> = ({arquivos, envios, usados, infos, catalogo, celular, travado, aviso, onImportar, onAdicionar, onTentarDeNovo, onApagar}) => {
+  const indo = envios.filter((envio) => envio.estado !== "enviado");
+  return (
+    <>
+      <button type="button" className="ec-importar" disabled={travado} onClick={onImportar}>
+        ＋ <b>{celular ? "Importar da galeria" : "Importar vídeos"}</b>
+        {celular ? null : <small>ou arraste os arquivos para cá</small>}
+      </button>
+      <div className="ec-grade">
+        {indo.map((envio) => (
+          <div key={envio.chave} className={`ec-arq ec-arq-${envio.estado}`} role={envio.estado === "falhou" ? "alert" : undefined}>
+            <span className="ec-arq-capa" />
+            <div className="ec-arq-info">
+              <span>{envio.escolhido.nome}</span>
+            </div>
+            <div className="ec-arq-estado">
+              {envio.estado === "fila" ? "Na fila" : null}
+              {envio.estado === "enviando" ? (
+                <>
+                  Enviando {Math.round((envio.fracao ?? 0) * 100)}%
+                  <progress max={1} value={envio.fracao ?? 0} />
+                </>
+              ) : null}
+              {envio.estado === "falhou" ? (
+                <>
+                  Falhou: {envio.mensagem}
+                  <button type="button" className="bt" onClick={() => onTentarDeNovo(envio)}>
+                    Tentar de novo
+                  </button>
+                </>
+              ) : null}
+            </div>
+          </div>
+        ))}
+        {arquivos.map((nome) => {
+          const capa = infos[nome]?.capa;
+          return (
+            <div
+              key={nome}
+              className={`ec-arq${usados.has(nome) ? " ec-usado" : ""}`}
+              draggable={!celular && !travado}
+              onDragStart={(event) => event.dataTransfer.setData(TIPO_DO_ARRASTO, nome)}
+              // Celular: o arquivo inteiro é o botão de pôr no fim da timeline.
+              {...(celular ? {role: "button", tabIndex: 0, onClick: () => !travado && onAdicionar(nome)} : {})}
+            >
+              <span className="ec-arq-capa" style={capa ? {backgroundImage: `url("${capa}")`} : undefined} />
+              {usados.has(nome) ? <span className="ec-selo">na timeline</span> : null}
+              {celular ? null : (
+                <button type="button" className="ec-add" aria-label="Pôr no fim da timeline" title="Pôr no fim da timeline" disabled={travado} onClick={() => onAdicionar(nome)}>
+                  ＋
+                </button>
+              )}
+              <div className="ec-arq-info">
+                <span>{tituloDoVideo(catalogo, nome)}</span>
+                <span className="suave">{duracaoCurta(infos[nome]?.duracaoMs)}</span>
+              </div>
+              <div className="ec-arq-estado">Enviado</div>
+            </div>
+          );
+        })}
+      </div>
+      {arquivos.length + indo.length === 0 ? <p className="vazio">Nenhum vídeo no projeto ainda.</p> : null}
+      {aviso ? <p className="suave ec-aviso">{aviso}</p> : null}
+      <button type="button" className="bt ec-apagar" disabled={travado} onClick={onApagar}>
+        Apagar projeto
+      </button>
+    </>
   );
+};
 
-type PropsDosCortes ={e: Editor; id: string; onLegendar: (video: string) => void; onApagado: () => void};
+type PropsDosCortes = {e: Editor; id: string; celular: boolean; onVoltar: () => void; onLegendar: (video: string) => void; onApagado: () => void};
 
-// Os cortes de um projeto: a mídia (vários vídeos de uma vez), a timeline e, com um
-// vídeo inteiro sem cortes, "Legendar este vídeo" (o fluxo de hoje, sem montar nada).
+// O editor de cortes de um projeto, na tela inteira (editor-cortes-referencia.html):
+// topo, mídia, prévia, controles e timeline.
 export const EditorDeCortes: React.FC<PropsDosCortes> = (props) => {
   const [projeto, setProjeto] = useState<ProjetoComTimeline>();
   const [erro, setErro] = useState<string>();
@@ -157,16 +226,43 @@ export const EditorDeCortes: React.FC<PropsDosCortes> = (props) => {
       .then(setProjeto)
       .catch((error: unknown) => setErro(error instanceof Error ? error.message : String(error)));
   }, [props.id]);
-  if (erro) return <p className="login-erro" role="alert">{erro}</p>;
-  return projeto ? <CortesDoProjeto key={projeto.id} {...props} projeto={projeto} /> : <p className="suave">Abrindo o projeto…</p>;
+  if (projeto) return <CortesDoProjeto key={projeto.id} {...props} projeto={projeto} />;
+  return (
+    <div className={`ec ec-carregando${props.celular ? " ec-celular" : ""}`}>
+      <header className="ec-topo">
+        <button type="button" className="ec-voltar" aria-label="Voltar para os projetos" onClick={props.onVoltar}>
+          ‹
+        </button>
+        <h1>Projeto</h1>
+      </header>
+      {erro ? (
+        <p className="login-erro" role="alert">
+          {erro}
+        </p>
+      ) : (
+        <p className="suave">Abrindo o projeto…</p>
+      )}
+    </div>
+  );
 };
 
-const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> = ({e, id, projeto, onLegendar, onApagado}) => {
-  const [erro, setErro] = useState<string>();
+const TEXTO_DO_SALVAMENTO = {salvo: "Salvo", pendente: "Salvando…", salvando: "Salvando…", erro: "Erro ao salvar"};
+
+const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> = ({e, id, celular, projeto, onVoltar, onLegendar, onApagado}) => {
   const [ocupado, setOcupado] = useState(false);
-  const mostrarErro = (error: unknown) => setErro(error instanceof Error ? error.message : String(error));
   const t = useTimeline(id, projeto.timeline.trechos);
   const trechos = t.lista;
+  const listaAtual = useRef(trechos);
+  listaAtual.current = trechos;
+
+  // Avisos curtos por cima da tela; um erro fica até ser fechado.
+  const [nota, setNota] = useState<{texto: string; erro?: boolean}>();
+  useEffect(() => {
+    if (!nota || nota.erro) return;
+    const timer = window.setTimeout(() => setNota(undefined), 1800);
+    return () => window.clearTimeout(timer);
+  }, [nota]);
+  const mostrarErro = (error: unknown) => setNota({texto: error instanceof Error ? error.message : String(error), erro: true});
 
   // Saiu da tela: a fila de envios para e a montagem deixa de ser acompanhada (e não
   // abre as legendas sozinha). Volta a true ao montar: no desenvolvimento o React
@@ -179,9 +275,71 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
     };
   }, []);
 
+  // Os arquivos do projeto: os que já passaram pela timeline (o servidor guarda), os
+  // dela e os enviados agora. A duração, a capa e a prévia de cada um vêm dos leitores.
+  const [enviadosAgora, setEnviadosAgora] = useState<string[]>([]);
+  const arquivos = useMemo(
+    () => [...new Set([...(projeto.timeline.midia ?? []), ...trechos.map((trecho) => trecho.video), ...enviadosAgora])].filter((nome) => !MONTADO.test(nome)),
+    [projeto.timeline.midia, trechos, enviadosAgora],
+  );
+  const usados = useMemo(() => new Set(trechos.map((trecho) => trecho.video)), [trechos]);
+  const [infos, setInfos] = useState<Record<string, InfoDoVideo>>({});
+  const aoInfo = useCallback((nome: string, info: InfoDoVideo) => setInfos((atual) => ({...atual, [nome]: info})), []);
+  const duracoes = useMemo(
+    () => Object.fromEntries(Object.entries(infos).flatMap(([nome, info]) => (info.duracaoMs ? [[nome, info.duracaoMs]] : []))) as Duracoes,
+    [infos],
+  );
+
+  // Áudio dos vídeos da timeline (pausas e forma de onda), lido uma vez no servidor e
+  // guardado no projeto: pedido quando entra um vídeo ainda sem onda.
+  const [pausas, setPausas] = useState<Record<string, [number, number][]>>(projeto.timeline.pausas ?? {});
+  const [ondas, setOndas] = useState<Record<string, Uint8Array>>(() => picosDeTodos(projeto.timeline.ondas));
+  const lerAudio = async () => {
+    await t.salvarAgora();
+    const audio = await api.audio(id);
+    setPausas((atual) => ({...atual, ...audio.pausas}));
+    setOndas((atual) => ({...atual, ...picosDeTodos(audio.ondas)}));
+    return audio.pausas;
+  };
+  const semOnda = [...usados].filter((nome) => !ondas[nome]).join("|");
+  const audioPedidoPara = useRef("");
+  useEffect(() => {
+    // Uma vez por conjunto de vídeos sem onda (uma falha não fica tentando sem parar: a onda só não aparece).
+    if (!semOnda || audioPedidoPara.current === semOnda) return;
+    audioPedidoPara.current = semOnda;
+    lerAudio().catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [semOnda]);
+
+  const [removendoPausas, setRemovendoPausas] = useState(false);
+  const removerAsPausas = async () => {
+    setRemovendoPausas(true);
+    try {
+      const conhecidas = [...usados].every((nome) => pausas[nome]) ? pausas : {...pausas, ...(await lerAudio())};
+      const atual = listaAtual.current;
+      const nova = removerPausas(atual, duracoes, conhecidas);
+      if (nova === atual) {
+        setNota({texto: "Nenhuma pausa para remover."});
+      } else {
+        t.mudar(() => nova);
+        setNota({texto: "Pausas removidas. Desfazer volta tudo."});
+      }
+    } catch (error) {
+      mostrarErro(error);
+    } finally {
+      setRemovendoPausas(false);
+    }
+  };
+
+  // Pôr um arquivo na timeline: no fim (＋, folha) ou onde foi solto (arrastado da mídia).
+  const inserir = (nome: string, posicao = listaAtual.current.length) => {
+    t.mudar((lista) => [...lista.slice(0, posicao), {id: novoId(), video: nome, inicioMs: 0}, ...lista.slice(posicao)]);
+    setNota({texto: "Adicionado à timeline"});
+  };
+
   // Vários vídeos (escolhidos ou arrastados): numa fila, enviados um por vez na ordem
   // (mais vídeos escolhidos no meio entram no fim da fila), cada um com o seu estado na
-  // tela desde que é escolhido. Cada um entra no fim da timeline assim que chega. Falha
+  // mídia desde que é escolhido. Cada um entra no fim da timeline assim que chega. Falha
   // passageira: tenta mais 2 vezes sozinho (o envio continua de onde parou); se não
   // der, só aquele vídeo mostra "Tentar de novo".
   const fila = useRef<Envio[]>([]);
@@ -212,6 +370,7 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
           }
           const trecho = {id: novoId(), video, inicioMs: 0};
           if (naTela.current) {
+            setEnviadosAgora((lista) => [...lista, video]);
             t.mudar((lista) => [...lista, trecho]);
           } else {
             // Saiu da tela durante o envio: o vídeo entra no projeto direto no servidor.
@@ -244,22 +403,21 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
     mudarEnvio(envio.chave, deNovo);
     enfileirar([deNovo]);
   };
-  const [arrastando, setArrastando] = useState(false);
-  const soltar = (event: React.DragEvent) => {
-    event.preventDefault();
-    setArrastando(false);
-    if (travado) return;
-    const arquivos = [...event.dataTransfer.files];
-    const escolhidos = arquivos.map(plataforma.videoArrastado).filter((video): video is VideoEscolhido => Boolean(video));
-    if (escolhidos.length < arquivos.length) setErro("Só vídeos .mp4, .mov, .mkv ou .webm entram no projeto.");
+  const importar = () => void plataforma.escolherVideos({galeria: true}).then(adicionar);
+  const soltarArquivos = (arquivosSoltos: File[]) => {
+    const escolhidos = arquivosSoltos.map(plataforma.videoArrastado).filter((video): video is VideoEscolhido => Boolean(video));
+    if (escolhidos.length < arquivosSoltos.length) setNota({texto: "Só vídeos .mp4, .mov, .mkv ou .webm entram no projeto.", erro: true});
     adicionar(escolhidos);
   };
+  const [arquivosPorCima, setArquivosPorCima] = useState(false);
+
   const inteiro = trechos.length === 1 && trechos[0].inicioMs === 0 && trechos[0].fimMs === undefined;
   const {montado} = projeto.timeline;
   // Os cortes de agora são os do vídeo das legendas: só abrir.
-  const pronto = Boolean(projeto.video) && (inteiro ? trechos[0].video === projeto.video : montado?.video === projeto.video && montado.dosTrechos === assinaturaDosTrechos(trechos));
+  const jaLegendado =
+    Boolean(projeto.video) && (inteiro ? trechos[0].video === projeto.video : montado?.video === projeto.video && montado.dosTrechos === assinaturaDosTrechos(trechos));
   // Já há legendas de outros cortes: gerar de novo troca as legendas.
-  const trocaAsLegendas = Boolean(projeto.video) && !pronto;
+  const trocaAsLegendas = Boolean(projeto.video) && !jaLegendado;
 
   const [etapa, setEtapa] = useState<string>();
   // Acompanha a montagem; pronta, abre as legendas do montado e pede a transcrição.
@@ -295,7 +453,7 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
   const gerar = async () => {
     if (trocaAsLegendas && !window.confirm(`${AVISO_DE_NOVOS_CORTES}\n\nGerar as legendas de novo?`)) return;
     setOcupado(true);
-    setErro(undefined);
+    setNota(undefined);
     try {
       await t.salvarAgora();
       if (inteiro) {
@@ -325,50 +483,116 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
   };
 
   const travado = ocupado || e.ocupado;
+  const [folhaAberta, setFolhaAberta] = useState(false);
+  const midia = (
+    <Midia
+      arquivos={arquivos}
+      envios={envios}
+      usados={usados}
+      infos={infos}
+      catalogo={e.catalogo}
+      celular={celular}
+      travado={travado}
+      aviso={trocaAsLegendas ? AVISO_DE_NOVOS_CORTES : undefined}
+      onImportar={importar}
+      onAdicionar={(nome) => {
+        inserir(nome);
+        setFolhaAberta(false);
+      }}
+      onTentarDeNovo={tentarDeNovo}
+      onApagar={() => void apagar()}
+    />
+  );
   return (
-    <>
-      {erro ? <p className="login-erro" role="alert">{erro}</p> : null}
-      {/* Mídia: escolher vários vídeos de uma vez ou, no computador, arrastar para cá. */}
-      <section
-        className={`midia${arrastando ? " midia-arrastando" : ""}`}
-        onDragOver={(event) => {
-          if (event.dataTransfer.types.includes("Files")) {
+    <div className={`ec${celular ? " ec-celular" : ""}`}>
+      {/* Leitores sempre no mesmo lugar e na mesma ordem (a da timeline muda ao arrastar):
+          recriados, recomeçariam sem a duração, a capa e a prévia. */}
+      {[...arquivos].sort().map((nome) => (
+        <LerVideo key={nome} nome={nome} onInfo={aoInfo} />
+      ))}
+      <header className="ec-topo">
+        <button type="button" className="ec-voltar" aria-label="Voltar para os projetos" onClick={onVoltar}>
+          ‹
+        </button>
+        <h1>{projeto.nome}</h1>
+        <span className="ec-salvo">{TEXTO_DO_SALVAMENTO[t.salvamento]}</span>
+        {trechos.length > 0 ? (
+          <button
+            type="button"
+            className="bt primario ec-gerar"
+            disabled={travado}
+            onClick={() => (jaLegendado ? onLegendar(projeto.video!) : void gerar())}
+          >
+            {etapa ?? (jaLegendado ? "Abrir legendas" : inteiro ? "Pular e legendar" : "Gerar legendas")}
+          </button>
+        ) : null}
+      </header>
+
+      {celular ? null : (
+        <aside
+          className={`ec-midia${arquivosPorCima ? " ec-midia-alvo" : ""}`}
+          aria-label="Mídia do projeto"
+          onDragOver={(event) => {
+            if (!travado && event.dataTransfer.types.includes("Files")) {
+              event.preventDefault();
+              setArquivosPorCima(true);
+            }
+          }}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setArquivosPorCima(false);
+          }}
+          onDrop={(event) => {
             event.preventDefault();
-            setArrastando(true);
-          }
-        }}
-        onDragLeave={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setArrastando(false);
-        }}
-        onDrop={soltar}
-      >
-        <div className="titulo">Mídia</div>
-        <button
-          type="button"
-          className="bt primario cel-cheio"
-          disabled={travado}
-          onClick={() => void plataforma.escolherVideos({galeria: true}).then(adicionar)}
+            setArquivosPorCima(false);
+            if (!travado) soltarArquivos([...event.dataTransfer.files]);
+          }}
         >
-          ＋ Adicionar vídeos
-        </button>
-        <p className="suave midia-dica">Dá para escolher vários de uma vez. No computador, também dá para arrastar os vídeos para cá.</p>
-        <ListaDeEnvios envios={envios} onTentarDeNovo={tentarDeNovo} />
-        {trechos.length === 0 && envios.length === 0 ? <p className="vazio">Nenhum vídeo no projeto ainda.</p> : null}
-      </section>
-      <Timeline t={t} catalogo={e.catalogo} travado={travado} />
-      {pronto ? (
-        <button type="button" className="bt primario cel-cheio cortes-legendar" disabled={travado} onClick={() => onLegendar(projeto.video!)}>
-          Abrir as legendas
-        </button>
-      ) : trechos.length > 0 ? (
-        <button type="button" className="bt primario cel-cheio cortes-legendar" disabled={travado} onClick={() => void gerar()}>
-          {etapa ?? (inteiro ? "Pular os cortes e legendar" : "Gerar legendas")}
-        </button>
+          <h2 className="ec-titulo">
+            Mídia <span>{arquivos.length === 1 ? "1 arquivo" : `${arquivos.length} arquivos`}</span>
+          </h2>
+          {midia}
+        </aside>
+      )}
+
+      <EditorDaTimeline
+        t={t}
+        catalogo={e.catalogo}
+        infos={infos}
+        ondas={ondas}
+        celular={celular}
+        travado={travado}
+        removendoPausas={removendoPausas}
+        onRemoverPausas={() => void removerAsPausas()}
+        onSoltarVideo={inserir}
+        onSoltarArquivos={soltarArquivos}
+        onAbrirMidia={() => setFolhaAberta(true)}
+      />
+
+      {celular ? (
+        <>
+          <div className={`ec-fundo${folhaAberta ? " ec-aberta" : ""}`} onClick={() => setFolhaAberta(false)} />
+          <div className={`ec-folha${folhaAberta ? " ec-aberta" : ""}`} role="dialog" aria-label="Adicionar à timeline" aria-hidden={!folhaAberta}>
+            <h2 className="ec-titulo">
+              Adicionar à timeline
+              <button type="button" className="ec-fechar" aria-label="Fechar" onClick={() => setFolhaAberta(false)}>
+                ✕
+              </button>
+            </h2>
+            {midia}
+          </div>
+        </>
       ) : null}
-      {trocaAsLegendas ? <p className="suave">{AVISO_DE_NOVOS_CORTES}</p> : null}
-      <button type="button" className="bt cel-cheio cortes-apagar" disabled={travado} onClick={() => void apagar()}>
-        Apagar projeto
-      </button>
-    </>
+
+      {nota ? (
+        <div className={`ec-nota${nota.erro ? " ec-nota-erro" : ""}`} role={nota.erro ? "alert" : "status"}>
+          {nota.texto}
+          {nota.erro ? (
+            <button type="button" className="ec-fechar" aria-label="Fechar o aviso" onClick={() => setNota(undefined)}>
+              ✕
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 };

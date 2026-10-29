@@ -23,6 +23,11 @@
   --dupla: #4fb3a9;
   --tela: #000000; /* fundo da prévia e das miniaturas */
   --agulha: #ffffff;
+  /* editor de cortes (editor-cortes-referencia.html) */
+  --acento-2: #ff4fa3; /* fim do degradê de "Gerar legendas" */
+  --agulha-cortes: #ff3b5c;
+  --onda: #2fd38a; /* forma de onda (canal A1) */
+  --onda-fundo: #123a2a;
   --clipe: #34343f;
   --clipe-borda: #44444f;
   --fita: #3a2c22;

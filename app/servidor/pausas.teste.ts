@@ -1,7 +1,7 @@
 // npx tsx --test app/servidor/pausas.teste.ts
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {pausasDaSaida} from "./pausas";
+import {TAXA_DA_ONDA, picosDoAudio, pausasDaSaida} from "./pausas";
 
 const config = {limiarDb: -35, minimaMs: 500, margemMs: 120};
 
@@ -23,4 +23,12 @@ test("silêncios viram pausas com a margem da fala", () => {
 
 test("sem silêncio, sem pausa", () => {
   assert.deepEqual(pausasDaSaida("  Duration: 00:01:00.00, start: 0", config), []);
+});
+
+test("forma de onda: o maior volume de cada 50 ms, de 0 a 255", () => {
+  const amostras = [0, 16384, -32768, 100, ...new Array(TAXA_DA_ONDA / 20 - 4).fill(0), 3277];
+  const pcm = Buffer.alloc(amostras.length * 2);
+  amostras.forEach((valor, i) => pcm.writeInt16LE(valor, i * 2));
+  // 400 amostras por janela: a primeira tem o -32768 (255), a segunda só o 3277 (~26).
+  assert.deepEqual([...picosDoAudio(pcm)], [255, 26]);
 });
