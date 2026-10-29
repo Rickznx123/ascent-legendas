@@ -60,6 +60,9 @@ export type ProjetoComTimeline = {id: string; nome: string; video: string | null
 
 const MAXIMO_DE_TRECHOS = 500;
 const ID_VALIDO = /^[0-9a-f-]{36}$/iu;
+// Legendas apagadas (o vídeo do projeto mudou): o padrão da coluna, que não aceita null
+// (sem blocks, lerProjeto trata como "ainda não transcrito").
+const SEM_LEGENDAS = {};
 
 type Linha = {id: string; nome: string; video: string | null; timeline: Timeline | null; atualizado_em: string; blocos?: unknown[] | null};
 
@@ -115,7 +118,11 @@ type Dependencias = {
 export const rotasDeProjetos = ({contas, videos, previas, armazenamento, espacoDe, entrarNaFila}: Dependencias) => {
   const rotas = express.Router();
   const bancoDe = (response: Response) => contas.doUsuario(response.locals.token as string);
-  const falha = (acao: string, erro: {message: string}) => new Error(`Não foi possível ${acao}: ${erro.message}`);
+  // O texto do banco vai só para o log; a tela recebe a frase em português.
+  const falha = (acao: string, erro: {message: string}) => {
+    console.log(`Projetos: ${acao}: ${erro.message}`);
+    return new Error(`Não foi possível ${acao}. Tente de novo.`);
+  };
 
   const rota =
     (fn: (request: Request, response: Response) => Promise<unknown>) =>
@@ -221,7 +228,7 @@ export const rotasDeProjetos = ({contas, videos, previas, armazenamento, espacoD
       const anterior = (await linha(response, request.params.id)).video;
       const {error} = await bancoDe(response)
         .from("projetos")
-        .update(anterior === video ? {video} : {video, dados: null})
+        .update(anterior === video ? {video} : {video, dados: SEM_LEGENDAS})
         .eq("id", request.params.id);
       if (error) throw falha("salvar o projeto", error);
       return {video};
@@ -321,7 +328,7 @@ export const rotasDeProjetos = ({contas, videos, previas, armazenamento, espacoD
             const agora = await linha(response, id);
             const {error} = await bancoDe(response)
               .from("projetos")
-              .update({video: nome, dados: null, timeline: {...timelineDe(agora), montado: {video: nome, dosTrechos: assinaturaDosTrechos(trechos)}}})
+              .update({video: nome, dados: SEM_LEGENDAS, timeline: {...timelineDe(agora), montado: {video: nome, dosTrechos: assinaturaDosTrechos(trechos)}}})
               .eq("id", id);
             if (error) throw falha("salvar o vídeo montado no projeto", error);
             // O montado anterior não serve mais (os originais nunca são apagados aqui).

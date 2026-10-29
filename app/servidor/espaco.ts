@@ -82,7 +82,11 @@ type Linha = {id: string; video: string | null; dados: Projeto; atualizado_em: s
 export const espacoDoUsuario = (root: string, contas: Contas, usuario: Usuario, token: string): Espaco => {
   const pasta = pastaDoUsuario(root, usuario);
   const banco = contas.doUsuario(token);
-  const falha = (acao: string, erro: {message: string}) => new Error(`Não foi possível ${acao}: ${erro.message}`);
+  // O texto do banco vai só para o log; a tela recebe a frase em português.
+  const falha = (acao: string, erro: {message: string}) => {
+    console.log(`Espaço: ${acao}: ${erro.message}`);
+    return new Error(`Não foi possível ${acao}. Tente de novo.`);
+  };
 
   // Plano do perfil e histórico de exportações, lidos com a chave secreta (o
   // usuário não muda nenhum dos dois).
