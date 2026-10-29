@@ -6,6 +6,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {api, tituloDoVideo} from "./api";
 import type {Catalogo, Montagem, ProjetoComTimeline, ResumoDeProjeto} from "./api";
+import {Andamento} from "./celular/Andamento";
 import {Cartao} from "./celular/Inicio";
 import {plataforma} from "./plataforma";
 import {editorDeCortes} from "./sessao";
@@ -437,16 +438,17 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
   // Já há legendas de outros cortes: gerar de novo troca as legendas.
   const trocaAsLegendas = Boolean(projeto.video) && !jaLegendado;
 
-  const [etapa, setEtapa] = useState<string>();
+  // Andamento da montagem (a barra abaixo do topo): etapa e fração vêm do servidor.
+  const [montagem, setMontagem] = useState<{etapa: string; fracao?: number}>();
   // Acompanha a montagem; pronta, abre as legendas do montado e pede a transcrição.
   const acompanhar = async (tarefa: Montagem | {estado: "nenhuma"}) => {
     let atual = tarefa;
     while (atual.estado === "andamento" && naTela.current) {
-      setEtapa(atual.etapa ?? "Montando o vídeo...");
+      setMontagem({etapa: atual.etapa ?? "Montando o vídeo", fracao: atual.fracao});
       await new Promise((resolve) => window.setTimeout(resolve, PERGUNTAR_DE_NOVO_MS));
       atual = await api.montagem(id);
     }
-    setEtapa(undefined);
+    setMontagem(undefined);
     if (!naTela.current) return;
     if (atual.estado === "falhou") throw new Error(atual.mensagem ?? "Não foi possível montar o vídeo.");
     if (atual.estado === "pronta" && atual.montado) {
@@ -541,10 +543,15 @@ const CortesDoProjeto: React.FC<PropsDosCortes & {projeto: ProjetoComTimeline}> 
             disabled={travado}
             onClick={() => (jaLegendado ? onLegendar(projeto.video!) : void gerar())}
           >
-            {etapa ?? (jaLegendado ? "Abrir legendas" : inteiro ? "Pular e legendar" : "Gerar legendas")}
+            {montagem ? "Gerando…" : jaLegendado ? "Abrir legendas" : inteiro ? "Pular e legendar" : "Gerar legendas"}
           </button>
         ) : null}
       </header>
+      {montagem ? (
+        <div className="ec-andamento">
+          <Andamento tarefa={{nome: "Gerar legendas", ...montagem}} />
+        </div>
+      ) : null}
 
       {celular ? null : (
         <aside

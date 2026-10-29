@@ -2756,3 +2756,22 @@ h3 {
     justify-content: center;
   }
 }
+
+/* Andamento do "Gerar legendas" (Projetos.tsx): faixa logo abaixo do topo do editor de cortes. */
+.ec-andamento {
+  position: fixed;
+  top: 52px;
+  left: 0;
+  right: 0;
+  z-index: 5;
+}
+
+.ec-andamento .cel-andamento {
+  font-size: 13px;
+  color: var(--texto);
+}
+
+.ec-andamento progress {
+  height: 6px;
+  accent-color: var(--acento);
+}
