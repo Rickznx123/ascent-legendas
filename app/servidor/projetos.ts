@@ -30,7 +30,7 @@ import {analisarAudio} from "./pausas";
 import type {Pausa} from "./pausas";
 import type {PreviasLeves} from "./previa-leve";
 import type {ArmazenamentoS3} from "./s3";
-import {tarefasSoltas} from "./tarefas-soltas";
+import {ErroParaATela, mensagemParaATela, tarefasSoltas} from "./tarefas-soltas";
 import type {VideosDasContas} from "./videos";
 
 // inicioMs e fimMs: o pedaço do vídeo que entra (sem fimMs: até o fim do vídeo).
@@ -85,7 +85,7 @@ export const timelineNova = (antes: Pick<Linha, "video" | "timeline">, nova: Tim
 
 const nomeValido = (nome: unknown): string => {
   const limpo = typeof nome === "string" ? nome.trim() : "";
-  if (!limpo || limpo.length > 80) throw new Error("Dê um nome ao projeto (até 80 letras).");
+  if (!limpo || limpo.length > 80) throw new ErroParaATela("Dê um nome ao projeto (até 80 letras).");
   return limpo;
 };
 
@@ -128,11 +128,11 @@ export const rotasDeProjetos = ({contas, videos, previas, armazenamento, espacoD
     (fn: (request: Request, response: Response) => Promise<unknown>) =>
     async (request: Request, response: Response) => {
       try {
-        if (!espacoDe(response).usuario) throw new Error("Entre na sua conta.");
-        if (request.params.id !== undefined && !ID_VALIDO.test(request.params.id)) throw new Error("Projeto não encontrado.");
+        if (!espacoDe(response).usuario) throw new ErroParaATela("Entre na sua conta.");
+        if (request.params.id !== undefined && !ID_VALIDO.test(request.params.id)) throw new ErroParaATela("Projeto não encontrado.");
         response.json((await fn(request, response)) ?? {ok: true});
       } catch (erro) {
-        response.status(400).json({mensagem: erro instanceof Error ? erro.message : String(erro)});
+        response.status(400).json({mensagem: mensagemParaATela(erro, `projetos ${request.method} ${request.path}`)});
       }
     };
 
@@ -140,7 +140,7 @@ export const rotasDeProjetos = ({contas, videos, previas, armazenamento, espacoD
   const linha = async (response: Response, id: string): Promise<Linha> => {
     const {data, error} = await bancoDe(response).from("projetos").select("id, nome, video, timeline, atualizado_em").eq("id", id).maybeSingle();
     if (error) throw falha("ler o projeto", error);
-    if (!data) throw new Error("Projeto não encontrado.");
+    if (!data) throw new ErroParaATela("Projeto não encontrado.");
     return data as Linha;
   };
 
@@ -222,7 +222,7 @@ export const rotasDeProjetos = ({contas, videos, previas, armazenamento, espacoD
       const video = String((request.body as {video?: unknown} | undefined)?.video ?? "");
       const {trechos} = timelineDe(await linha(response, request.params.id));
       const inteiro = trechos.length === 1 && trechos[0].video === video && trechos[0].inicioMs === 0 && trechos[0].fimMs === undefined;
-      if (!inteiro) throw new Error("Para legendar sem montar, a timeline precisa ter um vídeo só, sem cortes.");
+      if (!inteiro) throw new ErroParaATela("Para legendar sem montar, a timeline precisa ter um vídeo só, sem cortes.");
       await videos.fonte(espacoDe(response), video);
       // Legendas de outro vídeo (um montado antes) não servem para este.
       const anterior = (await linha(response, request.params.id)).video;
@@ -307,7 +307,7 @@ export const rotasDeProjetos = ({contas, videos, previas, armazenamento, espacoD
       if (atual) return atual;
       const l = await linha(response, id);
       const {trechos, montado} = timelineDe(l);
-      if (trechos.length === 0) throw new Error("Adicione um vídeo antes de gerar as legendas.");
+      if (trechos.length === 0) throw new ErroParaATela("Adicione um vídeo antes de gerar as legendas.");
       const nomes = [...new Set(trechos.map((t) => t.video))];
       await conferirVideos(espaco, nomes);
       return montagens.iniciar(

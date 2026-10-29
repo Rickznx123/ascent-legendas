@@ -13,6 +13,9 @@ export const EVENTO_SESSAO_EXPIRADA = "sessao-expirada";
 // Sem resposta (conexão caiu, servidor fora): a mensagem do navegador ("Failed to fetch",
 // "Load failed") vira uma em português; continua TypeError (o Pix e o cupom reconhecem).
 export const SEM_CONEXAO = "Sem conexão com o servidor. Confira a internet e tente de novo.";
+// A mesma do servidor (MENSAGEM_DE_ERRO em app/servidor/tarefas-soltas.ts): resposta sem
+// mensagem para a tela (ex.: a página de erro do Render num deploy) nunca mostra o detalhe.
+export const MENSAGEM_DE_ERRO = "Deu erro ao processar, tente de novo";
 export const pedir = async (url: string, init: RequestInit = {}): Promise<Response> => {
   const token = tokenDaSessao();
   const resposta = await fetch(url, token ? {...init, headers: {...(init.headers ?? {}), Authorization: `Bearer ${token}`}} : init).catch((erro: unknown) => {
@@ -103,10 +106,13 @@ export type TranscricaoNoServidor = TarefaSolta & {projeto?: Projeto; avisos?: s
 export type Montagem = TarefaSolta & {montado?: string};
 
 const lerJson = async <T>(response: Response): Promise<T> => {
-  const data = (await response.json()) as T & {mensagem?: string; codigo?: string};
+  const data = (await response.json().catch(() => {
+    if (response.ok) throw new Error(MENSAGEM_DE_ERRO);
+    return {};
+  })) as T & {mensagem?: string; codigo?: string};
   if (!response.ok) {
     // codigo: o que a tela pode fazer com o erro (ex.: "cpf-necessario" no Pix).
-    throw Object.assign(new Error(data.mensagem ?? `Erro ${response.status}`), {codigo: data.codigo});
+    throw Object.assign(new Error(data.mensagem ?? MENSAGEM_DE_ERRO), {codigo: data.codigo});
   }
   return data;
 };
@@ -279,7 +285,7 @@ export const executarTarefa = async <T>(
   });
   if (!response.ok || !response.body) {
     await lerJson(response);
-    throw new Error(`Erro ${response.status}`);
+    throw new Error(MENSAGEM_DE_ERRO);
   }
 
   const reader = response.body.getReader();

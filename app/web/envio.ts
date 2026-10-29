@@ -7,7 +7,7 @@
 // - Os limites do plano são do servidor (rotas em app/servidor/envio.ts); aqui só se
 //   mede a duração antes, para avisar sem gastar dados.
 // - O erro diz em que etapa o envio parou; 30 s sem andamento avisam a tela.
-import {evento, pedir} from "./api";
+import {MENSAGEM_DE_ERRO, evento, pedir} from "./api";
 import {usuarioDaSessao} from "./sessao";
 
 export class ErroDeEnvio extends Error {
@@ -88,7 +88,7 @@ export const enviosInterrompidos = (): {nome: string; fracao: number}[] => {
 const lerResposta = async <T>(resposta: Response): Promise<T> => {
   const dados = (await resposta.json().catch(() => ({}))) as T & {mensagem?: string};
   if (!resposta.ok) {
-    throw new ErroDeEnvio(dados.mensagem ?? `Erro ${resposta.status}`, resposta.status);
+    throw new ErroDeEnvio(dados.mensagem ?? MENSAGEM_DE_ERRO, resposta.status);
   }
   return dados;
 };

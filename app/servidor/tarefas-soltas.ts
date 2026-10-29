@@ -18,7 +18,20 @@ export type TarefaSolta = {
   [campo: string]: unknown;
 };
 
-export const MENSAGEM_DE_TAREFA_PARADA = "Deu erro, tente de novo.";
+export const MENSAGEM_DE_ERRO = "Deu erro ao processar, tente de novo";
+export const MENSAGEM_DE_TAREFA_PARADA = MENSAGEM_DE_ERRO;
+
+// Erro escrito para a pessoa ler (ex.: "Entre na sua conta."): vai para a tela como está.
+export class ErroParaATela extends Error {}
+
+// O que a tela mostra de um erro: o aviso escrito para ela, ou o de um código do plano
+// (ex.: "assine"); qualquer outro (ffmpeg, S3, banco, Lambda) vira a mensagem genérica
+// e o detalhe vai só para o log.
+export const mensagemParaATela = (erro: unknown, onde: string): string => {
+  if (erro instanceof ErroParaATela || (erro instanceof Error && typeof (erro as {codigo?: unknown}).codigo === "string")) return erro.message;
+  console.log(`Erro (${onde}): ${erro instanceof Error ? (erro.stack ?? erro.message) : String(erro)}`);
+  return MENSAGEM_DE_ERRO;
+};
 // Esperando a vez na fila não é estar parado (a etapa começa com "Na fila").
 const naFila = (tarefa: TarefaSolta) => Boolean(tarefa.etapa?.startsWith("Na fila"));
 
@@ -95,7 +108,7 @@ export const tarefasSoltas = ({paradaMaximaMs}: {paradaMaximaMs?: number} = {}) 
             tarefa.estado === "andamento" &&
             Object.assign(tarefa, {
               estado: "falhou",
-              mensagem: erro instanceof Error ? erro.message : String(erro),
+              mensagem: mensagemParaATela(erro, `tarefa ${tarefa.id.slice(0, 8)} (${tarefa.video})`),
               codigo: (erro as {codigo?: unknown}).codigo === undefined ? undefined : String((erro as {codigo?: unknown}).codigo),
             }),
         )

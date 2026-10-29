@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {entrarComAviso, filaComVagas, textoDaFila} from "./limites";
-import {MENSAGEM_DE_TAREFA_PARADA, tarefasSoltas} from "./tarefas-soltas";
+import {ErroParaATela, MENSAGEM_DE_ERRO, MENSAGEM_DE_TAREFA_PARADA, mensagemParaATela, tarefasSoltas} from "./tarefas-soltas";
 
 const esperarSinal = (sinal: AbortSignal) => new Promise<never>((_, rejeitar) => sinal.addEventListener("abort", () => rejeitar(sinal.reason)));
 
@@ -51,4 +51,12 @@ test("cancelada, a vaga volta para a fila na hora", async () => {
   await segunda;
   assert.equal(fila.ocupadas(), 1);
   assert.equal(fila.esperando(), 0);
+});
+
+test("na tela, só o aviso escrito para ela; o erro técnico vira a mensagem genérica", () => {
+  const doFfmpeg = Object.assign(new Error("Command failed: ffmpeg -ss 41.2 -i https://bucket.s3.amazonaws.com/x.MOV"), {cmd: "ffmpeg", code: 1});
+  assert.equal(mensagemParaATela(doFfmpeg, "teste"), MENSAGEM_DE_ERRO);
+  assert.equal(mensagemParaATela("texto solto", "teste"), MENSAGEM_DE_ERRO);
+  assert.equal(mensagemParaATela(new ErroParaATela("Entre na sua conta."), "teste"), "Entre na sua conta.");
+  assert.equal(mensagemParaATela(Object.assign(new Error("Assine para continuar."), {codigo: "assine"}), "teste"), "Assine para continuar.");
 });

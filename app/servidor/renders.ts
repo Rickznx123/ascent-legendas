@@ -28,6 +28,7 @@ import {LIMITES_DE_USO, textoDaFila} from "./limites";
 import {siteDaVersao} from "./site-lambda";
 import type {SiteDoLambda} from "./site-lambda";
 import {registrarEvento} from "./eventos";
+import {ErroParaATela, MENSAGEM_DE_ERRO} from "./tarefas-soltas";
 
 // Decisões do bloco 6: função de 2048 MB; 60 quadros por Lambda até 90 s de vídeo
 // e 200 acima disso; saída limitada a 1080 x 1920 (o lado maior a 1920 e o menor
@@ -177,7 +178,7 @@ export const rendersNoLambda = ({
       return {id: linha.id, video: linha.video, estado: "pronta", fracao: 1, caminho: nome, url, download};
     }
     if (linha.situacao === "falhou") {
-      return {id: linha.id, video: linha.video, estado: "falhou", mensagem: linha.erro ?? "Não deu para exportar. Tente de novo."};
+      return {id: linha.id, video: linha.video, estado: "falhou", mensagem: MENSAGEM_DE_ERRO};
     }
     if (linha.situacao === "fila") {
       // Posição: quantos estão na fila antes deste, mais 1.
@@ -349,7 +350,7 @@ export const rendersNoLambda = ({
         .eq("usuario_id", usuario.id)
         .in("situacao", ["fila", "andamento"]);
       if ((daConta ?? 0) > 0) {
-        throw new Error("Você já tem uma exportação em andamento. Espere ela terminar para começar outra.");
+        throw new ErroParaATela("Você já tem uma exportação em andamento. Espere ela terminar para começar outra.");
       }
       // Sem o site desta versão, avisa já (antes de entrar na fila).
       await prontoParaExportar();

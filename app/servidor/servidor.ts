@@ -60,8 +60,6 @@ export type PlanosDaApresentacao = {
   videosExportados?: number;
 };
 
-// Erro com mensagem já pronta para a tela.
-class ErroParaATela extends Error {}
 import {rendersNoLambda} from "./renders";
 import {cookieDoPedido, metaDoAmbiente, scriptDoPixel} from "./meta";
 import {boasVindasDoAmbiente} from "./boas-vindas";
@@ -72,7 +70,7 @@ import type {AoAprovar} from "./pagamento-aprovado";
 import type {ExportacaoMontada} from "./renders";
 import type {AwsRegion} from "@remotion/lambda/client";
 import {tituloDoVideo} from "./titulo";
-import {tarefasSoltas} from "./tarefas-soltas";
+import {ErroParaATela, mensagemParaATela, tarefasSoltas} from "./tarefas-soltas";
 import {eventoDaTela, registrarEvento, registrarEventoDoVisitante} from "./eventos";
 import {linkDoBanner, respostaAoBanner} from "./grupo";
 import {emailsDeRecuperacao} from "./recuperacao";
@@ -108,7 +106,7 @@ const streamTask = async (
   } catch (error) {
     // codigo: a tela mostra uma tela própria (ex.: "assine" → Assine para continuar).
     const codigo = error instanceof ErroDoPlano ? error.codigo : undefined;
-    send({tipo: "erro", mensagem: error instanceof Error ? error.message : String(error), codigo});
+    send({tipo: "erro", mensagem: mensagemParaATela(error, "tarefa"), codigo});
   } finally {
     response.end();
   }
@@ -405,7 +403,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
           response.json(result ?? {});
         }
       } catch (error) {
-        response.status(400).json({mensagem: error instanceof Error ? error.message : String(error)});
+        response.status(400).json({mensagem: mensagemParaATela(error, `${request.method} ${request.path}`)});
       }
     };
 
@@ -511,7 +509,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       response.locals.token = token;
       next();
     } catch (error) {
-      response.status(401).json({mensagem: error instanceof Error ? error.message : String(error)});
+      response.status(401).json({mensagem: mensagemParaATela(error, "login")});
     }
   });
 
@@ -612,7 +610,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     "/api/grupo",
     handle(async (request, response) => {
       const usuario = espacoDe(response).usuario;
-      if (!contas || !usuario) throw new Error("Só com login.");
+      if (!contas || !usuario) throw new ErroParaATela("Só com login.");
       await respostaAoBanner(contas.admin, usuario.id, (request.body as {acao?: unknown} | undefined)?.acao);
       return {ok: true};
     }),
@@ -642,7 +640,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
   // Plano pedido pela tela (só escolhe o checkout; o nível vale pelo valor pago).
   const nivelDoPedido = (request: Request): Nivel => {
     const pedido = (request.body as {nivel?: unknown} | undefined)?.nivel ?? "basico";
-    if (!nivelValido(pedido)) throw new Error("Plano desconhecido.");
+    if (!nivelValido(pedido)) throw new ErroParaATela("Plano desconhecido.");
     return pedido;
   };
   // Cupom pedido pela tela (corpo: {cupom}), validado aqui a cada pedido; sem: undefined.
@@ -662,7 +660,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     "/api/cupom",
     handle(async (request) => {
       const cupom = await cupomDoPedido(request);
-      if (!cupom) throw new Error("Digite o código do cupom.");
+      if (!cupom) throw new ErroParaATela("Digite o código do cupom.");
       return {cupom: vistaDoCupom(cupom)};
     }),
   );
@@ -677,7 +675,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       return await pedido();
     } catch (erro) {
       console.log(`Mercado Pago: ${acao}: ${erro instanceof Error ? erro.message : String(erro)}`);
-      throw new Error(SEM_CHECKOUT);
+      throw new ErroParaATela(SEM_CHECKOUT);
     }
   };
   // Corpo: {nivel} (basico, pro ou editor). Sem assinatura: checkout do plano. Com a
@@ -690,19 +688,19 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     handle(async (request, response) => {
       const espaco = espacoDe(response);
       if (!apiMp || !mercadoPago || !bancoDasAssinaturas || !espaco.usuario) {
-        throw new Error("A assinatura não está disponível agora.");
+        throw new ErroParaATela("A assinatura não está disponível agora.");
       }
       const nivel = nivelDoPedido(request);
       const plano = planoPago(nivel);
       const resumo = await resumoDaConta(espaco, response.locals.token as string);
       // Quem decide é decidirPedidoDePlano (assinaturas.ts, com os testes).
       const pedido = decidirPedidoDePlano(resumo, nivel);
-      if (pedido.acao === "recusar") throw new Error(pedido.motivo);
+      if (pedido.acao === "recusar") throw new ErroParaATela(pedido.motivo);
       const lista = await bancoDasAssinaturas.assinaturasDaConta(espaco.usuario.id);
       const vigente = assinaturaVigente(lista);
       // Descer, ou desfazer uma descida agendada: o valor das próximas cobranças muda.
       if (pedido.acao === "descer" || pedido.acao === "desfazer") {
-        if (!vigente) throw new Error("Não há assinatura ativa para trocar.");
+        if (!vigente) throw new ErroParaATela("Não há assinatura ativa para trocar.");
         await noMercadoPago(`trocar o valor de ${vigente.mp_preapproval_id}`, () => apiMp.alterarValorDaAssinatura(vigente.mp_preapproval_id, plano.valor));
         await bancoDasAssinaturas.salvarAssinatura(vigente.id, {valor: plano.valor, nivel});
         await bancoDasAssinaturas.salvarPerfil(espaco.usuario.id, {nivel_na_renovacao: pedido.acao === "descer" ? nivel : null});
@@ -738,7 +736,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       );
       if (!pre.init_point) {
         console.log(`Mercado Pago: abrir o checkout de ${espaco.usuario.id}: resposta sem init_point (${pre.id}).`);
-        throw new Error(SEM_CHECKOUT);
+        throw new ErroParaATela(SEM_CHECKOUT);
       }
       await bancoDasAssinaturas.criarAssinatura({
         usuario_id: espaco.usuario.id,
@@ -760,7 +758,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     "/api/assinatura/confirmar",
     handle(async (_request, response) => {
       const espaco = espacoDe(response);
-      if (!contas || !espaco.usuario) throw new Error("Entre na sua conta.");
+      if (!contas || !espaco.usuario) throw new ErroParaATela("Entre na sua conta.");
       if (eventosMp) {
         const resultado = await eventosMp.confirmarDaConta(espaco.usuario.id).catch((erro: unknown) => `erro ${erro instanceof Error ? erro.message : String(erro)}`);
         console.log(`Mercado Pago: confirmação de ${espaco.usuario.id}: ${resultado}`);
@@ -782,13 +780,13 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     handle(async (_request, response) => {
       const espaco = espacoDe(response);
       if (!apiMp || !bancoDasAssinaturas || !espaco.usuario) {
-        throw new Error("A assinatura não está disponível agora.");
+        throw new ErroParaATela("A assinatura não está disponível agora.");
       }
       const atual = assinaturaVigente(await bancoDasAssinaturas.assinaturasDaConta(espaco.usuario.id));
-      if (!atual || atual.status === "cancelada") throw new Error("Não há assinatura ativa para cancelar.");
+      if (!atual || atual.status === "cancelada") throw new ErroParaATela("Não há assinatura ativa para cancelar.");
       const pre = await apiMp.cancelarAssinatura(atual.mp_preapproval_id).catch((erro: unknown) => {
         console.log(`Mercado Pago: cancelar ${atual.mp_preapproval_id}: ${erro instanceof Error ? erro.message : String(erro)}`);
-        throw new Error("Não foi possível cancelar agora. Tente de novo em instantes.");
+        throw new ErroParaATela("Não foi possível cancelar agora. Tente de novo em instantes.");
       });
       const perfil = await bancoDasAssinaturas.perfil(espaco.usuario.id);
       const efeito = regraDaAssinatura(atual, pre, perfil, new Date());
@@ -1047,7 +1045,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       response.json({nome});
     } catch (error) {
       await rm(temporario, {force: true});
-      response.status(500).json({mensagem: error instanceof Error ? error.message : String(error)});
+      response.status(500).json({mensagem: mensagemParaATela(error, "importar")});
     }
   });
 
@@ -1067,7 +1065,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
     handle(async (_request, response) => {
       // Abre o Explorer da máquina do servidor: só no computador.
       if (publico) {
-        throw new Error("Indisponível no app publicado: baixe o vídeo exportado.");
+        throw new ErroParaATela("Indisponível no app publicado: baixe o vídeo exportado.");
       }
       const pasta = path.join(espacoDe(response).pasta, "saidas");
       await mkdir(pasta, {recursive: true});
@@ -1215,7 +1213,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       const apagouTranscricao = await espaco.apagarProjeto(nome);
       response.json({movidoPara, apagouTranscricao});
     } catch (error) {
-      response.status(400).json({mensagem: error instanceof Error ? error.message : String(error)});
+      response.status(400).json({mensagem: mensagemParaATela(error, "remover vídeo")});
     }
   });
 
@@ -1321,7 +1319,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       const {video: pedido} = (request.body ?? {}) as {video?: string};
       const projeto = await espaco.lerProjeto(pedido);
       if (!projeto || (pedido && projeto.source !== pedido)) {
-        throw new Error("Não há projeto para exportar.");
+        throw new ErroParaATela("Não há projeto para exportar.");
       }
       // Vídeo enviado ao S3 (com login): no Lambda. Antigo, só no disco: aqui.
       const fonte = await videos.fonte(espaco, projeto.source);
@@ -1403,7 +1401,7 @@ export const iniciarServidor = async ({porta, pastaProjeto, modo, rede = false, 
       await streamTask(response, async (progress) => {
         const {disponivel, videos, projeto} = await importacaoLocal(request, espaco);
         if (!disponivel) {
-          throw new Error("A importação deste computador não está disponível para esta conta.");
+          throw new ErroParaATela("A importação deste computador não está disponível para esta conta.");
         }
         await mkdir(espaco.pasta, {recursive: true});
         for (const [indice, nome] of videos.entries()) {

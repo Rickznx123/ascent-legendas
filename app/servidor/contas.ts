@@ -5,6 +5,7 @@ import {createClient} from "@supabase/supabase-js";
 import type {SupabaseClient} from "@supabase/supabase-js";
 import {COLUNAS_DO_PERFIL, planoEfetivo} from "./assinaturas";
 import type {PerfilDaAssinatura} from "./assinaturas";
+import {ErroParaATela} from "./tarefas-soltas";
 
 export type Plano = "gratis" | "assinante";
 
@@ -65,7 +66,7 @@ export const contasDoAmbiente = (): Contas | undefined => {
     const {data, error} = await publico.auth.getUser(token);
     if (error || !data.user) {
       cache.delete(token);
-      throw new Error("Sessão inválida ou expirada. Entre de novo.");
+      throw new ErroParaATela("Sessão inválida ou expirada. Entre de novo.");
     }
     const usuario = {id: data.user.id, email: data.user.email ?? ""};
     // Limpa os vencidos de vez em quando (tokens renovados a cada hora).
